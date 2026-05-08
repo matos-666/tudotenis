@@ -1,0 +1,26 @@
+name: Daily Settlement (extra pass)
+
+# Vercel Cron faz settle às 22:30 UTC.
+# Este workflow corre 03:30 UTC para apanhar matches que terminaram tarde
+# (US Open, indoor events em USA, etc.)
+
+on:
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  settle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call /api/cron/settle
+        run: |
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+            -X POST "https://tudotenis.vercel.app/api/cron/settle" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+          STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS:")
+          echo "Status: $STATUS"
+          echo "Response: $BODY"
+          [ "$STATUS" = "200" ] || exit 1
