@@ -1,0 +1,172 @@
+import { supabase } from '@/lib/supabase';
+import { Header } from '@/components/Header';
+import { Footer } from '@/components/Footer';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Ranking ELO ATP/WTA · 1.059 jogadores',
+  description:
+    'Ranking ELO próprio para ATP e WTA. Atualizado diariamente com 40k+ jogos analisados. Veja os top 10 e os movers da semana.',
+  alternates: { canonical: '/ranking' },
+};
+
+// ISR: re-gera a cada hora (ou on-demand via revalidate)
+export const revalidate = 3600;
+
+interface Player {
+  id: number;
+  slug: string;
+  name: string;
+  flag: string | null;
+  tour: string;
+  atp_rank: number | null;
+  elo_overall: number | null;
+  elo_hard: number | null;
+  elo_clay: number | null;
+  elo_grass: number | null;
+  elo_30d_ago: number | null;
+  form_l5: string | null;
+  photo_url: string | null;
+}
+
+async function fetchTopPlayers(tour: 'atp' | 'wta', limit = 50): Promise<Player[]> {
+  const { data, error } = await supabase
+    .from('players')
+    .select(
+      'id, slug, name, flag, tour, atp_rank, elo_overall, elo_hard, elo_clay, elo_grass, elo_30d_ago, form_l5, photo_url'
+    )
+    .eq('tour', tour)
+    .eq('active', true)
+    .order('elo_overall', { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.error('Supabase error:', error.message);
+    return [];
+  }
+  return data ?? [];
+}
+
+export default async function RankingPage() {
+  const [atp, wta] = await Promise.all([
+    fetchTopPlayers('atp', 10),
+    fetchTopPlayers('wta', 10),
+  ]);
+  const isEmpty = atp.length === 0 && wta.length === 0;
+
+  return (
+    <>
+      <Header />
+      <main id="main" className="flex-1">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
+          <h1 className="text-2xl md:text-3xl font-extrabold mb-2">Ranking ELO</h1>
+          <p className="text-gray-400 mb-6 md:mb-8 text-sm md:text-base">
+            Modelo próprio · atualizado diariamente · cobertura ATP + WTA
+          </p>
+
+          {isEmpty && (
+            <div className="stat-card p-6 mb-6 border-yellow-500/30">
+              <h2 className="font-bold mb-2">⚠️ Base de dados vazia</h2>
+              <p className="text-sm text-gray-400 mb-3">
+                A tabela <code className="text-[var(--color-accent)]">players</code> está vazia. Aplica o schema SQL via Supabase Dashboard:
+              </p>
+              <ol className="text-sm text-gray-400 space-y-1 list-decimal pl-5">
+                <li>Abre <a className="text-[var(--color-accent)] underline" href="https://supabase.com/dashboard/project/imcwzhvblvgjvkaljzdn/sql/new" target="_blank" rel="noopener">SQL Editor</a></li>
+                <li>Cola o conteúdo de <code>/supabase/schema.sql</code></li>
+                <li>Run · depois importa dados via cron ou seed</li>
+              </ol>
+            </div>
+          )}
+
+          {atp.length > 0 && (
+            <section className="mb-10">
+              <h2 className="text-xl font-bold mb-4">ATP · Top 10</h2>
+              <div className="stat-card overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-[var(--color-surface)]">
+                    <tr className="text-gray-500 text-xs uppercase">
+                      <th className="text-left p-3 md:p-4 font-medium">#</th>
+                      <th className="text-left p-3 md:p-4 font-medium">Jogador</th>
+                      <th className="text-right p-3 md:p-4 font-medium">ELO</th>
+                      <th className="hidden md:table-cell text-right p-4 font-medium">Hard</th>
+                      <th className="hidden md:table-cell text-right p-4 font-medium">Clay</th>
+                      <th className="hidden md:table-cell text-right p-4 font-medium">Grass</th>
+                      <th className="text-right p-3 md:p-4 font-medium">Δ 30d</th>
+                      <th className="hidden sm:table-cell text-right p-3 md:p-4 font-medium">Forma</th>
+                    </tr>
+                  </thead>
+                  <tbody className="font-mono">
+                    {atp.map((p, idx) => {
+                      const delta = p.elo_overall && p.elo_30d_ago ? p.elo_overall - p.elo_30d_ago : null;
+                      return (
+                        <tr key={p.id} className="border-t border-[var(--color-border)] hover:bg-[var(--color-card)]">
+                          <td className="p-3 md:p-4 font-bold">{idx + 1}</td>
+                          <td className="p-3 md:p-4 font-sans">
+                            <span className="font-semibold">{p.name}</span>{' '}
+                            <span className="text-gray-600">{p.flag ?? ''}</span>
+                          </td>
+                          <td className="text-right p-3 md:p-4 font-bold">{p.elo_overall ?? '—'}</td>
+                          <td className="hidden md:table-cell text-right p-4">{p.elo_hard ?? '—'}</td>
+                          <td className="hidden md:table-cell text-right p-4">{p.elo_clay ?? '—'}</td>
+                          <td className="hidden md:table-cell text-right p-4">{p.elo_grass ?? '—'}</td>
+                          <td className={`text-right p-3 md:p-4 ${delta && delta > 0 ? 'win' : delta && delta < 0 ? 'loss' : ''}`}>
+                            {delta != null ? (delta > 0 ? `+${delta}` : delta) : '—'}
+                          </td>
+                          <td className="hidden sm:table-cell text-right p-3 md:p-4 text-xs">
+                            {p.form_l5 ?? '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
+          {wta.length > 0 && (
+            <section>
+              <h2 className="text-xl font-bold mb-4">WTA · Top 10</h2>
+              <div className="stat-card overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-[var(--color-surface)]">
+                    <tr className="text-gray-500 text-xs uppercase">
+                      <th className="text-left p-3 md:p-4 font-medium">#</th>
+                      <th className="text-left p-3 md:p-4 font-medium">Jogadora</th>
+                      <th className="text-right p-3 md:p-4 font-medium">ELO</th>
+                      <th className="hidden md:table-cell text-right p-4 font-medium">Hard</th>
+                      <th className="hidden md:table-cell text-right p-4 font-medium">Clay</th>
+                      <th className="hidden md:table-cell text-right p-4 font-medium">Grass</th>
+                      <th className="text-right p-3 md:p-4 font-medium">Δ 30d</th>
+                    </tr>
+                  </thead>
+                  <tbody className="font-mono">
+                    {wta.map((p, idx) => {
+                      const delta = p.elo_overall && p.elo_30d_ago ? p.elo_overall - p.elo_30d_ago : null;
+                      return (
+                        <tr key={p.id} className="border-t border-[var(--color-border)] hover:bg-[var(--color-card)]">
+                          <td className="p-3 md:p-4 font-bold">{idx + 1}</td>
+                          <td className="p-3 md:p-4 font-sans">
+                            <span className="font-semibold">{p.name}</span>{' '}
+                            <span className="text-gray-600">{p.flag ?? ''}</span>
+                          </td>
+                          <td className="text-right p-3 md:p-4 font-bold">{p.elo_overall ?? '—'}</td>
+                          <td className="hidden md:table-cell text-right p-4">{p.elo_hard ?? '—'}</td>
+                          <td className="hidden md:table-cell text-right p-4">{p.elo_clay ?? '—'}</td>
+                          <td className="hidden md:table-cell text-right p-4">{p.elo_grass ?? '—'}</td>
+                          <td className={`text-right p-3 md:p-4 ${delta && delta > 0 ? 'win' : delta && delta < 0 ? 'loss' : ''}`}>
+                            {delta != null ? (delta > 0 ? `+${delta}` : delta) : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+        </div>
+      </main>
+      <Footer />
+    </>
+  );
+}

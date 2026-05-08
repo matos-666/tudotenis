@@ -1,26 +1,103 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ═══════════════════════════════════════════════════ */
+/* TUDOTÉNIS · Design tokens                            */
+/* ═══════════════════════════════════════════════════ */
+@theme {
+  --color-surface:    #0a0e0f;
+  --color-card:       #11181a;
+  --color-border:     #1f2a2c;
+  --color-accent:     #d4ff3a;
+
+  --color-win:        #6dd97a;
+  --color-loss:       #ff7a7a;
+  --color-void:       #888888;
+
+  --color-clay-bg:    #c9572422;
+  --color-clay-fg:    #ffa472;
+  --color-hard-bg:    #2c5fc922;
+  --color-hard-fg:    #7fa8ff;
+  --color-grass-bg:   #3a8a3a22;
+  --color-grass-fg:   #a3e0a3;
+  --color-indoor-bg:  #6b4ec722;
+  --color-indoor-fg:  #c4a8ff;
+
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Base */
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-surface);
+  color: #e8eced;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Surface pills (for clay/hard/grass/indoor labels) */
+.surface-pill {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.surface-clay   { background: var(--color-clay-bg);   color: var(--color-clay-fg); }
+.surface-hard   { background: var(--color-hard-bg);   color: var(--color-hard-fg); }
+.surface-grass  { background: var(--color-grass-bg);  color: var(--color-grass-fg); }
+.surface-indoor { background: var(--color-indoor-bg); color: var(--color-indoor-fg); }
+
+/* Status helpers */
+.win  { color: var(--color-win); }
+.loss { color: var(--color-loss); }
+.void { color: var(--color-void); }
+
+/* Stat cards */
+.stat-card {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.stat-card:hover {
+  transform: translateY(-1px);
+}
+
+/* Grade badges */
+.grade-A { background: var(--color-accent); color: var(--color-surface); }
+.grade-B { background: #80b3ff;             color: var(--color-surface); }
+.grade-C { background: #ffa472;             color: var(--color-surface); }
+
+/* Live dot */
+.live-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #ff4444;
+  margin-right: 4px;
+  animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
+/* Focus rings (a11y) */
+:where(button, a, input, select):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Reduce motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+  html { scroll-behavior: auto; }
 }
