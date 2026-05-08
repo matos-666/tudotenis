@@ -17,10 +17,10 @@ export function Header() {
             <Image
               src="/logo.png"
               alt="TudoTénis"
-              width={180}
-              height={36}
+              width={260}
+              height={56}
               priority
-              className="h-7 md:h-9 w-auto"
+              className="h-10 md:h-12 w-auto"
             />
           </Link>
           <nav
@@ -44,9 +44,6 @@ export function Header() {
             <option value="pt-BR">🇧🇷</option>
             <option value="pt-PT">🇵🇹</option>
           </select>
-          <button className="hidden sm:block bg-[var(--color-accent)] text-[var(--color-surface)] px-3 md:px-4 py-1.5 rounded-lg text-sm font-semibold hover:opacity-90">
-            Login
-          </button>
           <button
             aria-label="Menu"
             className="md:hidden bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-2"
