@@ -1,0 +1,348 @@
+import { notFound } from 'next/navigation';
+import Image from 'next/image';
+import Link from 'next/link';
+import type { Metadata } from 'next';
+import { supabase } from '@/lib/supabase';
+import { eloProb, fairOdds, parseMatchupSlug } from '@/lib/elo';
+import { Header } from '@/components/Header';
+import { Footer } from '@/components/Footer';
+
+export const revalidate = 3600;
+
+interface Player {
+  id: number;
+  slug: string;
+  name: string;
+  flag: string | null;
+  tour: string;
+  atp_rank: number | null;
+  photo_url: string | null;
+  elo_overall: number | null;
+  elo_hard: number | null;
+  elo_clay: number | null;
+  elo_grass: number | null;
+  elo_indoor: number | null;
+  elo_30d_ago: number | null;
+  form_l5: string | null;
+  titles: number;
+  slams: number;
+}
+
+async function fetchAllPlayers(): Promise<Player[]> {
+  const { data } = await supabase
+    .from('players')
+    .select('*')
+    .eq('active', true)
+    .order('elo_overall', { ascending: false });
+  return data ?? [];
+}
+
+async function fetchPair(
+  matchup: string
+): Promise<{ p1: Player; p2: Player } | null> {
+  const players = await fetchAllPlayers();
+  const knownSlugs = new Set(players.map(p => p.slug));
+  const parsed = parseMatchupSlug(matchup, knownSlugs);
+  if (!parsed) return null;
+  const [slugA, slugB] = parsed;
+  if (slugA === slugB) return null;
+  const p1 = players.find(p => p.slug === slugA);
+  const p2 = players.find(p => p.slug === slugB);
+  if (!p1 || !p2) return null;
+  // Order: higher ELO first (visual preference)
+  if ((p2.elo_overall ?? 0) > (p1.elo_overall ?? 0)) {
+    return { p1: p2, p2: p1 };
+  }
+  return { p1, p2 };
+}
+
+// ═══════════════════════════════════════════════════════════
+// SSG: generate all unique matchups (combinatorial)
+// 33 players → C(33, 2) = 528 unique pages
+// ═══════════════════════════════════════════════════════════
+export async function generateStaticParams() {
+  const players = await fetchAllPlayers();
+  const params: { matchup: string }[] = [];
+  for (let i = 0; i < players.length; i++) {
+    for (let j = i + 1; j < players.length; j++) {
+      const slugs = [players[i].slug, players[j].slug].sort();
+      params.push({ matchup: `${slugs[0]}-${slugs[1]}` });
+    }
+  }
+  return params;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ matchup: string }>;
+}): Promise<Metadata> {
+  const { matchup } = await params;
+  const pair = await fetchPair(matchup);
+  if (!pair) return { title: 'H2H não encontrado' };
+  const { p1, p2 } = pair;
+  const e1 = p1.elo_overall ?? 1500;
+  const e2 = p2.elo_overall ?? 1500;
+  const probP1 = Math.round(eloProb(e1, e2) * 100);
+  return {
+    title: `${p1.name} vs ${p2.name} · H2H · Probabilidade ${probP1}/${100 - probP1}`,
+    description: `Confronto direto entre ${p1.name} (ELO ${e1}) e ${p2.name} (ELO ${e2}). Probabilidades por superfície (saibro, hard, grama), comparação de forma, quotas justas. Análise pelo modelo ELO TudoTénis.`,
+    alternates: { canonical: `/h2h/${matchup}` },
+    openGraph: {
+      title: `${p1.name} vs ${p2.name} · H2H`,
+      description: `${probP1}% / ${100 - probP1}% · ${p1.tour.toUpperCase()}`,
+    },
+  };
+}
+
+const SURFACES = [
+  { key: 'hard',   label: 'Hard',   field: 'elo_hard',   ptLabel: 'Hard',          cls: 'surface-hard' },
+  { key: 'clay',   label: 'Saibro', field: 'elo_clay',   ptLabel: 'Saibro',        cls: 'surface-clay' },
+  { key: 'grass',  label: 'Grama',  field: 'elo_grass',  ptLabel: 'Grama',         cls: 'surface-grass' },
+  { key: 'indoor', label: 'Indoor', field: 'elo_indoor', ptLabel: 'Indoor',        cls: 'surface-indoor' },
+] as const;
+
+function PlayerHeadCard({ p, isFav }: { p: Player; isFav: boolean }) {
+  const initials = p.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  return (
+    <div className="text-center">
+      <div className={`w-20 h-20 md:w-28 md:h-28 mx-auto rounded-2xl flex items-center justify-center text-2xl md:text-4xl font-extrabold overflow-hidden mb-3 ${
+        isFav
+          ? 'bg-gradient-to-br from-[var(--color-accent)]/30 to-[var(--color-accent)]/5 border-2 border-[var(--color-accent)]'
+          : 'bg-gradient-to-br from-orange-500/20 to-orange-500/5 border border-orange-500/30'
+      }`}>
+        {p.photo_url ? (
+          <Image
+            src={p.photo_url}
+            alt={p.name}
+            width={120}
+            height={120}
+            className="w-full h-full object-cover"
+            unoptimized
+          />
+        ) : (
+          <span>{initials}</span>
+        )}
+      </div>
+      <Link
+        href={`/jogador/${p.slug}`}
+        className="font-bold text-base md:text-lg block hover:text-[var(--color-accent)] transition"
+      >
+        {p.name}
+      </Link>
+      <div className="text-xs text-gray-500 mb-2">
+        {p.flag} {p.tour.toUpperCase()} #{p.atp_rank ?? '—'}
+      </div>
+      <div className="font-mono text-xl md:text-2xl font-extrabold">
+        {p.elo_overall ?? '—'}
+      </div>
+      <div className="text-[10px] text-gray-600 uppercase tracking-wider">ELO geral</div>
+    </div>
+  );
+}
+
+export default async function H2HPage({
+  params,
+}: {
+  params: Promise<{ matchup: string }>;
+}) {
+  const { matchup } = await params;
+  const pair = await fetchPair(matchup);
+  if (!pair) notFound();
+  const { p1, p2 } = pair;
+
+  const eloOverall1 = p1.elo_overall ?? 1500;
+  const eloOverall2 = p2.elo_overall ?? 1500;
+  const overallProb1 = eloProb(eloOverall1, eloOverall2);
+  const overallProb2 = 1 - overallProb1;
+  const overallFav = overallProb1 >= 0.5 ? p1 : p2;
+
+  // Per-surface
+  const surfaceData = SURFACES.map(s => {
+    const e1 = (p1[s.field as keyof Player] as number | null) ?? eloOverall1;
+    const e2 = (p2[s.field as keyof Player] as number | null) ?? eloOverall2;
+    const prob1 = eloProb(e1, e2);
+    return {
+      ...s,
+      e1, e2,
+      prob1,
+      prob2: 1 - prob1,
+      fairP1: fairOdds(prob1),
+      fairP2: fairOdds(1 - prob1),
+      favIsP1: prob1 >= 0.5,
+    };
+  });
+
+  // Generate insight
+  const surfaceFavP1 = surfaceData.filter(s => s.favIsP1).length;
+  const surfaceFavP2 = surfaceData.length - surfaceFavP1;
+  let insight: string;
+  if (surfaceFavP1 === 4) {
+    insight = `${p1.name} é favorito em todas as superfícies — domínio claro no confronto.`;
+  } else if (surfaceFavP2 === 4) {
+    insight = `${p2.name} é favorito em todas as superfícies — surpresa do modelo dada a vantagem ELO geral.`;
+  } else {
+    const pBest = [...surfaceData].sort((a, b) => b.prob1 - a.prob1)[0];
+    const pWorst = [...surfaceData].sort((a, b) => a.prob1 - b.prob1)[0];
+    insight = `${p1.name.split(' ').pop()} é mais forte em ${pBest.ptLabel.toLowerCase()} (${Math.round(pBest.prob1 * 100)}%), mas em ${pWorst.ptLabel.toLowerCase()} ${p2.name.split(' ').pop()} ganha vantagem (${Math.round(pWorst.prob2 * 100)}%).`;
+  }
+
+  // JSON-LD: SportsEvent (potencial)
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'SportsEvent',
+    name: `${p1.name} vs ${p2.name}`,
+    sport: 'Tennis',
+    competitor: [
+      { '@type': 'Person', name: p1.name, nationality: p1.flag },
+      { '@type': 'Person', name: p2.name, nationality: p2.flag },
+    ],
+  };
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <Header />
+      <main id="main" className="flex-1">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
+          <div className="text-xs text-gray-500 mb-4">
+            <Link href="/" className="hover:text-[var(--color-accent)]">Início</Link>
+            <span className="mx-2">/</span>
+            <span>H2H</span>
+            <span className="mx-2">/</span>
+            <span>{p1.name} vs {p2.name}</span>
+          </div>
+
+          <h1 className="text-2xl md:text-4xl font-extrabold mb-2">
+            {p1.name} <span className="text-gray-500">vs</span> {p2.name}
+          </h1>
+          <p className="text-gray-400 text-sm md:text-base mb-6 md:mb-8">
+            Análise H2H · {p1.tour === p2.tour ? p1.tour.toUpperCase() : 'Cross-tour'} · ELOs proprietários TudoTénis
+          </p>
+
+          {/* Big H2H card */}
+          <div className="stat-card p-5 md:p-8 mb-6">
+            <div className="grid grid-cols-3 items-center gap-3 md:gap-6">
+              <PlayerHeadCard p={p1} isFav={overallFav.id === p1.id} />
+              <div className="text-center">
+                <div className="text-xs uppercase tracking-wider text-gray-500 mb-2">
+                  Modelo prevê (ELO geral)
+                </div>
+                <div className="text-2xl md:text-4xl font-extrabold mb-1">
+                  <span className={overallProb1 >= 0.5 ? 'text-[var(--color-accent)]' : ''}>
+                    {Math.round(overallProb1 * 100)}%
+                  </span>
+                  <span className="text-gray-600 mx-1 md:mx-2">/</span>
+                  <span className={overallProb2 > 0.5 ? 'text-[var(--color-accent)]' : ''}>
+                    {Math.round(overallProb2 * 100)}%
+                  </span>
+                </div>
+                <div className="text-[10px] md:text-xs text-gray-500">
+                  ELO {eloOverall1} vs {eloOverall2}
+                </div>
+              </div>
+              <PlayerHeadCard p={p2} isFav={overallFav.id === p2.id} />
+            </div>
+          </div>
+
+          {/* Per-surface analysis */}
+          <h2 className="text-xl font-bold mb-4">Probabilidade por superfície</h2>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8">
+            {surfaceData.map(s => (
+              <div key={s.key} className="stat-card p-4 md:p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs uppercase text-gray-500">{s.ptLabel}</span>
+                  <span className={`surface-pill ${s.cls}`}>{s.label}</span>
+                </div>
+                <div className="text-2xl font-extrabold font-mono mb-2">
+                  <span className={s.favIsP1 ? 'text-[var(--color-accent)]' : ''}>
+                    {Math.round(s.prob1 * 100)}%
+                  </span>
+                  <span className="text-gray-600 text-base mx-1">/</span>
+                  <span className={!s.favIsP1 ? 'text-[var(--color-accent)]' : ''}>
+                    {Math.round(s.prob2 * 100)}%
+                  </span>
+                </div>
+                <div className="text-[10px] text-gray-500 mb-3">
+                  ELO {s.e1} vs {s.e2}
+                </div>
+                <div className="pt-3 border-t border-[var(--color-border)] grid grid-cols-2 gap-2 text-[11px]">
+                  <div>
+                    <div className="text-gray-500">Quota P1</div>
+                    <div className="font-mono font-semibold">{s.fairP1.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">Quota P2</div>
+                    <div className="font-mono font-semibold">{s.fairP2.toFixed(2)}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Insight automático */}
+          <div className="stat-card p-5 md:p-6 mb-6 border-[var(--color-accent)]/20">
+            <h3 className="text-xs font-bold text-[var(--color-accent)] uppercase tracking-wider mb-2">
+              Insight do modelo
+            </h3>
+            <p className="text-gray-300 text-sm md:text-base leading-relaxed">{insight}</p>
+          </div>
+
+          {/* Comparação rápida */}
+          <h2 className="text-xl font-bold mb-4">Comparação rápida</h2>
+          <div className="stat-card overflow-hidden mb-8">
+            <table className="w-full text-sm">
+              <tbody className="font-mono">
+                <tr className="border-b border-[var(--color-border)]">
+                  <td className="p-3 md:p-4 font-sans text-gray-500 text-xs uppercase">ELO geral</td>
+                  <td className="text-center p-3 md:p-4 font-bold">{eloOverall1}</td>
+                  <td className="text-center p-3 md:p-4 font-bold">{eloOverall2}</td>
+                </tr>
+                <tr className="border-b border-[var(--color-border)]">
+                  <td className="p-3 md:p-4 font-sans text-gray-500 text-xs uppercase">Ranking</td>
+                  <td className="text-center p-3 md:p-4">#{p1.atp_rank ?? '—'}</td>
+                  <td className="text-center p-3 md:p-4">#{p2.atp_rank ?? '—'}</td>
+                </tr>
+                <tr className="border-b border-[var(--color-border)]">
+                  <td className="p-3 md:p-4 font-sans text-gray-500 text-xs uppercase">Forma L5</td>
+                  <td className="text-center p-3 md:p-4 text-xs">{p1.form_l5 ?? '—'}</td>
+                  <td className="text-center p-3 md:p-4 text-xs">{p2.form_l5 ?? '—'}</td>
+                </tr>
+                <tr className="border-b border-[var(--color-border)]">
+                  <td className="p-3 md:p-4 font-sans text-gray-500 text-xs uppercase">Títulos</td>
+                  <td className="text-center p-3 md:p-4">{p1.titles}</td>
+                  <td className="text-center p-3 md:p-4">{p2.titles}</td>
+                </tr>
+                <tr>
+                  <td className="p-3 md:p-4 font-sans text-gray-500 text-xs uppercase">Slams</td>
+                  <td className="text-center p-3 md:p-4">{p1.slams}</td>
+                  <td className="text-center p-3 md:p-4">{p2.slams}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Quick CTAs */}
+          <div className="grid sm:grid-cols-3 gap-3">
+            <Link href={`/jogador/${p1.slug}`} className="stat-card p-4 hover:border-[var(--color-accent)]/50">
+              <div className="text-xs text-gray-500 mb-1">Perfil</div>
+              <div className="font-semibold">{p1.name}</div>
+            </Link>
+            <Link href={`/jogador/${p2.slug}`} className="stat-card p-4 hover:border-[var(--color-accent)]/50">
+              <div className="text-xs text-gray-500 mb-1">Perfil</div>
+              <div className="font-semibold">{p2.name}</div>
+            </Link>
+            <Link href="/ranking" className="stat-card p-4 hover:border-[var(--color-accent)]/50">
+              <div className="text-xs text-gray-500 mb-1">Ranking ELO</div>
+              <div className="font-semibold">Ver top 10 →</div>
+            </Link>
+          </div>
+        </div>
+      </main>
+      <Footer />
+    </>
+  );
+}
