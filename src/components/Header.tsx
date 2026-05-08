@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { MobileMenu } from './MobileMenu';
 
 export function Header() {
   return (
@@ -44,16 +45,7 @@ export function Header() {
             <option value="pt-BR">🇧🇷</option>
             <option value="pt-PT">🇵🇹</option>
           </select>
-          <button
-            aria-label="Menu"
-            className="md:hidden bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-2"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="3" y1="12" x2="21" y2="12" />
-              <line x1="3" y1="18" x2="21" y2="18" />
-            </svg>
-          </button>
+          <MobileMenu />
         </div>
       </div>
     </header>
