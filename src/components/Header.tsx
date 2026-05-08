@@ -19,10 +19,10 @@ export function Header() {
             <Image
               src="/logo.png"
               alt="TudoTénis"
-              width={260}
-              height={56}
+              width={1536}
+              height={1024}
               priority
-              className="h-10 md:h-12 w-auto"
+              className="h-12 md:h-16 w-auto"
             />
           </Link>
           <nav

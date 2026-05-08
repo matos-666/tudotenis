@@ -87,7 +87,7 @@ export function MobileMenu() {
       >
         <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
           <Link href="/" onClick={() => setOpen(false)} aria-label="TudoTénis">
-            <Image src="/logo.png" alt="TudoTénis" width={140} height={28} className="h-7 w-auto" />
+            <Image src="/logo.png" alt="TudoTénis" width={1536} height={1024} className="h-10 w-auto" />
           </Link>
           <button
             onClick={() => setOpen(false)}

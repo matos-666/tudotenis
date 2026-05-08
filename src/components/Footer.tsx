@@ -7,7 +7,7 @@ export function Footer() {
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-12 grid md:grid-cols-4 gap-8 text-sm">
         <div>
           <div className="mb-4">
-            <Image src="/logo.png" alt="TudoTénis" width={140} height={28} className="h-7 w-auto" />
+            <Image src="/logo.png" alt="TudoTénis" width={1536} height={1024} className="h-10 w-auto" />
           </div>
           <p className="text-gray-500 text-xs">
             Modelo ELO + stats avançadas em português. Cobertura ATP, WTA, Challengers e ITF.
