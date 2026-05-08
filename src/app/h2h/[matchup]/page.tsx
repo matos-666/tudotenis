@@ -57,15 +57,22 @@ async function fetchPair(
 }
 
 // ═══════════════════════════════════════════════════════════
-// SSG: generate all unique matchups (combinatorial)
-// 33 players → C(33, 2) = 528 unique pages
+// SSG: pre-render H2H apenas para top 50 ATP + top 50 WTA
+// → C(100, 2) = 4.950 pages no build
+// Outros matchups gerados on-demand (ISR fallback) e cached.
 // ═══════════════════════════════════════════════════════════
+export const dynamicParams = true;
+
 export async function generateStaticParams() {
-  const players = await fetchAllPlayers();
+  const all = await fetchAllPlayers();
+  const top = [
+    ...all.filter(p => p.tour === 'atp').slice(0, 50),
+    ...all.filter(p => p.tour === 'wta').slice(0, 50),
+  ];
   const params: { matchup: string }[] = [];
-  for (let i = 0; i < players.length; i++) {
-    for (let j = i + 1; j < players.length; j++) {
-      const slugs = [players[i].slug, players[j].slug].sort();
+  for (let i = 0; i < top.length; i++) {
+    for (let j = i + 1; j < top.length; j++) {
+      const slugs = [top[i].slug, top[j].slug].sort();
       params.push({ matchup: `${slugs[0]}-${slugs[1]}` });
     }
   }
