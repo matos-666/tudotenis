@@ -1,0 +1,43 @@
+name: Daily Picks Generator
+
+on:
+  schedule:
+    # 06:30 UTC = 07:30 Lisboa (inverno) / 08:30 (verão)
+    # Corre depois das draws serem publicadas mas antes dos jogos começarem
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (não insere no DB)"
+        required: false
+        default: "false"
+
+jobs:
+  generate:
+    name: Generate picks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run picks generator
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          python scripts/python/generate_picks.py
+
+      - name: Trigger Vercel revalidate (picks page)
+        if: success()
+        run: |
+          curl -s -X POST \
+            "https://tudotenis.com/api/revalidate?path=/picks&secret=${{ secrets.REVALIDATE_SECRET }}" \
+            -w "\n  HTTP %{http_code}" || true
