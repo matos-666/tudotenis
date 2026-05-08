@@ -3,41 +3,32 @@ name: Daily Picks Generator
 on:
   schedule:
     # 06:30 UTC = 07:30 Lisboa (inverno) / 08:30 (verão)
-    # Corre depois das draws serem publicadas mas antes dos jogos começarem
     - cron: "30 6 * * *"
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: "Dry run (não insere no DB)"
-        required: false
-        default: "false"
 
 jobs:
-  generate:
-    name: Generate picks
+  trigger:
+    name: Trigger picks via Vercel
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Run picks generator
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+      - name: Call /api/cron/picks
         run: |
-          python scripts/python/generate_picks.py
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+            -X POST "https://tudotenis.vercel.app/api/cron/picks" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json")
 
-      - name: Trigger Vercel revalidate (picks page)
-        if: success()
-        run: |
-          curl -s -X POST \
-            "https://tudotenis.com/api/revalidate?path=/picks&secret=${{ secrets.REVALIDATE_SECRET }}" \
-            -w "\n  HTTP %{http_code}" || true
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS:")
+
+          echo "Status: $HTTP_STATUS"
+          echo "Response: $BODY"
+
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "❌ Failed with status $HTTP_STATUS"
+            exit 1
+          fi
+
+          echo "✅ Picks generated successfully"
