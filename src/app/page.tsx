@@ -66,26 +66,32 @@ export default function HomePage() {
         </section>
 
         <section className="max-w-7xl mx-auto px-4 md:px-6 py-12">
-          <h2 className="text-2xl font-bold mb-6">Foundation · sessão 1 ✓</h2>
+          <h2 className="text-2xl md:text-3xl font-bold mb-2">Como o modelo funciona</h2>
+          <p className="text-gray-400 mb-8 text-sm md:text-base">
+            ELO próprio + edge contra as casas + grades A/B/C. Sem palpites, só matemática.
+          </p>
           <div className="grid md:grid-cols-3 gap-4">
-            <div className="stat-card p-5">
-              <div className="text-2xl mb-2">⚙️</div>
-              <h3 className="font-semibold mb-1">Next.js 16 + Tailwind 4</h3>
-              <p className="text-xs text-gray-500">App Router, TypeScript, ISR ready.</p>
-            </div>
-            <div className="stat-card p-5">
-              <div className="text-2xl mb-2">🗄️</div>
-              <h3 className="font-semibold mb-1">Supabase</h3>
-              <p className="text-xs text-gray-500">Schema preparado · 5 tabelas + RLS + views.</p>
-            </div>
-            <div className="stat-card p-5">
-              <div className="text-2xl mb-2">🎨</div>
-              <h3 className="font-semibold mb-1">Design system</h3>
-              <p className="text-xs text-gray-500">Cores + tipografia do mockup migradas.</p>
-            </div>
-          </div>
-          <div className="mt-8 text-sm text-gray-500">
-            Próxima página dinâmica: <Link href="/ranking" className="text-[var(--color-accent)] hover:underline">/ranking</Link> (ler do Supabase).
+            <Link href="/ranking" className="stat-card p-5 hover:border-[var(--color-accent)]/40 transition group">
+              <div className="text-2xl mb-2">🏆</div>
+              <h3 className="font-semibold mb-1 group-hover:text-[var(--color-accent)] transition">Ranking ELO</h3>
+              <p className="text-xs text-gray-500">
+                Classificação por força real — não por pontos ATP. Top 200 ATP + 200 WTA actualizado diariamente.
+              </p>
+            </Link>
+            <Link href="/h2h" className="stat-card p-5 hover:border-[var(--color-accent)]/40 transition group">
+              <div className="text-2xl mb-2">⚔️</div>
+              <h3 className="font-semibold mb-1 group-hover:text-[var(--color-accent)] transition">H2H + Predictor</h3>
+              <p className="text-xs text-gray-500">
+                Probabilidade de vitória, score mais provável e Monte Carlo para qualquer confronto.
+              </p>
+            </Link>
+            <Link href="/picks" className="stat-card p-5 hover:border-[var(--color-accent)]/40 transition group">
+              <div className="text-2xl mb-2">💰</div>
+              <h3 className="font-semibold mb-1 group-hover:text-[var(--color-accent)] transition">Picks com edge</h3>
+              <p className="text-xs text-gray-500">
+                Só quando o modelo encontra ≥5% de vantagem contra a quota da casa. Settlement automático.
+              </p>
+            </Link>
           </div>
         </section>
       </main>
