@@ -40,3 +40,73 @@ export function parseMatchupSlug(
   }
   return null;
 }
+
+/**
+ * Best-of-3 outcome distribution given P(p1 wins a set) = p.
+ * Returns probabilities of: [P1 2-0, P1 2-1, P2 2-1, P2 2-0]
+ */
+export function bo3Distribution(p: number): {
+  label: string;
+  prob: number;
+  favP1: boolean;
+}[] {
+  const q = 1 - p;
+  return [
+    { label: '2-0 P1', prob: p * p, favP1: true },
+    { label: '2-1 P1', prob: 2 * p * p * q, favP1: true },
+    { label: '2-1 P2', prob: 2 * p * q * q, favP1: false },
+    { label: '2-0 P2', prob: q * q, favP1: false },
+  ];
+}
+
+/**
+ * Best-of-5 outcome distribution given P(p1 wins a set) = p.
+ */
+export function bo5Distribution(p: number): {
+  label: string;
+  prob: number;
+  favP1: boolean;
+}[] {
+  const q = 1 - p;
+  return [
+    { label: '3-0 P1', prob: Math.pow(p, 3), favP1: true },
+    { label: '3-1 P1', prob: 3 * Math.pow(p, 3) * q, favP1: true },
+    { label: '3-2 P1', prob: 6 * Math.pow(p, 3) * q * q, favP1: true },
+    { label: '3-2 P2', prob: 6 * Math.pow(q, 3) * p * p, favP1: false },
+    { label: '3-1 P2', prob: 3 * Math.pow(q, 3) * p, favP1: false },
+    { label: '3-0 P2', prob: Math.pow(q, 3), favP1: false },
+  ];
+}
+
+/**
+ * Best-of-N match probability given per-set probability.
+ * Bo3: precisa de 2 sets · Bo5: precisa de 3 sets
+ */
+export function matchProbFromSetProb(setProb: number, bo: 3 | 5): number {
+  if (bo === 3) {
+    const dist = bo3Distribution(setProb);
+    return dist[0].prob + dist[1].prob;
+  }
+  const dist = bo5Distribution(setProb);
+  return dist[0].prob + dist[1].prob + dist[2].prob;
+}
+
+/**
+ * Edge calculation: % vantagem do jogador vs quota da casa.
+ * edge > 0 → quota da casa subvaloriza o jogador
+ */
+export function calculateEdge(prob: number, houseOdd: number): number {
+  return (prob * houseOdd - 1) * 100;
+}
+
+/**
+ * Kelly Criterion: stake óptimo como fração do bankroll.
+ * f* = (b·p - q) / b
+ * onde b = odd - 1, p = probabilidade, q = 1 - p
+ */
+export function kellyFraction(prob: number, odd: number): number {
+  const b = odd - 1;
+  if (b <= 0) return 0;
+  const q = 1 - prob;
+  return Math.max(0, (b * prob - q) / b);
+}
