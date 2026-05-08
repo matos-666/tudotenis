@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { MobileMenu } from './MobileMenu';
+import { ThemeToggle } from './ThemeToggle';
 
 export function Header() {
   return (
@@ -38,6 +39,7 @@ export function Header() {
           </nav>
         </div>
         <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
+          <ThemeToggle />
           <select
             aria-label="Idioma"
             className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg px-2 md:px-3 py-1.5 text-xs md:text-sm cursor-pointer"

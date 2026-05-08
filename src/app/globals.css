@@ -2,12 +2,17 @@
 
 /* ═══════════════════════════════════════════════════ */
 /* TUDOTÉNIS · Design tokens                            */
+/* Tailwind 4 @theme exposes utilities; runtime values  */
+/* are overriden in :root[data-theme] for theme switch. */
 /* ═══════════════════════════════════════════════════ */
+
 @theme {
   --color-surface:    #0a0e0f;
   --color-card:       #11181a;
   --color-border:     #1f2a2c;
   --color-accent:     #d4ff3a;
+  --color-text:       #e8eced;
+  --color-text-muted: #9aa3a6;
 
   --color-win:        #6dd97a;
   --color-loss:       #ff7a7a;
@@ -26,6 +31,42 @@
   --font-mono: 'JetBrains Mono', monospace;
 }
 
+/* ───────────── Dark theme (default) ───────────── */
+:root {
+  --color-surface:    #0a0e0f;
+  --color-card:       #11181a;
+  --color-border:     #1f2a2c;
+  --color-accent:     #d4ff3a;
+  --color-text:       #e8eced;
+  --color-text-muted: #9aa3a6;
+  color-scheme: dark;
+}
+
+/* ───────────── Light theme ───────────── */
+:root[data-theme="light"] {
+  --color-surface:    #ffffff;
+  --color-card:       #f7f9fa;
+  --color-border:     #e2e8f0;
+  --color-accent:     #5a7a00;
+  --color-text:       #1a202c;
+  --color-text-muted: #4a5568;
+
+  --color-win:        #2f9e44;
+  --color-loss:       #e03131;
+  --color-void:       #6c757d;
+
+  --color-clay-bg:    #c9572418;
+  --color-clay-fg:    #b14210;
+  --color-hard-bg:    #2c5fc918;
+  --color-hard-fg:    #1d4ed8;
+  --color-grass-bg:   #3a8a3a18;
+  --color-grass-fg:   #1f7a1f;
+  --color-indoor-bg:  #6b4ec718;
+  --color-indoor-fg:  #5b3eb7;
+
+  color-scheme: light;
+}
+
 /* Base */
 html {
   scroll-behavior: smooth;
@@ -33,10 +74,18 @@ html {
 
 body {
   background: var(--color-surface);
-  color: #e8eced;
+  color: var(--color-text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
+
+/* Light mode: ajustar text-gray-* utilities */
+:root[data-theme="light"] .text-gray-300 { color: #2d3748; }
+:root[data-theme="light"] .text-gray-400 { color: #4a5568; }
+:root[data-theme="light"] .text-gray-500 { color: #718096; }
+:root[data-theme="light"] .text-gray-600 { color: #a0aec0; }
+:root[data-theme="light"] .text-gray-700 { color: #cbd5e0; }
+:root[data-theme="light"] .text-white    { color: #1a202c; }
 
 /* Surface pills (for clay/hard/grass/indoor labels) */
 .surface-pill {
@@ -61,7 +110,7 @@ body {
   background: var(--color-card);
   border: 1px solid var(--color-border);
   border-radius: 12px;
-  transition: transform 0.15s ease, border-color 0.15s ease;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.2s ease;
 }
 .stat-card:hover {
   transform: translateY(-1px);
@@ -84,6 +133,11 @@ body {
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.4; }
+}
+
+/* Smooth theme transition */
+body, .stat-card, header, footer {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
 /* Focus rings (a11y) */

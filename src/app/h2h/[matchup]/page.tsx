@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
@@ -154,8 +154,25 @@ export default async function H2HPage({
   params: Promise<{ matchup: string }>;
 }) {
   const { matchup } = await params;
+
+  // Single-player slug (sem "-vs-" e player existe) → redirect para perfil
+  if (!matchup.includes('-vs-') && !matchup.includes('-')) {
+    redirect(`/jogador/${matchup}`);
+  }
+
   const pair = await fetchPair(matchup);
-  if (!pair) notFound();
+
+  // Se não conseguiu parsear como par mas é um slug válido de player → redirect
+  if (!pair) {
+    const { data } = await supabase
+      .from('players')
+      .select('slug')
+      .eq('slug', matchup)
+      .maybeSingle();
+    if (data) redirect(`/jogador/${matchup}`);
+    notFound();
+  }
+
   const { p1, p2 } = pair;
 
   const eloOverall1 = p1.elo_overall ?? 1500;
