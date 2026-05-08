@@ -43,7 +43,7 @@ export function parseMatchupSlug(
 
 /**
  * Best-of-3 outcome distribution given P(p1 wins a set) = p.
- * Returns probabilities of: [P1 2-0, P1 2-1, P2 2-1, P2 2-0]
+ * Labels: (sets P1)-(sets P2). Ex: "2-0" = P1 ganha 2-0; "1-2" = P2 ganha 2-1.
  */
 export function bo3Distribution(p: number): {
   label: string;
@@ -52,15 +52,16 @@ export function bo3Distribution(p: number): {
 }[] {
   const q = 1 - p;
   return [
-    { label: '2-0 P1', prob: p * p, favP1: true },
-    { label: '2-1 P1', prob: 2 * p * p * q, favP1: true },
-    { label: '2-1 P2', prob: 2 * p * q * q, favP1: false },
-    { label: '2-0 P2', prob: q * q, favP1: false },
+    { label: '2-0', prob: p * p,         favP1: true  },
+    { label: '2-1', prob: 2 * p * p * q, favP1: true  },
+    { label: '1-2', prob: 2 * p * q * q, favP1: false },
+    { label: '0-2', prob: q * q,         favP1: false },
   ];
 }
 
 /**
  * Best-of-5 outcome distribution given P(p1 wins a set) = p.
+ * Labels: (sets P1)-(sets P2). Ex: "3-0" = P1 ganha 3-0; "1-3" = P2 ganha 3-1.
  */
 export function bo5Distribution(p: number): {
   label: string;
@@ -69,12 +70,12 @@ export function bo5Distribution(p: number): {
 }[] {
   const q = 1 - p;
   return [
-    { label: '3-0 P1', prob: Math.pow(p, 3), favP1: true },
-    { label: '3-1 P1', prob: 3 * Math.pow(p, 3) * q, favP1: true },
-    { label: '3-2 P1', prob: 6 * Math.pow(p, 3) * q * q, favP1: true },
-    { label: '3-2 P2', prob: 6 * Math.pow(q, 3) * p * p, favP1: false },
-    { label: '3-1 P2', prob: 3 * Math.pow(q, 3) * p, favP1: false },
-    { label: '3-0 P2', prob: Math.pow(q, 3), favP1: false },
+    { label: '3-0', prob: Math.pow(p, 3),                 favP1: true  },
+    { label: '3-1', prob: 3 * Math.pow(p, 3) * q,         favP1: true  },
+    { label: '3-2', prob: 6 * Math.pow(p, 3) * q * q,     favP1: true  },
+    { label: '2-3', prob: 6 * Math.pow(q, 3) * p * p,     favP1: false },
+    { label: '1-3', prob: 3 * Math.pow(q, 3) * p,         favP1: false },
+    { label: '0-3', prob: Math.pow(q, 3),                 favP1: false },
   ];
 }
 
