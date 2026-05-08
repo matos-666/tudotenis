@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const NAV_LINKS = [
-  { href: '/', label: 'Picks do dia' },
+  { href: '/picks', label: 'Picks do dia' },
   { href: '/jogadores', label: 'Jogadores' },
   { href: '/h2h', label: 'H2H' },
   { href: '/ferramentas', label: 'Ferramentas' },

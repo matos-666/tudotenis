@@ -32,12 +32,30 @@ export function Footer() {
           </ul>
         </div>
         <div>
-          <div className="font-semibold mb-3">Sobre</div>
+          <div className="font-semibold mb-3">Casas parceiras</div>
           <ul className="space-y-2 text-gray-500">
-            <li><Link href="/como-funciona" className="hover:text-[var(--color-accent)]">Como funciona</Link></li>
-            <li>Casas parceiras: Betano · KTO</li>
-            <li>Pinnacle · Superbet · bet365</li>
-            <li className="text-xs">+18 · Joga responsável</li>
+            <li>
+              <a
+                href="https://dashboard.onetwoaffiliates.com/click?campaign_id=796&ref_id=370"
+                target="_blank"
+                rel="sponsored noopener"
+                className="hover:text-[var(--color-accent)]"
+              >
+                Twin <span className="text-xs">⭐</span>
+              </a>
+            </li>
+            <li>
+              <a
+                href="https://dashboard.onetwoaffiliates.com/click?campaign_id=797&ref_id=370"
+                target="_blank"
+                rel="sponsored noopener"
+                className="hover:text-[var(--color-accent)]"
+              >
+                Leon
+              </a>
+            </li>
+            <li className="pt-2"><Link href="/como-funciona" className="hover:text-[var(--color-accent)]">Como funciona</Link></li>
+            <li className="text-xs pt-2">+18 · Joga responsável</li>
           </ul>
         </div>
       </div>

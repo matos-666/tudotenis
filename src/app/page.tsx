@@ -23,16 +23,16 @@ export default function HomePage() {
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Link
-                    href="/ranking"
+                    href="/picks"
                     className="bg-[var(--color-accent)] text-[var(--color-surface)] px-5 py-3 rounded-lg font-semibold inline-block text-center"
                   >
-                    Ver Ranking ELO
+                    Ver picks de hoje
                   </Link>
                   <Link
-                    href="/como-funciona"
+                    href="/ranking"
                     className="border border-[var(--color-border)] hover:border-[var(--color-accent)] px-5 py-3 rounded-lg font-semibold inline-block text-center"
                   >
-                    Como funciona
+                    Ranking ELO
                   </Link>
                 </div>
               </div>

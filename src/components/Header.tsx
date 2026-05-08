@@ -29,7 +29,7 @@ export function Header() {
             aria-label="Navegação principal"
             className="hidden md:flex items-center gap-4 lg:gap-6 text-sm font-medium"
           >
-            <Link href="/" className="hover:text-[var(--color-accent)] transition">Picks do dia</Link>
+            <Link href="/picks" className="hover:text-[var(--color-accent)] transition">Picks do dia</Link>
             <Link href="/jogadores" className="hover:text-[var(--color-accent)] transition">Jogadores</Link>
             <Link href="/h2h" className="hover:text-[var(--color-accent)] transition">H2H</Link>
             <Link href="/ferramentas" className="hover:text-[var(--color-accent)] transition">Ferramentas</Link>
