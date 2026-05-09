@@ -15,21 +15,33 @@ export function fairOdds(p: number): number {
 
 /**
  * Match slug helper: ordena alfabeticamente para evitar duplicação
- * (sinner-alcaraz === alcaraz-sinner === "alcaraz-sinner")
+ * Formato SEO-friendly: "slug1-vs-slug2"
+ * (sinner-vs-alcaraz === alcaraz-vs-sinner → "alcaraz-vs-sinner")
  */
 export function buildMatchupSlug(slugA: string, slugB: string): string {
-  return [slugA, slugB].sort().join('-');
+  return [slugA, slugB].sort().join('-vs-');
 }
 
 /**
- * Parse "alcaraz-sinner" → ["alcaraz", "sinner"]
- * Need to be careful: some slugs have hyphens (e.g. "felix-auger-aliassime").
- * Strategy: try every split point and check if both halves are valid slugs.
+ * Parse formato "slug1-vs-slug2" (preferido) ou "slug1-slug2" (legacy).
+ * Names compostos (e.g. "felix-auger-aliassime") obrigam à pesquisa por
+ * split point para o formato legacy.
  */
 export function parseMatchupSlug(
   matchup: string,
   knownSlugs: Set<string>
 ): [string, string] | null {
+  // Format SEO-friendly: "slug1-vs-slug2"
+  if (matchup.includes('-vs-')) {
+    const idx = matchup.indexOf('-vs-');
+    const a = matchup.slice(0, idx);
+    const b = matchup.slice(idx + 4);
+    if (knownSlugs.has(a) && knownSlugs.has(b)) {
+      return [a, b].sort() as [string, string];
+    }
+    return null;
+  }
+  // Format legacy: "slug1-slug2" (compatibilidade com URLs antigos)
   const parts = matchup.split('-');
   for (let i = 1; i < parts.length; i++) {
     const a = parts.slice(0, i).join('-');
