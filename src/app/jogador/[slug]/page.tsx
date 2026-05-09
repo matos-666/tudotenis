@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { EloChart } from '@/components/EloChart';
+import { breadcrumbJsonLd } from '@/lib/jsonld';
 
 // Re-gerar a cada hora; novos jogadores acrescentados via cron
 export const revalidate = 3600;
@@ -103,8 +104,8 @@ export default async function PlayerPage({
 
   const age = calcAge(player.birth_date);
 
-  // JSON-LD Person + SportsTeam
-  const jsonLd = {
+  // JSON-LD Person
+  const personJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Person',
     name: player.name,
@@ -115,12 +116,16 @@ export default async function PlayerPage({
     url: `https://tudotenis.com/jogador/${player.slug}`,
   };
 
+  const breadcrumb = breadcrumbJsonLd([
+    { name: 'Início',     href: '/' },
+    { name: 'Jogadores',  href: '/jogadores' },
+    { name: player.name,  href: `/jogador/${player.slug}` },
+  ]);
+
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }} />
       <Header />
       <main id="main" className="flex-1">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">

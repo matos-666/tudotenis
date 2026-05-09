@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { eloProb, fairOdds, parseMatchupSlug } from '@/lib/elo';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { breadcrumbJsonLd } from '@/lib/jsonld';
 
 export const revalidate = 3600;
 
@@ -223,12 +224,16 @@ export default async function H2HPage({
     ],
   };
 
+  const breadcrumb = breadcrumbJsonLd([
+    { name: 'Início',  href: '/' },
+    { name: 'H2H',     href: '/h2h' },
+    { name: `${p1.name} vs ${p2.name}`, href: `/h2h/${matchup}` },
+  ]);
+
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }} />
       <Header />
       <main id="main" className="flex-1">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">

@@ -5,6 +5,7 @@ import type { Metadata } from 'next';
 import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { breadcrumbJsonLd, sportsEventJsonLd } from '@/lib/jsonld';
 
 export const revalidate = 3600;
 
@@ -196,29 +197,27 @@ export default async function TournamentDetail({
   const isLive = t.status === 'live';
   const isUpcoming = t.status === 'scheduled';
 
-  // JSON-LD: SportsEvent
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'SportsEvent',
+  // JSON-LD: SportsEvent + BreadcrumbList
+  const sportsEvent = sportsEventJsonLd({
     name: t.full_name ?? t.name,
-    sport: 'Tennis',
-    location: { '@type': 'Place', name: t.location },
+    url: `https://tudotenis.com/torneios/${t.slug}`,
     startDate: t.start_date,
     endDate: t.end_date,
-    eventStatus:
-      t.status === 'finished'
-        ? 'https://schema.org/EventScheduled'
-        : t.status === 'live'
-          ? 'https://schema.org/EventScheduled'
-          : 'https://schema.org/EventScheduled',
-  };
+    location: t.location,
+    surface: t.surface_label,
+    status: t.status,
+  });
+
+  const breadcrumb = breadcrumbJsonLd([
+    { name: 'Início',    href: '/' },
+    { name: 'Torneios',  href: '/torneios' },
+    { name: t.full_name ?? t.name, href: `/torneios/${t.slug}` },
+  ]);
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(sportsEvent) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }} />
       <Header />
       <main id="main" className="flex-1">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">

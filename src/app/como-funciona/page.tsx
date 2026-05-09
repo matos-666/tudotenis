@@ -2,6 +2,40 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { breadcrumbJsonLd, faqJsonLd } from '@/lib/jsonld';
+
+const FAQ_ITEMS = [
+  {
+    question: 'É grátis?',
+    answer:
+      'Sim. Os picks, ranking e ferramentas são totalmente gratuitos. Sustentamo-nos com comissões de afiliação das casas de apostas — só ganhamos se abrires conta através dos nossos links, mas isso não te custa nada.',
+  },
+  {
+    question: 'Quantos picks por dia?',
+    answer:
+      'Varia. Em semanas de Slam podem ser 5–10 picks/dia. Em semanas mortas podem ser 0. Não publicamos picks à força — só quando o modelo encontra valor real (edge ≥ 5% contra a quota das casas).',
+  },
+  {
+    question: 'Que fonte de dados usam?',
+    answer:
+      'Histórico: dataset Jeff Sackmann (atp + wta GitHub repos), 59.312 jogos desde 2015. Quotas e fixtures: TennisStats.com em tempo real, com cron diário às 06:30 UTC.',
+  },
+  {
+    question: 'Como funciona o modelo ELO?',
+    answer:
+      'Cada jogador tem 5 ratings ELO em paralelo: geral, hard, saibro, grama e indoor. Ao calcular um pick, usamos o ELO da superfície específica do jogo. K-factor varia por importância: Slam pesa 1,4× mais que Challenger; final pesa 1,3× mais que primeira ronda.',
+  },
+  {
+    question: 'O que significa o grade A/B/C?',
+    answer:
+      'Grade A = edge ≥ 12% (máxima confiança, stake 2× normal). Grade B = edge 8-12% (sólido, stake normal). Grade C = edge 5-8% (marginal, stake 0,5×).',
+  },
+  {
+    question: 'Posso confiar 100% nos picks?',
+    answer:
+      'Não. Aposta envolve sempre risco. O modelo tem edge a longo prazo (yield +27,6% em 439 tips auditados), mas a curto prazo a variância é alta. Aposta apenas o que podes perder.',
+  },
+];
 
 export const metadata: Metadata = {
   title: 'Como funciona o modelo ELO TudoTénis · Metodologia',
@@ -13,8 +47,16 @@ export const metadata: Metadata = {
 export const revalidate = 86400; // 1 dia
 
 export default function ComoFuncionaPage() {
+  const breadcrumb = breadcrumbJsonLd([
+    { name: 'Início',         href: '/' },
+    { name: 'Como funciona',  href: '/como-funciona' },
+  ]);
+  const faq = faqJsonLd(FAQ_ITEMS);
+
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faq) }} />
       <Header />
       <main id="main" className="flex-1">
         <article className="max-w-3xl mx-auto px-4 md:px-6 py-8 md:py-12">
