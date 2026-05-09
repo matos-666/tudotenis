@@ -66,9 +66,14 @@ export default async function Image() {
             lineHeight: 1.05,
             letterSpacing: '-0.02em',
             maxWidth: 900,
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '0 14px',
           }}
         >
-          Picks ELO + <span style={{ color: '#d4ff3a' }}>stats</span> que ninguém mais publica em português.
+          <span>Picks ELO +</span>
+          <span style={{ color: '#d4ff3a' }}>stats</span>
+          <span>que ninguém mais publica em português.</span>
         </div>
 
         {/* Stats */}
