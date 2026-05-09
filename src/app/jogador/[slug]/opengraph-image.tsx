@@ -156,9 +156,11 @@ function defaultImage() {
           color: '#fff',
           fontSize: 60,
           fontWeight: 800,
+          gap: 6,
         }}
       >
-        Tudo<span style={{ color: '#d4ff3a' }}>Ténis</span>
+        <span>Tudo</span>
+        <span style={{ color: '#d4ff3a' }}>Ténis</span>
       </div>
     ),
     { ...size }

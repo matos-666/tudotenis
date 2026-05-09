@@ -69,9 +69,12 @@ export default async function Image() {
               fontWeight: 900,
               lineHeight: 1.0,
               letterSpacing: '-0.02em',
+              display: 'flex',
+              gap: 18,
             }}
           >
-            Edge ≥ <span style={{ color: '#d4ff3a' }}>5%</span>
+            <span>Edge ≥</span>
+            <span style={{ color: '#d4ff3a' }}>5%</span>
           </div>
           <div
             style={{
