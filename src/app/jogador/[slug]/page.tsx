@@ -5,6 +5,7 @@ import type { Metadata } from 'next';
 import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { EloChart } from '@/components/EloChart';
 
 // Re-gerar a cada hora; novos jogadores acrescentados via cron
 export const revalidate = 3600;
@@ -222,13 +223,8 @@ export default async function PlayerPage({
             </div>
           )}
 
-          {/* Placeholder ELO chart */}
-          <div className="stat-card p-5 md:p-6 mb-8">
-            <h2 className="font-bold mb-4">Evolução ELO · 24 meses</h2>
-            <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
-              📊 Gráfico ELO por superfície (em breve · usa elo_history table)
-            </div>
-          </div>
+          {/* ELO chart (24 meses, 5 superfícies) */}
+          <EloChart playerId={player.id} />
 
           {/* Quick links */}
           <div className="grid sm:grid-cols-3 gap-3">
