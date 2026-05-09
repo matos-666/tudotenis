@@ -127,7 +127,7 @@ function FinalCard({
             className="w-12 h-12 md:w-20 md:h-20 rounded-xl bg-gradient-to-br from-[var(--color-accent)]/30 to-[var(--color-accent)]/5 border-2 border-[var(--color-accent)] flex items-center justify-center text-sm md:text-2xl font-extrabold overflow-hidden flex-shrink-0"
           >
             {winner.photo_url ? (
-              <Image src={winner.photo_url} alt={winner.name} width={120} height={120} className="w-full h-full object-cover" unoptimized />
+              <Image src={winner.photo_url} alt={winner.name} width={120} height={120} className="w-full h-full object-cover object-top" unoptimized />
             ) : (
               <span>{wInitials}</span>
             )}
@@ -168,7 +168,7 @@ function FinalCard({
               className="w-10 h-10 md:w-16 md:h-16 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] flex items-center justify-center text-xs md:text-xl font-bold overflow-hidden flex-shrink-0"
             >
               {finalist.photo_url ? (
-                <Image src={finalist.photo_url} alt={finalist.name} width={120} height={120} className="w-full h-full object-cover" unoptimized />
+                <Image src={finalist.photo_url} alt={finalist.name} width={120} height={120} className="w-full h-full object-cover object-top" unoptimized />
               ) : (
                 <span>{fInitials}</span>
               )}

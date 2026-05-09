@@ -146,7 +146,7 @@ export default async function PlayerPage({
                   alt={player.name}
                   width={120}
                   height={120}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover object-top"
                   unoptimized
                 />
               ) : (

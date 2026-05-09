@@ -124,7 +124,7 @@ function PlayerHeadCard({ p, isFav }: { p: Player; isFav: boolean }) {
             alt={p.name}
             width={120}
             height={120}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover object-top"
             unoptimized
           />
         ) : (
