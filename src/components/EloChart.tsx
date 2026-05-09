@@ -44,6 +44,30 @@ export async function EloChart({ playerId }: { playerId: number }) {
 
   const snaps = (data ?? []) as Snapshot[];
 
+  // ── Filter "active" surfaces ──────────────────────────────────────────
+  // Esconde linhas sem actividade real:
+  //  - elo_overall: sempre mostra
+  //  - superfície: mostra apenas se min/max diferem em pelo menos 30 ELO
+  //    OU se valor mais recente está claramente fora do default 1500
+  const activeSurfaces = SURFACES.filter(surf => {
+    if (surf.key === 'elo_overall') return true;
+    let mn = Infinity, mx = -Infinity;
+    let lastValid: number | null = null;
+    for (const s of snaps) {
+      const v = s[surf.key];
+      if (v != null && v > 800 && v < 3000) {
+        if (v < mn) mn = v;
+        if (v > mx) mx = v;
+        lastValid = v;
+      }
+    }
+    if (!isFinite(mn) || lastValid == null) return false;
+    const movement = mx - mn;
+    const distFromDefault = Math.abs(lastValid - 1500);
+    // Mostra se houve movimento real ≥30, OU se afastou ≥80 do default
+    return movement >= 30 || distFromDefault >= 80;
+  });
+
   // ── Empty state ─────────────────────────────────────────────────────────
   if (snaps.length < 2) {
     return (
@@ -58,11 +82,11 @@ export async function EloChart({ playerId }: { playerId: number }) {
 
   // ── Compute scales ──────────────────────────────────────────────────────
   // X: index 0..n-1
-  // Y: min/max ELO across all surfaces
+  // Y: min/max ELO across active surfaces only
   let minElo = Infinity;
   let maxElo = -Infinity;
   for (const s of snaps) {
-    for (const surf of SURFACES) {
+    for (const surf of activeSurfaces) {
       const v = s[surf.key];
       if (v != null && v > 800 && v < 3000) {
         if (v < minElo) minElo = v;
@@ -86,8 +110,8 @@ export async function EloChart({ playerId }: { playerId: number }) {
     return PAD_T + (1 - (elo - minElo) / (maxElo - minElo)) * innerH;
   }
 
-  // Build paths per surface
-  const paths = SURFACES.map(surf => {
+  // Build paths per active surface
+  const paths = activeSurfaces.map(surf => {
     const points: string[] = [];
     snaps.forEach((s, i) => {
       const v = s[surf.key];
@@ -122,7 +146,7 @@ export async function EloChart({ playerId }: { playerId: number }) {
       <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
         <h2 className="font-bold">Evolução ELO · {snaps.length} snapshots</h2>
         <div className="flex gap-3 text-xs flex-wrap">
-          {SURFACES.map(s => (
+          {activeSurfaces.map(s => (
             <span key={s.key} className="flex items-center gap-1">
               <span
                 className="inline-block w-3 h-0.5"
@@ -135,6 +159,11 @@ export async function EloChart({ playerId }: { playerId: number }) {
               <span className="text-gray-400">{s.label}</span>
             </span>
           ))}
+          {activeSurfaces.length < SURFACES.length && (
+            <span className="text-[10px] text-gray-600 ml-2">
+              · {SURFACES.length - activeSurfaces.length} superfície(s) sem actividade omitida(s)
+            </span>
+          )}
         </div>
       </div>
 
