@@ -82,7 +82,8 @@ export default async function Image(
           }}
         >
           <div style={{ width: 10, height: 10, borderRadius: 999, background: '#d4ff3a' }} />
-          Tudo<span style={{ color: '#d4ff3a' }}>Ténis</span>
+          <span>Tudo</span>
+          <span style={{ color: '#d4ff3a' }}>Ténis</span>
         </div>
 
         {/* Top right: surface pill */}

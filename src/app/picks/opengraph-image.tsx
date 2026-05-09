@@ -33,7 +33,8 @@ export default async function Image() {
           }}
         >
           <div style={{ width: 12, height: 12, borderRadius: 999, background: '#d4ff3a' }} />
-          Tudo<span style={{ color: '#d4ff3a' }}>Ténis</span>
+          <span>Tudo</span>
+          <span style={{ color: '#d4ff3a' }}>Ténis</span>
         </div>
 
         {/* Live badge */}
@@ -55,11 +56,11 @@ export default async function Image() {
           }}
         >
           <div style={{ width: 10, height: 10, borderRadius: 999, background: '#d4ff3a' }} />
-          ACTUALIZADO HOJE
+          <span>ACTUALIZADO HOJE</span>
         </div>
 
         {/* Title */}
-        <div style={{ marginTop: 'auto', marginBottom: 30 }}>
+        <div style={{ marginTop: 'auto', marginBottom: 30, display: 'flex', flexDirection: 'column' }}>
           <div style={{ fontSize: 30, color: '#9aa3a6', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 16 }}>
             Picks ELO de hoje
           </div>

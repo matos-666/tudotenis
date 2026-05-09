@@ -48,7 +48,8 @@ export default async function Image(
           }}
         >
           <div style={{ width: 10, height: 10, borderRadius: 999, background: '#d4ff3a' }} />
-          Tudo<span style={{ color: '#d4ff3a' }}>Ténis</span>
+          <span>Tudo</span>
+          <span style={{ color: '#d4ff3a' }}>Ténis</span>
         </div>
 
         {/* Photo / initials */}
@@ -84,7 +85,7 @@ export default async function Image(
         {/* Right side: data */}
         <div style={{ display: 'flex', flexDirection: 'column', marginLeft: 60, flex: 1 }}>
           <div style={{ fontSize: 28, color: '#9aa3a6', marginBottom: 8 }}>
-            {(p.tour as string).toUpperCase()} {p.atp_rank ? `· #${p.atp_rank}` : ''}
+            {`${(p.tour as string).toUpperCase()}${p.atp_rank ? ` · #${p.atp_rank}` : ''}`}
           </div>
           <div
             style={{

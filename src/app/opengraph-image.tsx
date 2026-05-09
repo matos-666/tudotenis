@@ -36,7 +36,7 @@ export default async function Image() {
           }}
         >
           <div style={{ width: 12, height: 12, borderRadius: 999, background: '#d4ff3a' }} />
-          tudotenis.com
+          <span>tudotenis.com</span>
         </div>
 
         {/* Logo wordmark */}
@@ -51,7 +51,7 @@ export default async function Image() {
             gap: 8,
           }}
         >
-          Tudo
+          <span>Tudo</span>
           <span style={{ color: '#d4ff3a' }}>Ténis</span>
           <span style={{ color: '#d4ff3a', fontSize: 40 }}>🎾</span>
         </div>
