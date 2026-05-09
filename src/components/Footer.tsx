@@ -60,7 +60,7 @@ export function Footer() {
         </div>
       </div>
       <div className="border-t border-[var(--color-border)] py-4 text-center text-xs text-gray-600 px-4">
-        © {new Date().getFullYear()} TudoTénis · Dados ELO próprios · 40k+ jogos analisados
+        © {new Date().getFullYear()} TudoTénis · Dados ELO próprios · 59k jogos analisados
       </div>
     </footer>
   );

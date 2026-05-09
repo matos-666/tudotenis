@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 export const metadata: Metadata = {
   title: 'Picks do dia · ELO + Edge · TudoTénis',
   description:
-    'Picks de ténis publicados pelo modelo ELO TudoTénis. Yield comprovado +30,4% em 405 tips auditadas. Saibro, hard, grama. ATP, WTA e Challengers.',
+    'Picks de ténis publicados pelo modelo ELO TudoTénis. Yield comprovado +27,6% em 439 tips auditadas. Saibro, hard, grama. ATP, WTA e Challengers.',
   alternates: { canonical: '/picks' },
 };
 
@@ -192,19 +192,19 @@ export default async function PicksPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
               <div className="stat-card p-4">
                 <div className="text-xs text-gray-500 mb-1">Yield total</div>
-                <div className="text-xl md:text-2xl font-extrabold text-[var(--color-accent)] font-mono">+30,4%</div>
+                <div className="text-xl md:text-2xl font-extrabold text-[var(--color-accent)] font-mono">+27,6%</div>
               </div>
               <div className="stat-card p-4">
-                <div className="text-xs text-gray-500 mb-1">P&amp;L (€1k bankroll)</div>
-                <div className="text-xl md:text-2xl font-extrabold text-[var(--color-accent)] font-mono">+€8.788</div>
+                <div className="text-xs text-gray-500 mb-1">P&amp;L acumulado</div>
+                <div className="text-xl md:text-2xl font-extrabold text-[var(--color-accent)] font-mono">+€8.189</div>
               </div>
               <div className="stat-card p-4">
                 <div className="text-xs text-gray-500 mb-1">Tips totais</div>
-                <div className="text-xl md:text-2xl font-extrabold font-mono">405</div>
+                <div className="text-xl md:text-2xl font-extrabold font-mono">439</div>
               </div>
               <div className="stat-card p-4">
                 <div className="text-xs text-gray-500 mb-1">Win rate</div>
-                <div className="text-xl md:text-2xl font-extrabold font-mono">46,9%</div>
+                <div className="text-xl md:text-2xl font-extrabold font-mono">48,5%</div>
               </div>
             </div>
           </div>

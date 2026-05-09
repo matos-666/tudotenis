@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     template: '%s | TudoTénis',
   },
   description:
-    'Picks ELO + estatísticas avançadas de ténis em português. Cobertura ATP, WTA, Challengers e ITF. Yield comprovado +30,4% · 405 tips auditadas · 1.059 jogadores.',
+    'Picks ELO + estatísticas avançadas de ténis em português. Cobertura ATP, WTA, Challengers e ITF. Yield comprovado +27,6% · 439 tips auditadas · 2.557 jogadores.',
   keywords: [
     'ténis', 'tenis', 'picks', 'ELO', 'ATP', 'WTA', 'apostas', 'prognósticos',
     'Roland Garros', 'Wimbledon', 'US Open', 'Australian Open',
@@ -48,7 +48,7 @@ export const metadata: Metadata = {
     siteName: 'TudoTénis',
     title: 'TudoTénis — Modelo ELO + Stats Avançadas',
     description:
-      'Picks ELO + stats que ninguém mais publica em português. 40k+ jogos analisados, yield +30,4%.',
+      'Picks ELO + stats que ninguém mais publica em português. 59k jogos analisados, yield +27,6%.',
     locale: 'pt_BR',
     alternateLocale: ['pt_PT'],
     images: [
@@ -63,7 +63,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'TudoTénis — Modelo ELO + Stats',
-    description: 'Picks ELO + stats avançadas de ténis em português. Yield +30,4%.',
+    description: 'Picks ELO + stats avançadas de ténis em português. Yield +27,6%.',
     images: ['/logo.png'],
   },
   robots: {
@@ -121,7 +121,7 @@ export default function RootLayout({
               url: siteUrl,
               logo: `${siteUrl}/logo.png`,
               description:
-                'Modelo ELO próprio com 40k+ jogos analisados de ténis ATP, WTA, Challengers e ITF.',
+                'Modelo ELO próprio com 59k jogos analisados de ténis ATP, WTA, Challengers e ITF.',
             }),
           }}
         />

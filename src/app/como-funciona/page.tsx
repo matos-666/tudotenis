@@ -6,7 +6,7 @@ import { Footer } from '@/components/Footer';
 export const metadata: Metadata = {
   title: 'Como funciona o modelo ELO TudoTénis · Metodologia',
   description:
-    'Explicação completa do modelo ELO TudoTénis: como calculamos os ratings, como detectamos edge nas quotas, K-factor por superfície, grades A/B/C dos picks. Yield comprovado +30,4% em 405 tips.',
+    'Explicação completa do modelo ELO TudoTénis: como calculamos os ratings, como detectamos edge nas quotas, K-factor por superfície, grades A/B/C dos picks. Yield comprovado +27,6% em 439 tips.',
   alternates: { canonical: '/como-funciona' },
 };
 
@@ -28,7 +28,7 @@ export default function ComoFuncionaPage() {
               Como funciona o modelo TudoTénis
             </h1>
             <p className="text-gray-400 text-base md:text-lg leading-relaxed">
-              Sem palpites, sem inside info, sem &quot;feeling&quot;. Só matemática aplicada a 40k+ jogos
+              Sem palpites, sem inside info, sem &quot;feeling&quot;. Só matemática aplicada a 59k jogos
               de ténis ao longo de 10 anos. Aqui está exactamente o que fazemos.
             </p>
           </header>
@@ -153,24 +153,24 @@ export default function ComoFuncionaPage() {
           <section id="performance" className="mb-12">
             <h2 className="text-2xl md:text-3xl font-bold mb-4">5. Performance histórica</h2>
             <p className="text-gray-300 leading-relaxed mb-4">
-              Em 405 tips publicados desde 2023:
+              Em 439 tips resolvidos:
             </p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
               <div className="stat-card p-4 text-center">
-                <div className="text-2xl font-extrabold text-[var(--color-accent)] font-mono">+30,4%</div>
+                <div className="text-2xl font-extrabold text-[var(--color-accent)] font-mono">+27,6%</div>
                 <div className="text-xs text-gray-500">Yield total</div>
               </div>
               <div className="stat-card p-4 text-center">
-                <div className="text-2xl font-extrabold font-mono">405</div>
+                <div className="text-2xl font-extrabold font-mono">439</div>
                 <div className="text-xs text-gray-500">Tips totais</div>
               </div>
               <div className="stat-card p-4 text-center">
-                <div className="text-2xl font-extrabold font-mono">46,9%</div>
+                <div className="text-2xl font-extrabold font-mono">48,5%</div>
                 <div className="text-xs text-gray-500">Win rate</div>
               </div>
               <div className="stat-card p-4 text-center">
-                <div className="text-2xl font-extrabold font-mono">+€8.788</div>
-                <div className="text-xs text-gray-500">P&amp;L (€1k bankroll)</div>
+                <div className="text-2xl font-extrabold font-mono">+€8.189</div>
+                <div className="text-xs text-gray-500">P&amp;L acumulado</div>
               </div>
             </div>
             <p className="text-xs text-gray-500">

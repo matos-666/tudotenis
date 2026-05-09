@@ -73,7 +73,7 @@ export async function generateStaticParams() {
   for (let i = 0; i < top.length; i++) {
     for (let j = i + 1; j < top.length; j++) {
       const slugs = [top[i].slug, top[j].slug].sort();
-      params.push({ matchup: `${slugs[0]}-${slugs[1]}` });
+      params.push({ matchup: `${slugs[0]}-vs-${slugs[1]}` });
     }
   }
   return params;

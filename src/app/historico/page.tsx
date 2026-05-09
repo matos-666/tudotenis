@@ -39,7 +39,7 @@ async function fetchHistory(): Promise<SettledPick[]> {
     .select('*')
     .not('result', 'is', null)
     .order('posted_at', { ascending: false })
-    .limit(200);
+    .limit(1000);
   if (error) {
     console.error('[/historico]', error.message);
     return [];
@@ -60,10 +60,10 @@ export default async function HistoricoPage() {
   const yieldPct = totalStake > 0 ? (totalPL / totalStake) * 100 : 0;
   const winRate  = (wins + losses) > 0 ? (wins / (wins + losses)) * 100 : 0;
 
-  // Performance histórica do modelo original (audit fora-sistema)
-  const HIST_TIPS = 405;
-  const HIST_YIELD = 30.4;
-  const HIST_PL = 8788;
+  // Performance histórica completa (importada do legacy + live no site)
+  // Os 439 picks legacy + os do cron live são todos guardados na mesma tabela.
+  // Estes números são calculados acima dinamicamente (totalPL, yieldPct, etc.)
+  // quando há dados no DB.
 
   return (
     <>
@@ -83,56 +83,37 @@ export default async function HistoricoPage() {
             </p>
           </div>
 
-          {/* KPIs históricos */}
-          <h2 className="text-xs uppercase tracking-wider text-gray-500 mb-3">Modelo histórico (auditado)</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
-            <div className="stat-card p-4">
-              <div className="text-xs text-gray-500 mb-1">Yield</div>
-              <div className="text-xl md:text-2xl font-extrabold text-[var(--color-accent)] font-mono">+{HIST_YIELD}%</div>
-            </div>
-            <div className="stat-card p-4">
-              <div className="text-xs text-gray-500 mb-1">P&amp;L (€1k)</div>
-              <div className="text-xl md:text-2xl font-extrabold text-[var(--color-accent)] font-mono">+€{HIST_PL.toLocaleString('pt-PT')}</div>
-            </div>
-            <div className="stat-card p-4">
-              <div className="text-xs text-gray-500 mb-1">Tips totais</div>
-              <div className="text-xl md:text-2xl font-extrabold font-mono">{HIST_TIPS}</div>
-            </div>
-            <div className="stat-card p-4">
-              <div className="text-xs text-gray-500 mb-1">Win rate</div>
-              <div className="text-xl md:text-2xl font-extrabold font-mono">46,9%</div>
-            </div>
-          </div>
-
-          {/* KPIs do site live */}
+          {/* KPIs reais do DB */}
           {picks.length > 0 && (
-            <>
-              <h2 className="text-xs uppercase tracking-wider text-gray-500 mb-3">Live no site (desde lançamento)</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
-                <div className="stat-card p-4">
-                  <div className="text-xs text-gray-500 mb-1">Yield</div>
-                  <div className={`text-xl md:text-2xl font-extrabold font-mono ${yieldPct >= 0 ? 'text-[var(--color-accent)]' : 'loss'}`}>
-                    {yieldPct >= 0 ? '+' : ''}{yieldPct.toFixed(1)}%
-                  </div>
-                </div>
-                <div className="stat-card p-4">
-                  <div className="text-xs text-gray-500 mb-1">P&amp;L</div>
-                  <div className={`text-xl md:text-2xl font-extrabold font-mono ${totalPL >= 0 ? 'text-[var(--color-accent)]' : 'loss'}`}>
-                    {totalPL >= 0 ? '+' : ''}€{totalPL.toFixed(0)}
-                  </div>
-                </div>
-                <div className="stat-card p-4">
-                  <div className="text-xs text-gray-500 mb-1">Picks resolvidos</div>
-                  <div className="text-xl md:text-2xl font-extrabold font-mono">{picks.length}</div>
-                </div>
-                <div className="stat-card p-4">
-                  <div className="text-xs text-gray-500 mb-1">V-D-V</div>
-                  <div className="text-xl md:text-2xl font-extrabold font-mono">
-                    <span className="win">{wins}</span>-<span className="loss">{losses}</span>-<span className="void">{voids}</span>
-                  </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
+              <div className="stat-card p-4">
+                <div className="text-xs text-gray-500 mb-1">Yield total</div>
+                <div className={`text-xl md:text-2xl font-extrabold font-mono ${yieldPct >= 0 ? 'text-[var(--color-accent)]' : 'loss'}`}>
+                  {yieldPct >= 0 ? '+' : ''}{yieldPct.toFixed(1)}%
                 </div>
               </div>
-            </>
+              <div className="stat-card p-4">
+                <div className="text-xs text-gray-500 mb-1">P&amp;L acumulado</div>
+                <div className={`text-xl md:text-2xl font-extrabold font-mono ${totalPL >= 0 ? 'text-[var(--color-accent)]' : 'loss'}`}>
+                  {totalPL >= 0 ? '+' : ''}€{totalPL.toFixed(0)}
+                </div>
+              </div>
+              <div className="stat-card p-4">
+                <div className="text-xs text-gray-500 mb-1">Picks resolvidos</div>
+                <div className="text-xl md:text-2xl font-extrabold font-mono">{picks.length}</div>
+              </div>
+              <div className="stat-card p-4">
+                <div className="text-xs text-gray-500 mb-1">V-D-V (win rate)</div>
+                <div className="text-lg md:text-xl font-extrabold font-mono">
+                  <span className="win">{wins}</span>-<span className="loss">{losses}</span>-<span className="void">{voids}</span>
+                  {(wins + losses) > 0 && (
+                    <span className="text-xs text-gray-500 block mt-1">
+                      {((wins / (wins + losses)) * 100).toFixed(1)}%
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Tabela de histórico */}

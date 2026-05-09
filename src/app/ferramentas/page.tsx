@@ -35,7 +35,7 @@ export default function FerramentasIndex() {
         <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-12">
           <h1 className="text-2xl md:text-4xl font-extrabold mb-2">Ferramentas grátis</h1>
           <p className="text-gray-400 text-sm md:text-base mb-8">
-            Modelo ELO próprio · 1.059 jogadores · totalmente funcional
+            Modelo ELO próprio · 2.557 jogadores · totalmente funcional
           </p>
 
           <div className="grid sm:grid-cols-2 gap-4">
@@ -65,7 +65,7 @@ export default function FerramentasIndex() {
               Como funcionam
             </h3>
             <p className="text-sm text-gray-400 leading-relaxed">
-              Todas as ferramentas usam o nosso modelo ELO proprietário com 40k+ jogos
+              Todas as ferramentas usam o nosso modelo ELO proprietário com 59k jogos
               analisados desde 1968. As probabilidades são calculadas com base em ELOs
               específicos por superfície (Hard, Saibro, Grama, Indoor) e ajustadas para
               best-of-3 ou best-of-5 (Slams).

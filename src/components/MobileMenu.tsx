@@ -125,7 +125,7 @@ export function MobileMenu() {
           style={{ backgroundColor: '#0a0e0f' }}
         >
           <p className="text-xs text-gray-500 text-center">
-            Modelo ELO próprio · 1.059 jogadores
+            Modelo ELO próprio · 2.557 jogadores
             <br />
             <span className="text-gray-600">+18 · Joga responsável</span>
           </p>

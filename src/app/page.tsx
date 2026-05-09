@@ -13,13 +13,13 @@ export default function HomePage() {
               <div>
                 <div className="inline-flex items-center gap-2 bg-[var(--color-card)] border border-[var(--color-border)] rounded-full px-3 py-1 text-xs mb-5 flex-wrap">
                   <span className="w-2 h-2 rounded-full bg-[var(--color-accent)] animate-pulse flex-shrink-0" />
-                  Modelo atualizado · 1.059 jogadores · 40k+ jogos analisados
+                  Modelo atualizado · 2.557 jogadores · 59k jogos analisados
                 </div>
                 <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.05] tracking-tight mb-5">
                   Picks ELO + <span className="text-[var(--color-accent)]">stats</span> que ninguém mais publica em português.
                 </h1>
                 <p className="text-base md:text-lg text-gray-400 mb-6 md:mb-8 leading-relaxed">
-                  Modelo ELO próprio com 40k+ jogos analisados. Cobertura ATP, WTA, Challengers e ITF. Yield comprovado +30,4%.
+                  Modelo ELO próprio com 59k jogos analisados. Cobertura ATP, WTA, Challengers e ITF. Yield comprovado +27,6%.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Link
@@ -43,20 +43,20 @@ export default function HomePage() {
                 <div className="grid grid-cols-2 gap-6">
                   <div>
                     <div className="text-3xl font-extrabold text-[var(--color-accent)] font-mono">
-                      +30,4%
+                      +27,6%
                     </div>
                     <div className="text-xs text-gray-500">Yield total</div>
                   </div>
                   <div>
-                    <div className="text-3xl font-extrabold font-mono">+€8.788</div>
-                    <div className="text-xs text-gray-500">P&L (€1k bankroll)</div>
+                    <div className="text-3xl font-extrabold font-mono">+€8.189</div>
+                    <div className="text-xs text-gray-500">P&L acumulado</div>
                   </div>
                   <div>
-                    <div className="text-3xl font-extrabold font-mono">405</div>
+                    <div className="text-3xl font-extrabold font-mono">439</div>
                     <div className="text-xs text-gray-500">Tips resolvidas</div>
                   </div>
                   <div>
-                    <div className="text-3xl font-extrabold font-mono">46,9%</div>
+                    <div className="text-3xl font-extrabold font-mono">48,5%</div>
                     <div className="text-xs text-gray-500">Win rate</div>
                   </div>
                 </div>
