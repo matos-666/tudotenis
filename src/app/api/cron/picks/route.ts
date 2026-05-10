@@ -58,7 +58,7 @@ function isAuthorized(req: NextRequest): boolean {
 }
 
 // ── Scraper ───────────────────────────────────────────────────────────────
-async function fetchMatches(): Promise<ParsedMatch[]> {
+async function fetchTennisStatsHtml(): Promise<string> {
   const res = await fetch(TENNISSTATS_URL, {
     headers: {
       'User-Agent':
@@ -70,7 +70,11 @@ async function fetchMatches(): Promise<ParsedMatch[]> {
   });
 
   if (!res.ok) throw new Error(`TennisStats HTTP ${res.status}`);
-  const html = await res.text();
+  return res.text();
+}
+
+async function fetchMatches(): Promise<ParsedMatch[]> {
+  const html = await fetchTennisStatsHtml();
   return parseMatches(html);
 }
 
@@ -196,8 +200,84 @@ export async function POST(req: NextRequest) {
   try {
     // 1. Scrape
     logs.push('📡 Scraping TennisStats…');
-    const allMatches = await fetchMatches();
-    logs.push(`   ${allMatches.length} jogos encontrados`);
+    const html = await fetchTennisStatsHtml();
+    const allMatches = parseMatches(html);
+    logs.push(`   ${allMatches.length} jogos singles encontrados`);
+
+    // 1b. Captura de duplas (registo paralelo, sem gerar picks)
+    let doublesCaptured = 0;
+    try {
+      const { parseDoublesMatches, findOrCreatePlayer, findTournamentId, buildDoublesKey } =
+        await import('@/lib/doubles-scrape');
+      const dblMatches = parseDoublesMatches(html);
+      logs.push(`   ${dblMatches.length} jogos duplas encontrados`);
+
+      for (const dm of dblMatches) {
+        try {
+          const isWomen = /WTA|Women|W75|W50|W35/i.test(dm.tournamentName);
+          const tour: 'atp' | 'wta' = isWomen ? 'wta' : 'atp';
+          const dateStr = (dm.scheduledAt ?? new Date().toISOString()).slice(0, 10);
+
+          const externalKey = buildDoublesKey({
+            tournamentName: dm.tournamentName,
+            date: dateStr,
+            t1p1: dm.t1p1Name, t1p2: dm.t1p2Name,
+            t2p1: dm.t2p1Name, t2p2: dm.t2p2Name,
+          });
+
+          // Skip if já existe
+          const { data: existing } = await supa
+            .from('doubles_matches')
+            .select('id')
+            .eq('external_key', externalKey)
+            .limit(1);
+          if (existing?.length) continue;
+
+          // Lookup / create os 4 jogadores
+          const [p1, p2, p3, p4] = await Promise.all([
+            findOrCreatePlayer(supa, dm.t1p1Name, tour),
+            findOrCreatePlayer(supa, dm.t1p2Name, tour),
+            findOrCreatePlayer(supa, dm.t2p1Name, tour),
+            findOrCreatePlayer(supa, dm.t2p2Name, tour),
+          ]);
+          if (!p1 || !p2 || !p3 || !p4) {
+            logs.push(`  ⚠ duplas: jogador não resolvido em ${dm.tournamentName}`);
+            continue;
+          }
+
+          // Tournament id (best-effort)
+          const tid = await findTournamentId(supa, dm.tournamentName, parseInt(dateStr.slice(0, 4)));
+
+          const { error: insErr } = await supa.from('doubles_matches').insert({
+            source: 'tennisstats',
+            external_key: externalKey,
+            tournament_id: tid,
+            tournament_name: dm.tournamentName,
+            date: dateStr,
+            scheduled_at: dm.scheduledAt,
+            surface: dm.surface,
+            t1_p1_id: p1.id,
+            t1_p2_id: p2.id,
+            t2_p1_id: p3.id,
+            t2_p2_id: p4.id,
+            t1_p1_name: dm.t1p1Name,
+            t1_p2_name: dm.t1p2Name,
+            t2_p1_name: dm.t2p1Name,
+            t2_p2_name: dm.t2p2Name,
+          });
+          if (insErr) {
+            logs.push(`  ❌ duplas insert: ${insErr.message}`);
+            continue;
+          }
+          doublesCaptured++;
+        } catch (e) {
+          logs.push(`  ⚠ duplas: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      if (doublesCaptured > 0) logs.push(`   ${doublesCaptured} novos jogos duplas capturados`);
+    } catch (e) {
+      logs.push(`  ⚠ duplas pipeline error: ${e instanceof Error ? e.message : String(e)}`);
+    }
 
     // 2. Filter upcoming
     const TERMINAL = new Set(['Fin.', 'Ret.', 'Canc.', 'Walko.', 'W.O.', 'Serving', 'Susp.', '']);
@@ -322,6 +402,7 @@ export async function POST(req: NextRequest) {
   await finishCronLog(logId, true, `inserted=${inserted}`, { inserted, logs });
   return NextResponse.json({ ok: true, inserted, logs });
 }
+// Note: `doublesCaptured` count vai no array `logs` — visível no admin/cron.
 
 // Also support GET for Vercel Cron (sends GET with auth header)
 export async function GET(req: NextRequest) {

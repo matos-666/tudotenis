@@ -40,7 +40,7 @@ function isAuthorized(req: NextRequest): boolean {
 }
 
 // ── Scraping ──────────────────────────────────────────────────────────────
-async function fetchFinishedMatches(): Promise<FinishedMatch[]> {
+async function fetchTennisStatsHtml(): Promise<string> {
   const res = await fetch(TENNISSTATS_URL, {
     headers: {
       'User-Agent':
@@ -50,7 +50,11 @@ async function fetchFinishedMatches(): Promise<FinishedMatch[]> {
     next: { revalidate: 0 },
   });
   if (!res.ok) throw new Error(`TennisStats HTTP ${res.status}`);
-  return parseFinished(await res.text());
+  return res.text();
+}
+
+async function fetchFinishedMatches(): Promise<FinishedMatch[]> {
+  return parseFinished(await fetchTennisStatsHtml());
 }
 
 function parseFinished(html: string): FinishedMatch[] {
@@ -100,6 +104,12 @@ function nameMatch(a: string, b: string): boolean {
   const norm = (s: string) =>
     s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
   return norm(a) === norm(b);
+}
+
+function setsEqual<T>(a: Set<T>, b: Set<T>): boolean {
+  if (a.size !== b.size) return false;
+  for (const x of a) if (!b.has(x)) return false;
+  return true;
 }
 
 function calculatePL(result: 'win' | 'loss' | 'void', odd: number, stake: number): number {
@@ -182,12 +192,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, settled: 0, pending: 0, logs });
     }
 
-    // 2. Scrape finished matches
+    // 2. Scrape page (uma vez para ambos singles + doubles)
     logs.push('📡 Scraping resultados…');
-    const finished = await fetchFinishedMatches();
-    logs.push(`   ${finished.length} jogos terminados encontrados`);
+    const html = await fetchTennisStatsHtml();
+    const finished = parseFinished(html);
+    logs.push(`   ${finished.length} jogos singles terminados`);
 
-    // 3. Match results to picks
+    // 3. Match results to picks (singles)
     for (const pick of pickList) {
       const r = findResult(pick, finished);
       if (!r) {
@@ -219,8 +230,87 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Trigger revalidation of /picks page
-    logs.push(`\n✅ ${settled} settled · ${pending} ainda pendentes`);
+    // 4. Settle DOUBLES (matches sem winner em doubles_matches)
+    let doublesSettled = 0;
+    let doublesEloFailed = 0;
+    try {
+      const { parseDoublesFinished } = await import('@/lib/doubles-scrape');
+      const { applyDoublesEloUpdate } = await import('@/lib/doubles-elo');
+      const doublesFinished = parseDoublesFinished(html);
+      logs.push(`   ${doublesFinished.length} jogos duplas terminados`);
+
+      // Buscar duplas pendentes (sem winner) das últimas 72h
+      const dblSince = new Date(Date.now() - 72 * 3600e3).toISOString();
+      const { data: pendingDbl } = await supa
+        .from('doubles_matches')
+        .select('id, t1_p1_name, t1_p2_name, t2_p1_name, t2_p2_name, surface')
+        .is('winner_team', null)
+        .gte('created_at', dblSince);
+
+      const dblList = pendingDbl ?? [];
+      logs.push(`   ${dblList.length} jogos duplas por settle`);
+
+      const norm = (s: string) =>
+        s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+
+      for (const dm of dblList) {
+        // Find a finished match com mesmas 4 partes (em qualquer ordem dentro de cada equipa)
+        const t1Set = new Set([norm(dm.t1_p1_name ?? ''), norm(dm.t1_p2_name ?? '')]);
+        const t2Set = new Set([norm(dm.t2_p1_name ?? ''), norm(dm.t2_p2_name ?? '')]);
+
+        const found = doublesFinished.find(f => {
+          const fT1 = new Set([norm(f.t1p1Name), norm(f.t1p2Name)]);
+          const fT2 = new Set([norm(f.t2p1Name), norm(f.t2p2Name)]);
+          const aMatch = setsEqual(t1Set, fT1) && setsEqual(t2Set, fT2);
+          const bMatch = setsEqual(t1Set, fT2) && setsEqual(t2Set, fT1);
+          return aMatch || bMatch;
+        });
+        if (!found) continue;
+
+        const dmT1IsScrapeT1 = setsEqual(t1Set, new Set([norm(found.t1p1Name), norm(found.t1p2Name)]));
+        const scrapeWinnerIs1 = found.t1Sets > found.t2Sets;
+        // Map scrape winner to our team1/team2
+        let winnerTeam: 1 | 2 | null = null;
+        if (['Canc.', 'Walko.', 'W.O.'].includes(found.status)) {
+          winnerTeam = null; // void
+        } else if (scrapeWinnerIs1) {
+          winnerTeam = dmT1IsScrapeT1 ? 1 : 2;
+        } else if (found.t2Sets > found.t1Sets) {
+          winnerTeam = dmT1IsScrapeT1 ? 2 : 1;
+        }
+
+        const score = `${found.t1Sets}-${found.t2Sets}`;
+        const { error: updErr } = await supa
+          .from('doubles_matches')
+          .update({
+            winner_team: winnerTeam,
+            score,
+            status: found.status,
+            settled_at: new Date().toISOString(),
+          })
+          .eq('id', dm.id);
+
+        if (updErr) {
+          logs.push(`  ❌ duplas update ${dm.id}: ${updErr.message}`);
+          continue;
+        }
+
+        doublesSettled++;
+        if (winnerTeam != null) {
+          const eloRes = await applyDoublesEloUpdate(supa, dm.id);
+          if (!eloRes.ok) {
+            doublesEloFailed++;
+            logs.push(`  ⚠ duplas ELO update ${dm.id}: ${eloRes.error}`);
+          }
+        }
+        logs.push(`  ✅ duplas ${dm.t1_p1_name}/${dm.t1_p2_name} vs ${dm.t2_p1_name}/${dm.t2_p2_name} ${score} → team${winnerTeam ?? 'void'}`);
+      }
+    } catch (e) {
+      logs.push(`  ⚠ duplas settle: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
+    // 5. Trigger revalidation of /picks page
+    logs.push(`\n✅ singles=${settled}/${pending+settled}  duplas=${doublesSettled}${doublesEloFailed ? ` (${doublesEloFailed} elo errors)` : ''}`);
 
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
