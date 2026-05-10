@@ -101,10 +101,13 @@ export function parseDoublesMatches(html: string): ParsedDoublesMatch[] {
       }
       if (rows.length < 2) continue;
 
-      const t1Raw = rows[0][0].replace(/\s*\(\d+\)\s*$/, '').replace(/<[^>]+>/g, '').trim();
-      const t2Raw = rows[1][0].replace(/\s*\(\d+\)\s*$/, '').replace(/<[^>]+>/g, '').trim();
-      const t1 = t1Raw.split(/\s*\/\s*/).map(s => s.trim()).filter(Boolean);
-      const t2 = t2Raw.split(/\s*\/\s*/).map(s => s.trim()).filter(Boolean);
+      const t1Raw = rows[0][0].replace(/\s*\(\d+\s*\/?\s*\d*\)\s*$/, '').replace(/<[^>]+>/g, '').trim();
+      const t2Raw = rows[1][0].replace(/\s*\(\d+\s*\/?\s*\d*\)\s*$/, '').replace(/<[^>]+>/g, '').trim();
+      // TennisStats formato duplas: "Lastname1 - Lastname2"  (separador " - ")
+      // Fallback: também aceitar "/" para robustez futura
+      const splitRe = /\s+-\s+|\s*\/\s*/;
+      const t1 = t1Raw.split(splitRe).map(s => s.trim()).filter(Boolean);
+      const t2 = t2Raw.split(splitRe).map(s => s.trim()).filter(Boolean);
       if (t1.length !== 2 || t2.length !== 2) continue;
 
       const t1Odd = parseFloat(rows[0][1]) || null;
@@ -156,10 +159,13 @@ export function parseDoublesFinished(html: string): ParsedDoublesFinished[] {
       const status = statusM ? statusM[1].trim() : '';
       if (!['Fin.', 'Ret.', 'Walko.', 'W.O.', 'Canc.'].includes(status)) continue;
 
-      const t1Raw = rows[0][0].replace(/\s*\(\d+\)\s*$/, '').replace(/<[^>]+>/g, '').trim();
-      const t2Raw = rows[1][0].replace(/\s*\(\d+\)\s*$/, '').replace(/<[^>]+>/g, '').trim();
-      const t1 = t1Raw.split(/\s*\/\s*/).map(s => s.trim()).filter(Boolean);
-      const t2 = t2Raw.split(/\s*\/\s*/).map(s => s.trim()).filter(Boolean);
+      const t1Raw = rows[0][0].replace(/\s*\(\d+\s*\/?\s*\d*\)\s*$/, '').replace(/<[^>]+>/g, '').trim();
+      const t2Raw = rows[1][0].replace(/\s*\(\d+\s*\/?\s*\d*\)\s*$/, '').replace(/<[^>]+>/g, '').trim();
+      // TennisStats formato duplas: "Lastname1 - Lastname2"  (separador " - ")
+      // Fallback: também aceitar "/" para robustez futura
+      const splitRe = /\s+-\s+|\s*\/\s*/;
+      const t1 = t1Raw.split(splitRe).map(s => s.trim()).filter(Boolean);
+      const t2 = t2Raw.split(splitRe).map(s => s.trim()).filter(Boolean);
       if (t1.length !== 2 || t2.length !== 2) continue;
 
       const t1Sets = parseInt(rows[0][1].trim()) || 0;
@@ -193,39 +199,77 @@ export async function findOrCreatePlayer(
 ): Promise<{ id: number; slug: string; created: boolean } | null> {
   const slug = slugify(name);
   if (!slug) return null;
+  const words = name.trim().split(/\s+/);
+  const isLastNameOnly = words.length === 1;
 
-  // 1. Exact slug
-  const { data: exact } = await supa
-    .from('players')
-    .select('id, slug')
-    .eq('slug', slug)
-    .limit(1);
-  if (exact?.length) return { id: exact[0].id as number, slug: exact[0].slug as string, created: false };
+  // 1. Exact slug match (apenas se tivermos nome completo)
+  if (!isLastNameOnly) {
+    const { data: exact } = await supa
+      .from('players')
+      .select('id, slug')
+      .eq('slug', slug)
+      .limit(1);
+    if (exact?.length) return { id: exact[0].id as number, slug: exact[0].slug as string, created: false };
+  }
 
-  // 2. Fuzzy match (last name)
-  const lastName = name.split(' ').slice(-1)[0];
-  if (lastName && lastName.length >= 4) {
+  // 2. Lookup por apelido (último token) — comum em duplas onde TennisStats
+  //    devolve só "Lastname". Filtra por tour e ordena por activity.
+  const lastName = words[words.length - 1];
+  if (lastName && lastName.length >= 3) {
     const { data: fz } = await supa
       .from('players')
-      .select('id, slug, name')
-      .ilike('name', `%${lastName}%`)
-      .limit(5);
-    // Look for tighter match: same first initial + same last name
-    const initials = name.split(' ').map(p => p[0]?.toLowerCase()).join('');
-    if (fz) {
-      for (const p of fz) {
-        const pInitials = (p.name as string).split(' ').map((q: string) => q[0]?.toLowerCase()).join('');
-        if (pInitials === initials) {
-          return { id: p.id as number, slug: p.slug as string, created: false };
+      .select('id, slug, name, tour, active, elo_overall, atp_rank')
+      .ilike('name', `% ${lastName}`)            // termina em " Lastname"
+      .eq('tour', tour)
+      .order('active', { ascending: false })
+      .order('atp_rank', { ascending: true, nullsFirst: false })
+      .order('elo_overall', { ascending: false, nullsFirst: false })
+      .limit(10);
+
+    if (fz?.length) {
+      // Se temos nome completo, tenta match mais apertado por iniciais
+      if (!isLastNameOnly) {
+        const initials = words.map(p => p[0]?.toLowerCase()).join('');
+        for (const p of fz) {
+          const pInitials = (p.name as string).split(/\s+/).map((q: string) => q[0]?.toLowerCase()).join('');
+          if (pInitials === initials) {
+            return { id: p.id as number, slug: p.slug as string, created: false };
+          }
         }
       }
+      // Senão, devolve o mais relevante (já ordenado: active+rank+elo)
+      return { id: fz[0].id as number, slug: fz[0].slug as string, created: false };
+    }
+
+    // Fallback: também procurar com substring em qualquer parte do nome
+    // (cobre casos como "Saint-Pierre" / acentos esquisitos)
+    const { data: fz2 } = await supa
+      .from('players')
+      .select('id, slug, name, tour, active, elo_overall, atp_rank')
+      .ilike('name', `%${lastName}%`)
+      .eq('tour', tour)
+      .order('active', { ascending: false })
+      .order('atp_rank', { ascending: true, nullsFirst: false })
+      .limit(5);
+    if (fz2?.length) {
+      return { id: fz2[0].id as number, slug: fz2[0].slug as string, created: false };
     }
   }
 
-  // 3. Create
+  // 3. Não encontrado — cria. Para apelidos isolados, marca slug como
+  //    "lastname-doubles-XXX" para não colidir com singles cujo full name
+  //    inclua esse apelido. Geramos sufixo aleatório curto.
+  let createSlug = slug;
+  let createName = name;
+  if (isLastNameOnly) {
+    const sfx = Math.random().toString(36).slice(2, 5);
+    createSlug = `${slug}-d${sfx}`;
+    createName = name; // mantém o lastname puro como nome (admin pode editar depois)
+  }
+
   const { data: created, error } = await supa
     .from('players')
-    .insert({ slug, name, tour, active: true })
+    .insert({ slug: createSlug, name: createName, tour, active: true })
     .select('id, slug')
     .single();
   if (error || !created) {
