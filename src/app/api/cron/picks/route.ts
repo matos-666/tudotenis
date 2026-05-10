@@ -184,6 +184,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Job tag — admin manual triggers set ?source=manual
+  const jobTag = req.nextUrl.searchParams.get('source') === 'manual' ? 'manual_picks' : 'picks';
+  const { startCronLog, finishCronLog } = await import('@/lib/cron-log');
+  const logId = await startCronLog(jobTag);
+
   const supa = getServiceSupabase();
   const logs: string[] = [];
   let inserted = 0;
@@ -200,6 +205,7 @@ export async function POST(req: NextRequest) {
     logs.push(`   ${upcoming.length} por jogar hoje`);
 
     if (upcoming.length === 0) {
+      await finishCronLog(logId, true, 'no upcoming matches', { inserted: 0, logs });
       return NextResponse.json({ ok: true, inserted: 0, logs });
     }
 
@@ -308,10 +314,12 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     logs.push(`❌ Error: ${msg}`);
+    await finishCronLog(logId, false, msg, { inserted, logs });
     return NextResponse.json({ ok: false, error: msg, logs }, { status: 500 });
   }
 
   logs.push(`\n✅ ${inserted} pick(s) inseridos.`);
+  await finishCronLog(logId, true, `inserted=${inserted}`, { inserted, logs });
   return NextResponse.json({ ok: true, inserted, logs });
 }
 

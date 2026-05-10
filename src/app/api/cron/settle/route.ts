@@ -154,6 +154,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const jobTag = req.nextUrl.searchParams.get('source') === 'manual' ? 'manual_settle' : 'settle';
+  const { startCronLog, finishCronLog } = await import('@/lib/cron-log');
+  const logId = await startCronLog(jobTag);
+
   const supa = getServiceSupabase();
   const logs: string[] = [];
   let settled = 0;
@@ -174,6 +178,7 @@ export async function POST(req: NextRequest) {
     logs.push(`📋 ${pickList.length} pick(s) por settle`);
 
     if (pickList.length === 0) {
+      await finishCronLog(logId, true, 'no pending picks', { settled: 0, pending: 0, logs });
       return NextResponse.json({ ok: true, settled: 0, pending: 0, logs });
     }
 
@@ -220,9 +225,11 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     logs.push(`❌ Error: ${msg}`);
+    await finishCronLog(logId, false, msg, { settled, pending, logs });
     return NextResponse.json({ ok: false, error: msg, logs }, { status: 500 });
   }
 
+  await finishCronLog(logId, true, `settled=${settled} pending=${pending}`, { settled, pending, logs });
   return NextResponse.json({ ok: true, settled, pending, logs });
 }
 
