@@ -73,7 +73,8 @@ export function parseDoublesMatches(html: string): ParsedDoublesMatch[] {
 
   for (const block of blocks.slice(1)) {
     if (!block.includes('format-doubles')) continue;
-    if (block.includes('dnone-important')) continue;
+    // Nota: NÃO skip dnone-important — TennisStats marca os blocks de duplas
+    // como hidden por default na UI, mas os dados estão lá.
 
     const tnM = block.match(/<span class='semi-bold'>([^<]+)<\/span>/);
     const tournamentName = tnM ? tnM[1].trim() : 'Unknown';
@@ -134,7 +135,8 @@ export function parseDoublesFinished(html: string): ParsedDoublesFinished[] {
 
   for (const block of blocks.slice(1)) {
     if (!block.includes('format-doubles')) continue;
-    if (block.includes('dnone-important')) continue;
+    // Nota: NÃO skip dnone-important — TennisStats marca os blocks de duplas
+    // como hidden por default na UI, mas os dados estão lá.
 
     const matchRE = /<div class='match-row row cf \w+' ><a href='\/h2h\/[^']+'[^>]*>([\s\S]*?)<\/a><\/div>/g;
     let mm: RegExpExecArray | null;
