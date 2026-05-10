@@ -39,13 +39,40 @@ async function fetchPlayers(tour: 'atp' | 'wta'): Promise<PlayerLite[]> {
 }
 
 function PlayerCard({ p }: { p: PlayerLite }) {
+  const initials = p.name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
   return (
     <Link
       href={`/jogador/${p.slug}`}
       className="stat-card p-4 hover:border-[var(--color-accent)]/40 transition flex items-center gap-3 group"
     >
-      <div className="w-12 h-12 rounded-full bg-[var(--color-card)] border border-[var(--color-border)] flex items-center justify-center text-2xl flex-shrink-0">
-        {p.flag ?? '🎾'}
+      <div className="relative w-12 h-12 rounded-full bg-[var(--color-card)] border border-[var(--color-border)] overflow-hidden flex-shrink-0 flex items-center justify-center">
+        {p.photo_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={p.photo_url}
+            alt={p.name}
+            loading="lazy"
+            className="w-full h-full object-cover"
+            style={{ objectPosition: 'top center' }}
+          />
+        ) : (
+          <span className="text-sm font-bold text-gray-500">{initials}</span>
+        )}
+        {/* Flag pequena, canto inferior-direito */}
+        {p.flag && (
+          <span
+            className="absolute bottom-0 right-0 text-[10px] leading-none bg-[var(--color-surface)] rounded-tl px-0.5"
+            aria-hidden="true"
+          >
+            {p.flag}
+          </span>
+        )}
       </div>
       <div className="min-w-0 flex-1">
         <div className="font-semibold truncate group-hover:text-[var(--color-accent)] transition">
