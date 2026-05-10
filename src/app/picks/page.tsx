@@ -99,9 +99,9 @@ function PickCard({ p }: { p: Pick }) {
   const time = formatTime(p.scheduled_at);
 
   return (
-    <div className={`stat-card p-5 ${live ? 'border-red-500/40 shadow-lg shadow-red-500/5' : ''}`}>
+    <div className={`stat-card p-4 md:p-5 ${live ? 'border-red-500/40 shadow-lg shadow-red-500/5' : ''}`}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <span className="text-xs text-gray-500">{p.tournament_name ?? 'ATP/WTA'}</span>
         <div className="flex gap-2 items-center">
           <span className={`surface-pill ${SURFACE_CLASS[surf]}`}>{SURFACE_LABEL[surf]}</span>
@@ -117,25 +117,21 @@ function PickCard({ p }: { p: Pick }) {
         </div>
       </div>
 
-      {/* Players */}
-      <div className="space-y-2 mb-4">
-        <div className="flex items-center justify-between">
-          <span className="font-semibold">
-            {p.p1_name ?? p.selection}{' '}
-            <span className="text-gray-500 text-sm">{p.p1_flag ?? ''}</span>
-          </span>
-        </div>
-        <div className="text-xs text-gray-600 text-center">vs</div>
-        <div className="flex items-center justify-between text-gray-400">
-          <span>
-            {p.p2_name ?? '–'}{' '}
-            <span className="text-gray-600 text-sm">{p.p2_flag ?? ''}</span>
-          </span>
-        </div>
+      {/* Players — side-by-side */}
+      <div className="flex items-center gap-2 mb-3">
+        <span className="font-semibold text-sm md:text-base truncate flex-1 min-w-0">
+          {p.p1_name ?? p.selection}{' '}
+          <span className="text-gray-500">{p.p1_flag ?? ''}</span>
+        </span>
+        <span className="text-[10px] uppercase tracking-wider text-gray-600 shrink-0">vs</span>
+        <span className="text-gray-400 text-sm md:text-base truncate flex-1 min-w-0 text-right">
+          {p.p2_name ?? '–'}{' '}
+          <span className="text-gray-600">{p.p2_flag ?? ''}</span>
+        </span>
       </div>
 
       {/* Stats */}
-      <div className="flex items-end justify-between pt-3 border-t border-[var(--color-border)] mb-4">
+      <div className="flex items-end justify-between pt-3 border-t border-[var(--color-border)] mb-3">
         <div>
           <div className="text-xs text-gray-500 mb-1">Aposta</div>
           <div className="font-semibold text-sm">{p.market}</div>
