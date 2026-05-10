@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { themeInitScript } from '@/components/ThemeToggle';
+import { Analytics } from '@vercel/analytics/next';
 
 const inter = Inter({
   subsets: ['latin', 'latin-ext'],
@@ -148,6 +149,7 @@ export default function RootLayout({
         />
 
         {children}
+        <Analytics />
       </body>
     </html>
   );
