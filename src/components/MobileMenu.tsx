@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -17,7 +18,13 @@ const NAV_LINKS = [
 
 export function MobileMenu() {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
+
+  // Mark mounted (for portal — only render after hydration)
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Fecha quando navega
   useEffect(() => {
@@ -62,29 +69,33 @@ export function MobileMenu() {
         </svg>
       </button>
 
-      {/* Overlay (escurece o resto da página) */}
-      {open && (
-        <button
-          onClick={() => setOpen(false)}
-          aria-label="Fechar menu"
-          className="md:hidden fixed inset-0 bg-black/70 z-[998] cursor-default"
-          style={{ backdropFilter: 'blur(2px)' }}
-        />
-      )}
+      {/* Portal: overlay + drawer renderizam no <body> para escapar
+          ao stacking context criado pelo backdrop-blur do <header>. */}
+      {mounted && createPortal(
+        <>
+          {open && (
+            <button
+              onClick={() => setOpen(false)}
+              aria-label="Fechar menu"
+              className="md:hidden fixed inset-0 bg-black/80 z-[9998] cursor-default"
+              style={{ backdropFilter: 'blur(4px)' }}
+            />
+          )}
 
-      {/* Drawer */}
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Menu de navegação"
-        className={`md:hidden fixed top-0 right-0 bottom-0 w-[85%] max-w-[320px] z-[999] shadow-2xl transition-transform duration-250 ease-out ${
-          open ? 'translate-x-0' : 'translate-x-full pointer-events-none'
-        }`}
-        style={{
-          backgroundColor: '#0a0e0f',
-          borderLeft: '1px solid #1f2937',
-        }}
-      >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menu de navegação"
+            className={`md:hidden fixed top-0 right-0 bottom-0 w-[85%] max-w-[320px] z-[9999] shadow-2xl transition-transform duration-250 ease-out ${
+              open ? 'translate-x-0' : 'translate-x-full pointer-events-none'
+            }`}
+            style={{
+              backgroundColor: '#0a0e0f',
+              borderLeft: '1px solid #1f2937',
+              opacity: 1,
+              isolation: 'isolate',
+            }}
+          >
         <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
           <Link href="/" onClick={() => setOpen(false)} aria-label="TudoTénis">
             <Image src="/logo.png" alt="TudoTénis" width={1536} height={1024} className="h-14 w-auto" />
@@ -131,6 +142,9 @@ export function MobileMenu() {
           </p>
         </div>
       </div>
+        </>,
+        document.body
+      )}
     </>
   );
 }

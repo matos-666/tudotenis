@@ -35,7 +35,7 @@ KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY', '')
 H = {'apikey': KEY, 'Authorization': f'Bearer {KEY}', 'Content-Type': 'application/json'}
 
 DATA_DIR = ROOT / 'data'
-YEARS = list(range(2015, 2026))
+YEARS = list(range(2015, 2027))
 
 # ── Known ATP 500s (used to distinguish from 250s when level=A) ──
 ATP_500_PATTERNS = [
