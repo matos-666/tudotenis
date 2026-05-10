@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { breadcrumbJsonLd, sportsEventJsonLd } from '@/lib/jsonld';
+import { EloSurfaceScatter } from '@/components/EloSurfaceScatter';
 
 export const revalidate = 3600;
 
@@ -307,6 +308,18 @@ export default async function TournamentDetail({
             finalist={t.wta_finalist}
             score={t.wta_score}
           />
+
+          {/* Scatter ELO Geral vs ELO Surface (insight diferenciador) */}
+          {t.surface && (
+            <>
+              {(t.tour === 'atp' || t.tour === 'both') && (
+                <EloSurfaceScatter tour="atp" surface={t.surface} />
+              )}
+              {(t.tour === 'wta' || t.tour === 'both') && (
+                <EloSurfaceScatter tour="wta" surface={t.surface} />
+              )}
+            </>
+          )}
 
           {/* CTA */}
           <div className="flex flex-wrap gap-3 mt-8">
