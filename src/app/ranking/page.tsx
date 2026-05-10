@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -27,6 +28,48 @@ interface Player {
   elo_30d_ago: number | null;
   form_l5: string | null;
   photo_url: string | null;
+}
+
+function PlayerCell({ p }: { p: Player }) {
+  const initials = p.name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+  return (
+    <Link
+      href={`/jogador/${p.slug}`}
+      className="flex items-center gap-2 md:gap-3 group min-w-0"
+    >
+      <div className="relative w-9 h-9 md:w-11 md:h-11 rounded-full bg-[var(--color-card)] border border-[var(--color-border)] overflow-hidden flex-shrink-0 flex items-center justify-center">
+        {p.photo_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={p.photo_url}
+            alt={p.name}
+            loading="lazy"
+            className="w-full h-full object-cover"
+            style={{ objectPosition: 'top center' }}
+          />
+        ) : (
+          <span className="text-[10px] md:text-xs font-bold text-gray-500">{initials}</span>
+        )}
+        {p.flag && (
+          <span
+            className="absolute bottom-0 right-0 text-[9px] md:text-[10px] leading-none bg-[var(--color-surface)] rounded-tl px-0.5"
+            aria-hidden="true"
+          >
+            {p.flag}
+          </span>
+        )}
+      </div>
+      <span className="font-semibold truncate group-hover:text-[var(--color-accent)] transition">
+        {p.name}
+      </span>
+    </Link>
+  );
 }
 
 async function fetchTopPlayers(tour: 'atp' | 'wta', limit = 50): Promise<Player[]> {
@@ -100,9 +143,8 @@ export default async function RankingPage() {
                       return (
                         <tr key={p.id} className="border-t border-[var(--color-border)] hover:bg-[var(--color-card)]">
                           <td className="p-3 md:p-4 font-bold">{idx + 1}</td>
-                          <td className="p-3 md:p-4 font-sans">
-                            <span className="font-semibold">{p.name}</span>{' '}
-                            <span className="text-gray-600">{p.flag ?? ''}</span>
+                          <td className="p-2 md:p-4 font-sans">
+                            <PlayerCell p={p} />
                           </td>
                           <td className="text-right p-3 md:p-4 font-bold">{p.elo_overall ?? '—'}</td>
                           <td className="hidden md:table-cell text-right p-4">{p.elo_hard ?? '—'}</td>
@@ -145,9 +187,8 @@ export default async function RankingPage() {
                       return (
                         <tr key={p.id} className="border-t border-[var(--color-border)] hover:bg-[var(--color-card)]">
                           <td className="p-3 md:p-4 font-bold">{idx + 1}</td>
-                          <td className="p-3 md:p-4 font-sans">
-                            <span className="font-semibold">{p.name}</span>{' '}
-                            <span className="text-gray-600">{p.flag ?? ''}</span>
+                          <td className="p-2 md:p-4 font-sans">
+                            <PlayerCell p={p} />
                           </td>
                           <td className="text-right p-3 md:p-4 font-bold">{p.elo_overall ?? '—'}</td>
                           <td className="hidden md:table-cell text-right p-4">{p.elo_hard ?? '—'}</td>
