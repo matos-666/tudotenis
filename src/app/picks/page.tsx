@@ -35,6 +35,38 @@ interface Pick {
   tournament_name: string | null;
   surface: string | null;
   scheduled_at: string | null;
+  // Enriched at fetch time from players table:
+  p1_photo_url?: string | null;
+  p2_photo_url?: string | null;
+  p1_slug?: string | null;
+  p2_slug?: string | null;
+}
+
+async function enrichWithPlayers(picks: Pick[]): Promise<Pick[]> {
+  const names = new Set<string>();
+  for (const p of picks) {
+    if (p.p1_name) names.add(p.p1_name);
+    if (p.p2_name) names.add(p.p2_name);
+  }
+  if (names.size === 0) return picks;
+
+  const { data } = await supabase
+    .from('players')
+    .select('name, photo_url, slug')
+    .in('name', Array.from(names));
+
+  const byName = new Map<string, { photo_url: string | null; slug: string }>();
+  for (const r of data ?? []) {
+    byName.set(r.name, { photo_url: r.photo_url, slug: r.slug });
+  }
+
+  return picks.map(p => ({
+    ...p,
+    p1_photo_url: p.p1_name ? byName.get(p.p1_name)?.photo_url ?? null : null,
+    p2_photo_url: p.p2_name ? byName.get(p.p2_name)?.photo_url ?? null : null,
+    p1_slug:      p.p1_name ? byName.get(p.p1_name)?.slug      ?? null : null,
+    p2_slug:      p.p2_name ? byName.get(p.p2_name)?.slug      ?? null : null,
+  }));
 }
 
 // ── Data fetching ─────────────────────────────────────────────────────────
@@ -51,7 +83,7 @@ async function fetchTodayPicks(): Promise<Pick[]> {
     console.error('[picks] today error:', error.message);
     return [];
   }
-  return (data ?? []) as Pick[];
+  return enrichWithPlayers((data ?? []) as Pick[]);
 }
 
 async function fetchYesterdayPicks(): Promise<Pick[]> {
@@ -68,7 +100,7 @@ async function fetchYesterdayPicks(): Promise<Pick[]> {
     console.error('[picks] yesterday error:', error.message);
     return [];
   }
-  return (data ?? []) as Pick[];
+  return enrichWithPlayers((data ?? []) as Pick[]);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -90,6 +122,45 @@ function isLive(p: Pick): boolean {
   if (!p.scheduled_at) return false;
   const diff = Date.now() - new Date(p.scheduled_at).getTime();
   return diff >= 0 && diff < 3 * 60 * 60 * 1000; // 0..3h after scheduled start
+}
+
+function PlayerAvatar({
+  src,
+  flag,
+  name,
+  size = 'sm',
+}: {
+  src: string | null | undefined;
+  flag: string | null;
+  name: string;
+  size?: 'sm' | 'xs';
+}) {
+  const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const dim = size === 'sm' ? 'w-8 h-8' : 'w-6 h-6';
+  return (
+    <div className={`relative ${dim} rounded-full bg-[var(--color-card)] border border-[var(--color-border)] overflow-hidden flex-shrink-0 flex items-center justify-center`}>
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt={name}
+          loading="lazy"
+          className="w-full h-full object-cover"
+          style={{ objectPosition: 'top center' }}
+        />
+      ) : (
+        <span className="text-[9px] font-bold text-gray-500">{initials || '·'}</span>
+      )}
+      {flag && (
+        <span
+          className="absolute -bottom-0 -right-0 text-[7px] leading-none bg-[var(--color-surface)] rounded-tl px-px"
+          aria-hidden="true"
+        >
+          {flag}
+        </span>
+      )}
+    </div>
+  );
 }
 
 // ── Pick Card ─────────────────────────────────────────────────────────────
@@ -117,17 +188,23 @@ function PickCard({ p }: { p: Pick }) {
         </div>
       </div>
 
-      {/* Players — side-by-side */}
+      {/* Players — side-by-side com foto */}
       <div className="flex items-center gap-2 mb-3">
-        <span className="font-semibold text-sm md:text-base truncate flex-1 min-w-0">
-          {p.p1_name ?? p.selection}{' '}
-          <span className="text-gray-500">{p.p1_flag ?? ''}</span>
-        </span>
+        {/* P1 (selection / favorito) */}
+        <div className="flex items-center gap-1.5 md:gap-2 flex-1 min-w-0">
+          <PlayerAvatar src={p.p1_photo_url} flag={p.p1_flag} name={p.p1_name ?? p.selection} />
+          <span className="font-semibold text-sm md:text-base truncate">
+            {p.p1_name ?? p.selection}
+          </span>
+        </div>
         <span className="text-[10px] uppercase tracking-wider text-gray-600 shrink-0">vs</span>
-        <span className="text-gray-400 text-sm md:text-base truncate flex-1 min-w-0 text-right">
-          {p.p2_name ?? '–'}{' '}
-          <span className="text-gray-600">{p.p2_flag ?? ''}</span>
-        </span>
+        {/* P2 (adversário) */}
+        <div className="flex items-center gap-1.5 md:gap-2 flex-1 min-w-0 justify-end">
+          <span className="text-gray-400 text-sm md:text-base truncate">
+            {p.p2_name ?? '–'}
+          </span>
+          <PlayerAvatar src={p.p2_photo_url} flag={p.p2_flag} name={p.p2_name ?? ''} />
+        </div>
       </div>
 
       {/* Stats */}
@@ -270,12 +347,17 @@ export default async function PicksPage() {
                   <tbody className="font-mono">
                     {yesterday.map(p => (
                       <tr key={p.id} className="border-t border-[var(--color-border)]">
-                        <td className="p-3 md:p-4 font-sans font-semibold">
-                          {p.p1_name ?? p.selection}{' '}
-                          <span className="text-gray-600 text-xs">{p.p1_flag ?? ''}</span>
+                        <td className="p-2 md:p-4 font-sans font-semibold">
+                          <div className="flex items-center gap-2">
+                            <PlayerAvatar src={p.p1_photo_url} flag={p.p1_flag} name={p.p1_name ?? p.selection} size="xs" />
+                            <span className="truncate">{p.p1_name ?? p.selection}</span>
+                          </div>
                         </td>
                         <td className="hidden sm:table-cell p-4 font-sans text-gray-400">
-                          {p.p2_name ?? '–'}
+                          <div className="flex items-center gap-2">
+                            <PlayerAvatar src={p.p2_photo_url} flag={p.p2_flag} name={p.p2_name ?? ''} size="xs" />
+                            <span className="truncate">{p.p2_name ?? '–'}</span>
+                          </div>
                         </td>
                         <td className="p-3 md:p-4 font-sans text-xs">{p.market}</td>
                         <td className="text-right p-3 md:p-4">{Number(p.odd).toFixed(2)}</td>
