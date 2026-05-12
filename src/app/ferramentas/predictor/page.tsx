@@ -20,11 +20,17 @@ export interface PredictorPlayer {
   name: string;
   flag: string | null;
   tour: string;
+  // Match-level (fallback)
   elo_overall: number | null;
   elo_hard: number | null;
   elo_clay: number | null;
   elo_grass: number | null;
   elo_indoor: number | null;
+  // Set-level (Phase C, preferido)
+  elo_set_overall: number | null;
+  elo_set_hard: number | null;
+  elo_set_clay: number | null;
+  elo_set_grass: number | null;
 }
 
 export default async function PredictorPage() {
@@ -33,7 +39,7 @@ export default async function PredictorPage() {
 
   const { data } = await supabase
     .from('players')
-    .select('slug, name, flag, tour, elo_overall, elo_hard, elo_clay, elo_grass, elo_indoor')
+    .select('slug, name, flag, tour, elo_overall, elo_hard, elo_clay, elo_grass, elo_indoor, elo_set_overall, elo_set_hard, elo_set_clay, elo_set_grass')
     .eq('active', true)
     .order('elo_overall', { ascending: false });
 

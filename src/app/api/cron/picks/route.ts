@@ -27,11 +27,17 @@ interface Player {
   id: number;
   name: string;
   flag: string | null;
+  // Match-level (legacy, fallback)
   elo_overall: number;
   elo_clay: number;
   elo_hard: number;
   elo_grass: number;
   elo_indoor: number;
+  // Set-level (Phase C, preferido — treinado em outcomes de set)
+  elo_set_overall: number | null;
+  elo_set_clay: number | null;
+  elo_set_hard: number | null;
+  elo_set_grass: number | null;
 }
 
 // ── Config ────────────────────────────────────────────────────────────────
@@ -160,9 +166,19 @@ function slugify(name: string): string {
     .replace(/^-|-$/g, '');
 }
 
+/**
+ * Devolve o set-ELO da surface (preferido) com fallback para match-level
+ * se o jogador ainda não tem set-level ELO populado para essa surface.
+ */
 function surfaceElo(p: Player, surface: string): number {
-  const field = `elo_${surface}` as keyof Player;
-  return (p[field] as number) || p.elo_overall || 1500;
+  const setField = `elo_set_${surface}` as keyof Player;
+  const setVal = p[setField] as number | null | undefined;
+  if (setVal != null) return setVal;
+  // Fallback: set-overall
+  if (p.elo_set_overall != null) return p.elo_set_overall;
+  // Final fallback: match-level (deprecated)
+  const matchField = `elo_${surface}` as keyof Player;
+  return (p[matchField] as number) || p.elo_overall || 1500;
 }
 
 function eloWinProb(eloA: number, eloB: number): number {
@@ -172,12 +188,10 @@ function eloWinProb(eloA: number, eloB: number): number {
 // ── BO5 helpers (Grand Slams ATP) ────────────────────────────────────────
 function bo3MatchProb(setProb: number): number {
   const p = setProb, q = 1 - p;
-  // P1 wins 2-0 + P1 wins 2-1
   return p*p + 2*p*p*q;
 }
 function bo5MatchProb(setProb: number): number {
   const p = setProb, q = 1 - p;
-  // P1 wins 3-0 + 3-1 + 3-2
   return p**3 + 3*p**3*q + 6*p**3*q*q;
 }
 function setProbFromBO3(matchProb: number): number {
@@ -339,7 +353,7 @@ export async function POST(req: NextRequest) {
       const slug = slugify(name);
       let { data } = await supa
         .from('players')
-        .select('id,name,flag,elo_overall,elo_clay,elo_hard,elo_grass,elo_indoor')
+        .select('id,name,flag,elo_overall,elo_clay,elo_hard,elo_grass,elo_indoor,elo_set_overall,elo_set_clay,elo_set_hard,elo_set_grass')
         .eq('slug', slug)
         .limit(1);
 
@@ -347,7 +361,7 @@ export async function POST(req: NextRequest) {
         // Fuzzy: ilike
         ({ data } = await supa
           .from('players')
-          .select('id,name,flag,elo_overall,elo_clay,elo_hard,elo_grass,elo_indoor')
+          .select('id,name,flag,elo_overall,elo_clay,elo_hard,elo_grass,elo_indoor,elo_set_overall,elo_set_clay,elo_set_hard,elo_set_grass')
           .ilike('name', `%${name.split(' ')[0]}%${name.split(' ').at(-1)}%`)
           .limit(1));
       }
@@ -375,14 +389,13 @@ export async function POST(req: NextRequest) {
 
       const elo1 = surfaceElo(p1, m.surface);
       const elo2 = surfaceElo(p2, m.surface);
-      let prob1 = eloWinProb(elo1, elo2);
 
-      // ATP Grand Slam → BO5 (favorito ganha ainda mais frequentemente)
+      // surfaceElo() devolve preferencialmente set-level ELO. Aplicamos
+      // eloWinProb → setProb directamente, depois compomos para BO3/BO5.
+      const setProb = eloWinProb(elo1, elo2);
       const isWomen = /WTA|Women|W75|W50|W35|W25|W15/i.test(m.tournamentName);
       const isAtpSlam = !isWomen && ATP_SLAM_RE.test(m.tournamentName);
-      if (isAtpSlam) {
-        prob1 = adjustForBO5(prob1);
-      }
+      const prob1 = isAtpSlam ? bo5MatchProb(setProb) : bo3MatchProb(setProb);
       const prob2 = 1 - prob1;
 
       const candidates = [

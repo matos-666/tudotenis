@@ -26,6 +26,10 @@ interface Player {
   elo_hard: number | null;
   elo_clay: number | null;
   elo_grass: number | null;
+  elo_set_overall: number | null;
+  elo_set_hard: number | null;
+  elo_set_clay: number | null;
+  elo_set_grass: number | null;
   elo_30d_ago: number | null;
   form_l5: string | null;
   photo_url: string | null;
@@ -78,11 +82,11 @@ async function fetchTopPlayers(tour: 'atp' | 'wta', limit = 50): Promise<Player[
   const { data, error } = await supabase
     .from('players')
     .select(
-      'id, slug, name, flag, tour, atp_rank, elo_overall, elo_hard, elo_clay, elo_grass, elo_30d_ago, form_l5, photo_url'
+      'id, slug, name, flag, tour, atp_rank, elo_overall, elo_hard, elo_clay, elo_grass, elo_set_overall, elo_set_hard, elo_set_clay, elo_set_grass, elo_30d_ago, form_l5, photo_url'
     )
     .eq('tour', tour)
     .eq('active', true)
-    .order('elo_overall', { ascending: false })
+    .order('elo_set_overall', { ascending: false, nullsFirst: false })
     .limit(limit);
   if (error) {
     console.error('Supabase error:', error.message);
@@ -149,10 +153,10 @@ export default async function RankingPage() {
                           <td className="p-2 md:p-4 font-sans">
                             <PlayerCell p={p} locale={locale} />
                           </td>
-                          <td className="text-right p-3 md:p-4 font-bold">{p.elo_overall ?? '—'}</td>
-                          <td className="hidden md:table-cell text-right p-4">{p.elo_hard ?? '—'}</td>
-                          <td className="hidden md:table-cell text-right p-4">{p.elo_clay ?? '—'}</td>
-                          <td className="hidden md:table-cell text-right p-4">{p.elo_grass ?? '—'}</td>
+                          <td className="text-right p-3 md:p-4 font-bold">{Math.round(p.elo_set_overall ?? p.elo_overall ?? 0) || '—'}</td>
+                          <td className="hidden md:table-cell text-right p-4">{Math.round(p.elo_set_hard  ?? p.elo_hard  ?? 0) || '—'}</td>
+                          <td className="hidden md:table-cell text-right p-4">{Math.round(p.elo_set_clay  ?? p.elo_clay  ?? 0) || '—'}</td>
+                          <td className="hidden md:table-cell text-right p-4">{Math.round(p.elo_set_grass ?? p.elo_grass ?? 0) || '—'}</td>
                           <td className={`text-right p-3 md:p-4 ${delta && delta > 0 ? 'win' : delta && delta < 0 ? 'loss' : ''}`}>
                             {delta != null ? (delta > 0 ? `+${delta}` : delta) : '—'}
                           </td>
@@ -193,10 +197,10 @@ export default async function RankingPage() {
                           <td className="p-2 md:p-4 font-sans">
                             <PlayerCell p={p} locale={locale} />
                           </td>
-                          <td className="text-right p-3 md:p-4 font-bold">{p.elo_overall ?? '—'}</td>
-                          <td className="hidden md:table-cell text-right p-4">{p.elo_hard ?? '—'}</td>
-                          <td className="hidden md:table-cell text-right p-4">{p.elo_clay ?? '—'}</td>
-                          <td className="hidden md:table-cell text-right p-4">{p.elo_grass ?? '—'}</td>
+                          <td className="text-right p-3 md:p-4 font-bold">{Math.round(p.elo_set_overall ?? p.elo_overall ?? 0) || '—'}</td>
+                          <td className="hidden md:table-cell text-right p-4">{Math.round(p.elo_set_hard  ?? p.elo_hard  ?? 0) || '—'}</td>
+                          <td className="hidden md:table-cell text-right p-4">{Math.round(p.elo_set_clay  ?? p.elo_clay  ?? 0) || '—'}</td>
+                          <td className="hidden md:table-cell text-right p-4">{Math.round(p.elo_set_grass ?? p.elo_grass ?? 0) || '—'}</td>
                           <td className={`text-right p-3 md:p-4 ${delta && delta > 0 ? 'win' : delta && delta < 0 ? 'loss' : ''}`}>
                             {delta != null ? (delta > 0 ? `+${delta}` : delta) : '—'}
                           </td>

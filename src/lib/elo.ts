@@ -11,18 +11,26 @@ export function eloProb(elo1: number, elo2: number): number {
 }
 
 /**
- * Probabilidade de ganhar O MATCH, ajustada para BO3 ou BO5.
+ * Probabilidade de ganhar O MATCH a partir de ELO **set-level**
+ * (treinado em outcomes de set, não de match), composto via fórmula BO3/BO5.
  *
- * Como `eloProb` aproxima BO3, para BO5 invertemos para set-prob e
- * recompomos pela fórmula BO5 (mais sets → variância reduzida → favorito
- * ganha mais frequentemente). Esta é uma aproximação até termos ELO
- * treinado set-a-set; depois disso, este helper passa a usar setProb
- * directamente em vez de invertê-lo.
+ * Phase C: assume os ELOs passados são set-level (colunas elo_set_*).
+ * Para back-compat, se o caller passar match-level ELOs, usa o helper
+ * `matchProbFromMatchElo` em vez deste.
  */
-export function matchProb(elo1: number, elo2: number, bo: 3 | 5 = 3): number {
-  const base = eloProb(elo1, elo2); // ≈ BO3 match prob
+export function matchProb(setElo1: number, setElo2: number, bo: 3 | 5 = 3): number {
+  const setP = eloProb(setElo1, setElo2);
+  return matchProbFromSetProb(setP, bo);
+}
+
+/**
+ * Fallback: probabilidade a partir de ELO match-level (não treinado em sets).
+ * Usado quando o jogador ainda não tem set-level ELO populado.
+ * Para BO5 aproxima via inversão→recomposição (hack).
+ */
+export function matchProbFromMatchElo(elo1: number, elo2: number, bo: 3 | 5 = 3): number {
+  const base = eloProb(elo1, elo2);
   if (bo === 3) return base;
-  // Inverte para set, recompõe para BO5
   const setP = setProbFromMatchProb(base, 3);
   return matchProbFromSetProb(setP, 5);
 }

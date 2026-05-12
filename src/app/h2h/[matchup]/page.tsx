@@ -24,10 +24,24 @@ interface Player {
   elo_clay: number | null;
   elo_grass: number | null;
   elo_indoor: number | null;
+  elo_set_overall: number | null;
+  elo_set_hard: number | null;
+  elo_set_clay: number | null;
+  elo_set_grass: number | null;
   elo_30d_ago: number | null;
   form_l5: string | null;
   titles: number;
   slams: number;
+}
+
+/** Preferir set-level ELO com fallback para match-level. */
+function eloFor(p: Player, surface: 'overall' | 'hard' | 'clay' | 'grass'): number {
+  if (surface === 'overall') {
+    return p.elo_set_overall ?? p.elo_overall ?? 1500;
+  }
+  const setKey = `elo_set_${surface}` as const;
+  const matchKey = `elo_${surface}` as const;
+  return p[setKey] ?? p.elo_set_overall ?? p[matchKey] ?? p.elo_overall ?? 1500;
 }
 
 async function fetchAllPlayers(): Promise<Player[]> {
@@ -52,7 +66,10 @@ async function fetchPair(
   const p2 = players.find(p => p.slug === slugB);
   if (!p1 || !p2) return null;
   // Order: higher ELO first (visual preference)
-  if ((p2.elo_overall ?? 0) > (p1.elo_overall ?? 0)) {
+  // Ordenar por set-level ELO (preferred) com fallback para match-level
+  const e1 = p1.elo_set_overall ?? p1.elo_overall ?? 0;
+  const e2 = p2.elo_set_overall ?? p2.elo_overall ?? 0;
+  if (e2 > e1) {
     return { p1: p2, p2: p1 };
   }
   return { p1, p2 };
@@ -90,9 +107,11 @@ export async function generateMetadata({
   const pair = await fetchPair(matchup);
   if (!pair) return { title: 'H2H não encontrado' };
   const { p1, p2 } = pair;
-  const e1 = p1.elo_overall ?? 1500;
-  const e2 = p2.elo_overall ?? 1500;
-  const probP1 = Math.round(eloProb(e1, e2) * 100);
+  const e1 = eloFor(p1, 'overall');
+  const e2 = eloFor(p2, 'overall');
+  // set-level ELO → eloProb dá set-prob → BO3 match prob
+  const setProb = eloProb(e1, e2);
+  const probP1 = Math.round((setProb*setProb*(3 - 2*setProb)) * 100);
   return {
     title: `${p1.name} vs ${p2.name} · H2H · Probabilidade ${probP1}/${100 - probP1}`,
     description: `Confronto direto entre ${p1.name} (ELO ${e1}) e ${p2.name} (ELO ${e2}). Probabilidades por superfície (terra batida, hard, relvado), comparação de forma, quotas justas. Análise pelo modelo ELO TudoTénis.`,
@@ -146,7 +165,7 @@ function PlayerHeadCard({ p, isFav, prefix = '' }: { p: Player; isFav: boolean; 
         {p.flag} {p.tour.toUpperCase()} #{p.atp_rank ?? '—'}
       </div>
       <div className="font-mono text-xl md:text-2xl font-extrabold">
-        {p.elo_overall ?? '—'}
+        {Math.round(p.elo_set_overall ?? p.elo_overall ?? 0) || '—'}
       </div>
       <div className="text-[10px] text-gray-600 uppercase tracking-wider">ELO geral</div>
     </div>
@@ -182,17 +201,22 @@ export default async function H2HPage({
 
   const { p1, p2 } = pair;
 
-  const eloOverall1 = p1.elo_overall ?? 1500;
-  const eloOverall2 = p2.elo_overall ?? 1500;
-  const overallProb1 = eloProb(eloOverall1, eloOverall2);
+  // Set-level ELO → eloProb dá set-prob → compor com BO formula para
+  // probabilidade de match. Default BO3 (formato standard ATP/WTA).
+  const eloOverall1 = eloFor(p1, 'overall');
+  const eloOverall2 = eloFor(p2, 'overall');
+  const setProbOverall = eloProb(eloOverall1, eloOverall2);
+  const overallProb1 = setProbOverall * setProbOverall * (3 - 2 * setProbOverall);
   const overallProb2 = 1 - overallProb1;
   const overallFav = overallProb1 >= 0.5 ? p1 : p2;
 
-  // Per-surface
+  // Per-surface (também BO3)
   const surfaceData = SURFACES.map(s => {
-    const e1 = (p1[s.field as keyof Player] as number | null) ?? eloOverall1;
-    const e2 = (p2[s.field as keyof Player] as number | null) ?? eloOverall2;
-    const prob1 = eloProb(e1, e2);
+    const surfKey = s.key as 'hard' | 'clay' | 'grass';
+    const e1 = eloFor(p1, surfKey);
+    const e2 = eloFor(p2, surfKey);
+    const setP = eloProb(e1, e2);
+    const prob1 = setP * setP * (3 - 2 * setP);
     return {
       ...s,
       e1, e2,
@@ -276,7 +300,7 @@ export default async function H2HPage({
                   </span>
                 </div>
                 <div className="text-[10px] md:text-xs text-gray-500">
-                  ELO {eloOverall1} vs {eloOverall2}
+                  set-ELO {Math.round(eloOverall1)} vs {Math.round(eloOverall2)}
                 </div>
                 <div className="text-[10px] text-gray-600 mt-2 leading-relaxed">
                   Probabilidade de vencer o <strong className="text-gray-400">match</strong> em
@@ -313,7 +337,7 @@ export default async function H2HPage({
                   </span>
                 </div>
                 <div className="text-[10px] text-gray-500 mb-3">
-                  ELO {s.e1} vs {s.e2}
+                  set-ELO {Math.round(s.e1)} vs {Math.round(s.e2)}
                 </div>
                 <div className="pt-3 border-t border-[var(--color-border)] grid grid-cols-2 gap-2 text-[11px]">
                   <div>
@@ -343,9 +367,9 @@ export default async function H2HPage({
             <table className="w-full text-sm">
               <tbody className="font-mono">
                 <tr className="border-b border-[var(--color-border)]">
-                  <td className="p-3 md:p-4 font-sans text-gray-500 text-xs uppercase">ELO geral</td>
-                  <td className="text-center p-3 md:p-4 font-bold">{eloOverall1}</td>
-                  <td className="text-center p-3 md:p-4 font-bold">{eloOverall2}</td>
+                  <td className="p-3 md:p-4 font-sans text-gray-500 text-xs uppercase">set-ELO geral</td>
+                  <td className="text-center p-3 md:p-4 font-bold">{Math.round(eloOverall1)}</td>
+                  <td className="text-center p-3 md:p-4 font-bold">{Math.round(eloOverall2)}</td>
                 </tr>
                 <tr className="border-b border-[var(--color-border)]">
                   <td className="p-3 md:p-4 font-sans text-gray-500 text-xs uppercase">Ranking</td>

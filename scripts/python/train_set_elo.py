@@ -1,0 +1,300 @@
+#!/usr/bin/env python3
+"""
+Train set-level ELO from Jeff Sackmann match-by-match CSVs.
+
+Estratégia
+──────────
+- Para cada match, parse o score string ("6-4 4-6 6-3") em sets
+- Cada set é um update ELO independente (winner +K, loser -K)
+- K-factor menor que match-level (sets repetem-se → menos volatilidade
+  precisa por update)
+- 4 ratings em paralelo: overall, hard, clay, grass
+
+Composição BO3/BO5
+──────────────────
+O modelo passa a treinar em set outcomes. Com setProb derivado por
+eloProb(setELO1, setELO2), a probabilidade de match é a composição
+exacta:
+  P(BO3) = p² + 2p²q = p²(3 - 2p)
+  P(BO5) = p³ + 3p³q + 6p³q²
+
+Output
+──────
+Escreve elo_set_* + set_count em players (UPSERT por slug). Não toca
+nos elo_* match-level existentes — Phase C-validation depois decide.
+"""
+import os, re, csv, json, sys, urllib.request, urllib.error
+from collections import defaultdict
+from pathlib import Path
+
+# ── ENV ──────────────────────────────────────────────────────────────────
+def load_env(path):
+    if not os.path.exists(path): return
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#') or '=' not in line: continue
+            k, v = line.split('=', 1)
+            os.environ.setdefault(k.strip(), v.strip())
+
+ROOT = Path(__file__).parent
+load_env(str(ROOT.parent.parent / '.env.local'))
+URL = os.getenv('NEXT_PUBLIC_SUPABASE_URL', '').rstrip('/')
+KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY', '')
+if not URL or not KEY:
+    sys.exit('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
+H = {'apikey': KEY, 'Authorization': f'Bearer {KEY}', 'Content-Type': 'application/json'}
+
+# ── Config ───────────────────────────────────────────────────────────────
+DATA_DIR = ROOT / 'data'
+YEARS = list(range(2015, 2027))
+INITIAL_ELO = 1500.0
+
+# K-factor base para set updates. Mais pequeno que match-level (que é 32)
+# porque cada match aplica 2-5 updates em vez de 1.
+K_BY_LEVEL = {
+    'G': 28,   # Grand Slam
+    'M': 24,   # Masters 1000
+    'F': 24,   # Tour Finals
+    'A': 20,   # 250/500 ATP-Tour
+    'D': 12,   # Davis Cup
+    'C': 16,   # Challenger
+    'S': 14,   # Satellite/ITF
+}
+def k_for_level(lvl):
+    return K_BY_LEVEL.get(lvl, 18)
+
+SURFACE_MAP = {
+    'Hard':   'hard',
+    'Clay':   'clay',
+    'Grass':  'grass',
+    'Carpet': None,   # tratamos carpet como neutro (não actualiza surface ELO)
+}
+
+# ── Helpers ──────────────────────────────────────────────────────────────
+def slugify(name):
+    if not name: return ''
+    import unicodedata
+    # Strip diacritics
+    nfkd = unicodedata.normalize('NFKD', name)
+    ascii_only = ''.join(c for c in nfkd if not unicodedata.combining(c))
+    s = ascii_only.lower()
+    s = re.sub(r"[’'.]", '', s)        # apostrophes
+    s = re.sub(r'[^a-z0-9]+', '-', s)
+    s = re.sub(r'^-|-$', '', s)
+    return s
+
+SET_TOKEN_RE = re.compile(r'^(\d+)-(\d+)$')
+NONSET_TOKENS = {'RET', 'W/O', 'WO', 'DEF', 'WALKOVER', 'UNK', 'ABN', 'ABD', ''}
+
+def parse_sets(score):
+    """
+    Devolve lista de (winner_side, ga, gb).
+    winner_side: 0 se match-winner ganhou este set, 1 se match-loser.
+    Convenção Sackmann: primeiro número = games do match-winner.
+    """
+    if not score: return []
+    out = []
+    for token in score.split():
+        if token.upper() in NONSET_TOKENS: break
+        token = re.sub(r'\(\d+\)', '', token)  # strip tiebreak suffix
+        m = SET_TOKEN_RE.match(token)
+        if not m: continue
+        a, b = int(m.group(1)), int(m.group(2))
+        if a == b: continue
+        out.append((0 if a > b else 1, a, b))
+    return out
+
+def expected(eloA, eloB):
+    return 1.0 / (1.0 + 10 ** ((eloB - eloA) / 400))
+
+# ── Phase 1: load all matches chronologically ─────────────────────────────
+def load_matches():
+    rows = []
+    for year in YEARS:
+        for tour in ('atp', 'wta'):
+            p = DATA_DIR / f'{tour}_matches_{year}.csv'
+            if not p.exists(): continue
+            with open(p) as f:
+                for r in csv.DictReader(f):
+                    rows.append({
+                        'date':    r.get('tourney_date', ''),
+                        'tour':    tour,
+                        'surface': r.get('surface', ''),
+                        'level':   r.get('tourney_level', 'A'),
+                        'winner':  r.get('winner_name', ''),
+                        'loser':   r.get('loser_name', ''),
+                        'score':   r.get('score', ''),
+                    })
+    rows.sort(key=lambda r: r['date'])
+    return rows
+
+# ── Phase 2: train ───────────────────────────────────────────────────────
+def train(matches):
+    # nested dict: slug -> { 'overall', 'hard', 'clay', 'grass', 'set_count' }
+    elos = defaultdict(lambda: {
+        'overall': INITIAL_ELO, 'hard': INITIAL_ELO,
+        'clay':    INITIAL_ELO, 'grass': INITIAL_ELO,
+        'set_count': 0,
+    })
+
+    skipped_score = 0
+    trained_sets = 0
+    last_year = None
+
+    for m in matches:
+        year = m['date'][:4] if m['date'] else '????'
+        if year != last_year:
+            print(f'  ▸ {year}…')
+            last_year = year
+
+        surf = SURFACE_MAP.get(m['surface'])
+        # surf é None se Carpet/Unknown → só treina overall, não surface
+        winner_name = m['winner']
+        loser_name  = m['loser']
+        if not winner_name or not loser_name: continue
+
+        sets = parse_sets(m['score'])
+        if not sets:
+            skipped_score += 1
+            continue
+
+        ws = slugify(winner_name)
+        ls = slugify(loser_name)
+        if not ws or not ls: continue
+
+        K = k_for_level(m['level'])
+
+        for set_winner_side, _ga, _gb in sets:
+            if set_winner_side == 0:
+                wslug, lslug = ws, ls
+            else:
+                wslug, lslug = ls, ws
+
+            # Overall (sempre)
+            for key in ['overall'] + ([surf] if surf else []):
+                ew = elos[wslug][key]
+                el = elos[lslug][key]
+                exp_w = expected(ew, el)
+                delta = K * (1.0 - exp_w)
+                elos[wslug][key] = ew + delta
+                elos[lslug][key] = el - delta
+
+            elos[wslug]['set_count'] += 1
+            elos[lslug]['set_count'] += 1
+            trained_sets += 1
+
+    print(f'  ✅ {trained_sets:,} sets treinados  ·  {skipped_score} matches sem score válido')
+    return elos
+
+# ── Phase 3: write to Supabase ───────────────────────────────────────────
+def supa_request(method, path, body=None, params=None):
+    url = f'{URL}/rest/v1{path}'
+    if params:
+        from urllib.parse import urlencode
+        url += '?' + urlencode(params)
+    data = None
+    if body is not None:
+        data = json.dumps(body).encode()
+    req = urllib.request.Request(url, data=data, headers=H, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            return resp.status, resp.read().decode()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode()
+
+def fetch_all_players():
+    """Devolve dict slug → id."""
+    print('  ▸ fetch players…')
+    by_slug = {}
+    offset = 0
+    page = 1000
+    while True:
+        status, body = supa_request('GET', '/players',
+            params={'select': 'id,slug', 'limit': page, 'offset': offset})
+        if status != 200:
+            print(f'  ❌ fetch error: {status} {body[:200]}')
+            break
+        items = json.loads(body)
+        for it in items:
+            by_slug[it['slug']] = it['id']
+        if len(items) < page:
+            break
+        offset += page
+    print(f'    {len(by_slug):,} players')
+    return by_slug
+
+def write_elos(elos, slug_to_id):
+    """Bulk PATCH via Supabase. Apenas players que existem na DB."""
+    print('  ▸ write ELOs…')
+    # Round to 1 decimal
+    def r(x): return round(x, 1)
+
+    rows = []
+    for slug, e in elos.items():
+        pid = slug_to_id.get(slug)
+        if not pid: continue
+        if e['set_count'] == 0: continue
+        rows.append({
+            'id': pid,
+            'elo_set_overall': r(e['overall']),
+            'elo_set_hard':    r(e['hard'])  if e['hard']  != INITIAL_ELO else None,
+            'elo_set_clay':    r(e['clay'])  if e['clay']  != INITIAL_ELO else None,
+            'elo_set_grass':   r(e['grass']) if e['grass'] != INITIAL_ELO else None,
+            'set_count':       e['set_count'],
+        })
+
+    print(f'    {len(rows):,} players com sets > 0')
+    # PATCH individual por id — apenas as colunas que mandamos são tocadas
+    # (POST/upsert dispara NOT NULL constraints em colunas que não mandamos).
+    ok = 0
+    fail = 0
+    for idx, row in enumerate(rows, 1):
+        pid = row.pop('id')
+        url = f'{URL}/rest/v1/players?id=eq.{pid}'
+        req = urllib.request.Request(
+            url, data=json.dumps(row).encode(),
+            headers={**H, 'Prefer': 'return=minimal'},
+            method='PATCH',
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                if 200 <= resp.status < 300: ok += 1
+                else: fail += 1
+        except urllib.error.HTTPError as e:
+            fail += 1
+            if fail <= 3:
+                print(f'    id={pid}: {e.code} {e.read().decode()[:120]}')
+        if idx % 250 == 0:
+            print(f'    {idx:,}/{len(rows):,}  (ok={ok}, fail={fail})')
+    print(f'  ✅ {ok}/{len(rows)} actualizados  ·  {fail} fail')
+
+# ── Main ─────────────────────────────────────────────────────────────────
+def main():
+    print('[1/3] Carregar matches…')
+    matches = load_matches()
+    print(f'  {len(matches):,} matches lidos de {DATA_DIR}')
+    if not matches:
+        sys.exit('Sem dados — corre primeiro o import_full.py ou descarrega CSVs.')
+
+    print('\n[2/3] Treinar set-level ELO…')
+    elos = train(matches)
+    print(f'  {len(elos):,} jogadores únicos com ELO calculado')
+
+    # Distribution summary (top10)
+    top = sorted(
+        ((s, v['overall'], v['set_count']) for s, v in elos.items() if v['set_count'] >= 20),
+        key=lambda x: -x[1]
+    )[:10]
+    print('\n  Top 10 set-ELO (≥20 sets):')
+    for slug, elo, cnt in top:
+        print(f'    {slug:30s}  set-ELO {elo:7.1f}   ({cnt:,} sets)')
+
+    print('\n[3/3] Escrever para Supabase…')
+    slug_to_id = fetch_all_players()
+    write_elos(elos, slug_to_id)
+
+    print('\nDONE.')
+
+if __name__ == '__main__':
+    main()

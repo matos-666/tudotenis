@@ -2,11 +2,11 @@
 
 import { useState, useMemo } from 'react';
 import {
+  eloProb,
   fairOdds,
   bo3Distribution,
   bo5Distribution,
   matchProb,
-  setProbFromMatchProb,
   calculateEdge,
 } from '@/lib/elo';
 import type { PredictorPlayer } from '@/app/ferramentas/predictor/page';
@@ -20,11 +20,27 @@ const SURFACE_LABEL: Record<Surface, string> = {
   grass: 'Relvado',
 };
 
-const SURFACE_FIELD: Record<Surface, keyof PredictorPlayer> = {
+// Prefer set-level ELO (treinado em outcomes de set, composição BO formula
+// correcta). Fallback para match-level se set-level não está populado.
+const SET_FIELD: Record<Surface, keyof PredictorPlayer> = {
+  hard: 'elo_set_hard',
+  clay: 'elo_set_clay',
+  grass: 'elo_set_grass',
+};
+const MATCH_FIELD: Record<Surface, keyof PredictorPlayer> = {
   hard: 'elo_hard',
   clay: 'elo_clay',
   grass: 'elo_grass',
 };
+
+function eloFor(p: PredictorPlayer | undefined, surface: Surface): number {
+  if (!p) return 1500;
+  const setSurf = p[SET_FIELD[surface]] as number | null;
+  if (setSurf != null) return setSurf;
+  if (p.elo_set_overall != null) return p.elo_set_overall;
+  const matchSurf = p[MATCH_FIELD[surface]] as number | null;
+  return matchSurf ?? p.elo_overall ?? 1500;
+}
 
 function shortName(name: string): string {
   const parts = name.split(' ');
@@ -42,17 +58,15 @@ export function Predictor({ players }: { players: PredictorPlayer[] }) {
   const p1 = useMemo(() => players.find(p => p.name === p1Name), [p1Name, players]);
   const p2 = useMemo(() => players.find(p => p.name === p2Name), [p2Name, players]);
 
-  // Get ELO for surface
-  const e1 = p1 ? (p1[SURFACE_FIELD[surface]] as number | null) ?? p1.elo_overall ?? 1500 : 1500;
-  const e2 = p2 ? (p2[SURFACE_FIELD[surface]] as number | null) ?? p2.elo_overall ?? 1500 : 1500;
+  // Set-level ELO (Phase C): eloProb() devolve directamente set-prob.
+  // Compomos para match-prob via fórmula BO3/BO5.
+  const e1 = eloFor(p1, surface);
+  const e2 = eloFor(p2, surface);
 
-  // matchProb() trata o ELO output como BO3 base e, se bo=5, recompõe via
-  // set-prob inverso. Assim BO3 ≠ BO5 (em BO5 o favorito ganha mais).
-  // Para a distribuição Monte Carlo de scores, derivamos novamente a
-  // set-prob a partir do match-prob final, mantendo tudo consistente.
-  const matchProbP1 = matchProb(e1, e2, bo);
+  const matchProbP1 = matchProb(e1, e2, bo);   // set-level + BO compose
   const matchProbP2 = 1 - matchProbP1;
-  const setProbP1 = setProbFromMatchProb(matchProbP1, bo);
+  // Para Monte Carlo: set-prob raw (sem precisar inverter)
+  const setProbP1 = eloProb(e1, e2);
   const fairP1 = fairOdds(matchProbP1);
   const fairP2 = fairOdds(matchProbP2);
   const favIsP1 = matchProbP1 >= 0.5;
@@ -108,8 +122,12 @@ export function Predictor({ players }: { players: PredictorPlayer[] }) {
             <div className="text-xs text-gray-500 mt-2">
               {p1 ? (
                 <>
-                  ELO: <span className="text-[var(--color-accent)] font-mono font-semibold">{p1.elo_overall}</span>
-                  {' · '}Hard {p1.elo_hard} · Clay {p1.elo_clay} · Grass {p1.elo_grass}
+                  ELO: <span className="text-[var(--color-accent)] font-mono font-semibold">
+                    {Math.round(p1.elo_set_overall ?? p1.elo_overall ?? 1500)}
+                  </span>
+                  {' · '}Hard {Math.round(p1.elo_set_hard ?? p1.elo_hard ?? 1500)} ·{' '}
+                  Clay {Math.round(p1.elo_set_clay ?? p1.elo_clay ?? 1500)} ·{' '}
+                  Grass {Math.round(p1.elo_set_grass ?? p1.elo_grass ?? 1500)}
                 </>
               ) : (
                 <span className="text-gray-600">Jogador não encontrado · escolhe da lista</span>
@@ -140,8 +158,12 @@ export function Predictor({ players }: { players: PredictorPlayer[] }) {
             <div className="text-xs text-gray-500 mt-2">
               {p2 ? (
                 <>
-                  ELO: <span className="text-[var(--color-accent)] font-mono font-semibold">{p2.elo_overall}</span>
-                  {' · '}Hard {p2.elo_hard} · Clay {p2.elo_clay} · Grass {p2.elo_grass}
+                  ELO: <span className="text-[var(--color-accent)] font-mono font-semibold">
+                    {Math.round(p2.elo_set_overall ?? p2.elo_overall ?? 1500)}
+                  </span>
+                  {' · '}Hard {Math.round(p2.elo_set_hard ?? p2.elo_hard ?? 1500)} ·{' '}
+                  Clay {Math.round(p2.elo_set_clay ?? p2.elo_clay ?? 1500)} ·{' '}
+                  Grass {Math.round(p2.elo_set_grass ?? p2.elo_grass ?? 1500)}
                 </>
               ) : (
                 <span className="text-gray-600">Jogador não encontrado</span>
