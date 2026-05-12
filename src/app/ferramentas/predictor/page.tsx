@@ -4,12 +4,13 @@ import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Predictor } from '@/components/Predictor';
+import { getLocale, hreflangAlternates } from '@/lib/i18n';
 
 export const metadata: Metadata = {
   title: 'ELO Predictor · Probabilidade entre 2 jogadores',
   description:
     'Calcula a probabilidade de vitória entre quaisquer 2 jogadores ATP/WTA usando o modelo ELO. 4 superfícies · BO3/BO5 · quota justa · edge vs casa · distribuição Monte Carlo.',
-  alternates: { canonical: '/ferramentas/predictor' },
+  alternates: hreflangAlternates('/ferramentas/predictor'),
 };
 
 export const revalidate = 3600;
@@ -27,6 +28,9 @@ export interface PredictorPlayer {
 }
 
 export default async function PredictorPage() {
+  const locale = await getLocale();
+  const prefix = locale === 'pt-BR' ? '/br' : '';
+
   const { data } = await supabase
     .from('players')
     .select('slug, name, flag, tour, elo_overall, elo_hard, elo_clay, elo_grass, elo_indoor')
@@ -37,13 +41,13 @@ export default async function PredictorPage() {
 
   return (
     <>
-      <Header />
+      <Header locale={locale} />
       <main id="main" className="flex-1">
         <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-8">
           <div className="text-xs text-gray-500 mb-4">
-            <Link href="/" className="hover:text-[var(--color-accent)]">Início</Link>
+            <Link href={`${prefix}/`} className="hover:text-[var(--color-accent)]">Início</Link>
             <span className="mx-2">/</span>
-            <Link href="/ferramentas" className="hover:text-[var(--color-accent)]">Ferramentas</Link>
+            <Link href={`${prefix}/ferramentas`} className="hover:text-[var(--color-accent)]">Ferramentas</Link>
             <span className="mx-2">/</span>
             <span>ELO Predictor</span>
           </div>
@@ -56,7 +60,7 @@ export default async function PredictorPage() {
           <Predictor players={players} />
         </div>
       </main>
-      <Footer />
+      <Footer locale={locale} />
     </>
   );
 }

@@ -2,38 +2,47 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { getLocale, hreflangAlternates } from '@/lib/i18n';
 
 export const metadata: Metadata = {
   title: 'Ferramentas · ELO Predictor, Monte Carlo, Kelly',
   description:
     'Ferramentas grátis: ELO Predictor (probabilidade entre 2 jogadores), Simulador Monte Carlo (10k simulações), Calculadora Kelly (stake ótimo).',
-  alternates: { canonical: '/ferramentas' },
+  alternates: hreflangAlternates('/ferramentas'),
 };
 
-const TOOLS = [
-  {
-    href: '/ferramentas/predictor',
-    icon: '🎯',
-    title: 'ELO Predictor',
-    desc: 'Probabilidade de vitória entre 2 jogadores · 4 superfícies · BO3/BO5',
-    badge: '+ Monte Carlo',
-  },
-  {
-    href: '/ferramentas/kelly',
-    icon: '💰',
-    title: 'Calculadora Kelly',
-    desc: 'Stake ótimo por bankroll · slider de fração (cauteloso → agressivo)',
-    badge: 'Conservador 25%',
-  },
-];
+export default async function FerramentasIndex() {
+  const locale = await getLocale();
+  const isBR = locale === 'pt-BR';
+  const prefix = isBR ? '/br' : '';
 
-export default function FerramentasIndex() {
+  const TOOLS = [
+    {
+      href: `${prefix}/ferramentas/predictor`,
+      icon: '🎯',
+      title: 'ELO Predictor',
+      desc: isBR
+        ? 'Probabilidade de vitória entre 2 jogadores · 4 pisos · BO3/BO5'
+        : 'Probabilidade de vitória entre 2 jogadores · 4 superfícies · BO3/BO5',
+      badge: '+ Monte Carlo',
+    },
+    {
+      href: `${prefix}/ferramentas/kelly`,
+      icon: '💰',
+      title: isBR ? 'Calculadora Kelly' : 'Calculadora Kelly',
+      desc: isBR
+        ? 'Stake ótima por bankroll · slider de fração (cauteloso → agressivo)'
+        : 'Stake ótimo por bankroll · slider de fração (cauteloso → agressivo)',
+      badge: isBR ? 'Conservador 25%' : 'Conservador 25%',
+    },
+  ];
+
   return (
     <>
-      <Header />
+      <Header locale={locale} />
       <main id="main" className="flex-1">
         <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-12">
-          <h1 className="text-2xl md:text-4xl font-extrabold mb-2">Ferramentas grátis</h1>
+          <h1 className="text-2xl md:text-4xl font-extrabold mb-2">{isBR ? 'Ferramentas grátis' : 'Ferramentas grátis'}</h1>
           <p className="text-gray-400 text-sm md:text-base mb-8">
             Modelo ELO próprio · 2.557 jogadores · totalmente funcional
           </p>
@@ -65,13 +74,12 @@ export default function FerramentasIndex() {
               Como funcionam
             </h3>
             <p className="text-sm text-gray-400 leading-relaxed">
-              Todas as ferramentas usam o nosso modelo ELO proprietário com 59k jogos
-              analisados desde 1968. As probabilidades são calculadas com base em ELOs
-              específicos por superfície (Hard, Saibro, Grama, Indoor) e ajustadas para
-              best-of-3 ou best-of-5 (Slams).
+              {isBR
+                ? 'Todas as ferramentas usam o nosso modelo ELO proprietário com 59k jogos analisados desde 1968. As probabilidades são calculadas com base em ELOs específicos por piso (Hard, Saibro, Grama, Indoor) e ajustadas para best-of-3 ou best-of-5 (Slams).'
+                : 'Todas as ferramentas usam o nosso modelo ELO proprietário com 59k jogos analisados desde 1968. As probabilidades são calculadas com base em ELOs específicos por superfície (Hard, Terra batida, Relvado, Indoor) e ajustadas para best-of-3 ou best-of-5 (Slams).'}
             </p>
             <Link
-              href="/como-funciona"
+              href={`${prefix}/como-funciona`}
               className="inline-block mt-3 text-sm text-[var(--color-accent)] hover:underline"
             >
               Saber mais sobre o modelo →
@@ -79,7 +87,7 @@ export default function FerramentasIndex() {
           </div>
         </div>
       </main>
-      <Footer />
+      <Footer locale={locale} />
     </>
   );
 }
