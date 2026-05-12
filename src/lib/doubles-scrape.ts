@@ -87,7 +87,9 @@ export function parseDoublesMatches(html: string): ParsedDoublesMatch[] {
       if (SURFACE_MAP[s]) { surface = SURFACE_MAP[s]; break; }
     }
 
-    const matchRE = /<div class='match-row row cf \w+' ><a href='\/h2h\/[^']+'[^>]*>([\s\S]*?)<\/a><\/div>/g;
+    // class pode ter tokens extra (ex.: 'cf 127150ub plo') e href pode ser
+    // /h2h/... (logado / matches abertos) ou /premium (locked).
+    const matchRE = /<div class='match-row row cf [^']+' ><a href='[^']+'[^>]*>([\s\S]*?)<\/a><\/div>/g;
     let mMatch: RegExpExecArray | null;
 
     while ((mMatch = matchRE.exec(block)) !== null) {
@@ -141,7 +143,9 @@ export function parseDoublesFinished(html: string): ParsedDoublesFinished[] {
     // Nota: NÃO skip dnone-important — TennisStats marca os blocks de duplas
     // como hidden por default na UI, mas os dados estão lá.
 
-    const matchRE = /<div class='match-row row cf \w+' ><a href='\/h2h\/[^']+'[^>]*>([\s\S]*?)<\/a><\/div>/g;
+    // class pode ter tokens extra (ex.: 'cf 127150ub plo') e href pode ser
+    // /h2h/... (logado / matches abertos) ou /premium (locked).
+    const matchRE = /<div class='match-row row cf [^']+' ><a href='[^']+'[^>]*>([\s\S]*?)<\/a><\/div>/g;
     let mm: RegExpExecArray | null;
 
     while ((mm = matchRE.exec(block)) !== null) {
