@@ -79,7 +79,7 @@ export default async function HistoricoPage() {
             <h1 className="text-3xl md:text-5xl font-extrabold mb-3">Histórico de picks</h1>
             <p className="text-gray-400 text-sm md:text-base max-w-2xl">
               Todos os picks publicados pelo modelo ELO desde sempre. Cada pick foi publicado{' '}
-              <strong>antes</strong> do jogo começar — sem retroactividade.
+              <strong>antes</strong> do jogo começar — sem retroatividade.
             </p>
           </div>
 

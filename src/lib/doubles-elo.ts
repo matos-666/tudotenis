@@ -12,7 +12,7 @@
  *
  * Updates simultaneamente o ELO overall E o de surface (se conhecida).
  *
- * Nota: actualizamos doubles_matches_count e doubles_matches_24m no mesmo update.
+ * Nota: atualizamos doubles_matches_count e doubles_matches_24m no mesmo update.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 

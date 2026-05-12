@@ -217,7 +217,7 @@ export default function ComoFuncionaPage() {
             </div>
             <p className="text-xs text-gray-500">
               Performance auditada. Todos os picks são publicados <em>antes</em> dos jogos
-              começarem — sem retroactividade.
+              começarem — sem retroatividade.
             </p>
           </section>
 

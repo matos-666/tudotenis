@@ -45,7 +45,7 @@ export async function EloChart({ playerId }: { playerId: number }) {
   const snaps = (data ?? []) as Snapshot[];
 
   // ── Filter "active" surfaces ──────────────────────────────────────────
-  // Esconde linhas sem actividade real:
+  // Esconde linhas sem atividade real:
   //  - elo_overall: sempre mostra
   //  - superfície: mostra apenas se min/max diferem em pelo menos 30 ELO
   //    OU se valor mais recente está claramente fora do default 1500
@@ -161,7 +161,7 @@ export async function EloChart({ playerId }: { playerId: number }) {
           ))}
           {activeSurfaces.length < SURFACES.length && (
             <span className="text-[10px] text-gray-600 ml-2">
-              · {SURFACES.length - activeSurfaces.length} superfície(s) sem actividade omitida(s)
+              · {SURFACES.length - activeSurfaces.length} superfície(s) sem atividade omitida(s)
             </span>
           )}
         </div>

@@ -38,9 +38,9 @@ const dict = {
   // ── Common terms (the words that DIFFER between PT and BR) ──────────────
   'term.tennis':             { 'pt-PT': 'Ténis',          'pt-BR': 'Tênis' },        // a chave!
   'term.team':               { 'pt-PT': 'Equipa',         'pt-BR': 'Time' },
-  'term.update':             { 'pt-PT': 'Actualizar',     'pt-BR': 'Atualizar' },
-  'term.updated':            { 'pt-PT': 'Actualizado',    'pt-BR': 'Atualizado' },
-  'term.activity':           { 'pt-PT': 'Actividade',     'pt-BR': 'Atividade' },
+  'term.update':             { 'pt-PT': 'Atualizar',     'pt-BR': 'Atualizar' },
+  'term.updated':            { 'pt-PT': 'Atualizado',    'pt-BR': 'Atualizado' },
+  'term.activity':           { 'pt-PT': 'Atividade',     'pt-BR': 'Atividade' },
   'term.clay':               { 'pt-PT': 'Saibro',         'pt-BR': 'Saibro' },       // both ok
   'term.hard':               { 'pt-PT': 'Hard',           'pt-BR': 'Hard' },
   'term.grass':              { 'pt-PT': 'Grama',          'pt-BR': 'Grama' },
@@ -101,7 +101,7 @@ const dict = {
 
   // ── /ranking ────────────────────────────────────────────────────────────
   'ranking.title':           { 'pt-PT': 'Ranking ELO',            'pt-BR': 'Ranking ELO' },
-  'ranking.subtitle':        { 'pt-PT': 'Modelo próprio · actualizado diariamente · cobertura ATP + WTA',
+  'ranking.subtitle':        { 'pt-PT': 'Modelo próprio · atualizado diariamente · cobertura ATP + WTA',
                                'pt-BR': 'Modelo próprio · atualizado diariamente · cobertura ATP + WTA' },
   'ranking.delta_30d':       { 'pt-PT': 'Δ 30d',                  'pt-BR': 'Δ 30d' },
   'ranking.form':            { 'pt-PT': 'Forma',                  'pt-BR': 'Forma' },

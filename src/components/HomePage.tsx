@@ -23,7 +23,7 @@ export function HomePage({ locale }: { locale: Locale }) {
                   <span className="w-2 h-2 rounded-full bg-[var(--color-accent)] animate-pulse flex-shrink-0" />
                   {isBR
                     ? 'Modelo atualizado · 2.557 jogadores · 59k jogos analisados'
-                    : 'Modelo actualizado · 2.557 jogadores · 59k jogos analisados'}
+                    : 'Modelo atualizado · 2.557 jogadores · 59k jogos analisados'}
                 </div>
                 <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.05] tracking-tight mb-5">
                   {isBR ? (
@@ -93,7 +93,7 @@ export function HomePage({ locale }: { locale: Locale }) {
               <p className="text-xs text-gray-500">
                 {isBR
                   ? 'Classificação por força real — não por pontos ATP. Top 200 ATP + 200 WTA atualizado diariamente.'
-                  : 'Classificação por força real — não por pontos ATP. Top 200 ATP + 200 WTA actualizado diariamente.'}
+                  : 'Classificação por força real — não por pontos ATP. Top 200 ATP + 200 WTA atualizado diariamente.'}
               </p>
             </Link>
             <Link href={lh('/h2h')} className="stat-card p-5 hover:border-[var(--color-accent)]/40 transition group">

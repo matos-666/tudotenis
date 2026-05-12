@@ -88,7 +88,7 @@ export async function EloSurfaceScatter({
   }
 
   const players = (data ?? []) as Row[];
-  // Filtra outliers: surface ELO ≈ 1500 default = pouca actividade
+  // Filtra outliers: surface ELO ≈ 1500 default = pouca atividade
   const valid = players.filter(
     p => p.elo_overall != null && p.elo_surface != null && Math.abs(p.elo_surface - 1500) > 30
   );

@@ -3,7 +3,7 @@ import { getServiceSupabase } from '@/lib/supabase';
 export const dynamic = 'force-dynamic';
 
 async function getRecentDataPoints() {
-  // Picks como proxy de "actividade" — mostra atividade nos últimos 14 dias
+  // Picks como proxy de "atividade" — mostra atividade nos últimos 14 dias
   const sb = getServiceSupabase();
   const since = new Date(Date.now() - 14 * 24 * 3600e3).toISOString();
   const { data } = await sb
@@ -32,7 +32,7 @@ export default async function AdminAnalyticsPage() {
   return (
     <>
       <h1 className="text-2xl font-bold mb-1">Analytics</h1>
-      <p className="text-sm text-gray-500 mb-6">Visitas e actividade do site.</p>
+      <p className="text-sm text-gray-500 mb-6">Visitas e atividade do site.</p>
 
       <div className="stat-card p-5 mb-6">
         <div className="font-semibold mb-2">Vercel Web Analytics</div>

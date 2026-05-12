@@ -113,7 +113,7 @@ export function calculateEdge(prob: number, houseOdd: number): number {
 }
 
 /**
- * Kelly Criterion: stake óptimo como fração do bankroll.
+ * Kelly Criterion: stake ótimo como fração do bankroll.
  * f* = (b·p - q) / b
  * onde b = odd - 1, p = probabilidade, q = 1 - p
  */
