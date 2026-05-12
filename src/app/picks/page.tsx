@@ -118,10 +118,23 @@ function formatTime(iso: string | null): string {
   return d.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Lisbon' });
 }
 
-function isLive(p: Pick): boolean {
+/**
+ * "Em curso" = começou mas ainda não há result (settler ainda não correu
+ * ou settler não encontrou). Inclui jogos que estão a decorrer agora E
+ * jogos que terminaram mas estão à espera do settler (cron 22:30 UTC).
+ *
+ * Tennis matches podem durar 5+ horas (Slams) e o nosso settler corre
+ * apenas 1× por dia. Por isso não há limite superior — só pré-live ou
+ * pós-início.
+ */
+function hasStarted(p: Pick): boolean {
   if (!p.scheduled_at) return false;
-  const diff = Date.now() - new Date(p.scheduled_at).getTime();
-  return diff >= 0 && diff < 3 * 60 * 60 * 1000; // 0..3h after scheduled start
+  return new Date(p.scheduled_at).getTime() <= Date.now();
+}
+
+/** Alias mantido para retrocompatibilidade com o card. */
+function isLive(p: Pick): boolean {
+  return hasStarted(p);
 }
 
 function PlayerAvatar({
