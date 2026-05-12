@@ -169,37 +169,68 @@ function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
   const live = isLive(p);
   const surf = surfaceKey(p.surface);
   const time = formatTime(p.scheduled_at);
+  const settled = p.result != null; // win | loss | void
+  const isWin  = p.result === 'win';
+  const isLoss = p.result === 'loss';
+  const isVoid = p.result === 'void';
+
+  // Border / status colour priority: settled > live > upcoming
+  const cardBorder = isWin
+    ? 'border-[var(--color-accent)]/45 shadow-lg shadow-[var(--color-accent)]/10'
+    : isLoss
+      ? 'border-red-500/45 shadow-lg shadow-red-500/10'
+      : isVoid
+        ? 'border-gray-500/40'
+        : live
+          ? 'border-red-500/40 shadow-lg shadow-red-500/5'
+          : '';
 
   return (
-    <div className={`stat-card p-4 md:p-5 ${live ? 'border-red-500/40 shadow-lg shadow-red-500/5' : ''}`}>
+    <div className={`stat-card p-4 md:p-5 relative ${cardBorder} ${settled ? 'opacity-90' : ''}`}>
+      {/* Status badge top-right corner for settled picks */}
+      {settled && (
+        <div
+          className={`absolute -top-2 -right-2 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
+            isWin
+              ? 'bg-[var(--color-accent)] text-[var(--color-surface)]'
+              : isLoss
+                ? 'bg-red-500 text-white'
+                : 'bg-gray-500 text-white'
+          }`}
+        >
+          {isWin ? (isBR ? '✓ Green' : '✓ Green') : isLoss ? (isBR ? '✗ Red' : '✗ Red') : '⊘ Void'}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <span className="text-xs text-gray-500">{p.tournament_name ?? 'ATP/WTA'}</span>
+        <span className="text-xs text-gray-500 truncate">{p.tournament_name ?? 'ATP/WTA'}</span>
         <div className="flex gap-2 items-center">
           <span className={`surface-pill ${SURFACE_CLASS[surf]}`}>{surfaceLabel(locale, surf)}</span>
-          {live && (
+          {settled ? (
+            <span className="text-[10px] uppercase font-bold tracking-wider text-gray-500">
+              {isBR ? 'Terminado' : 'Terminado'}
+            </span>
+          ) : live ? (
             <span className="text-[10px] uppercase font-bold tracking-wider text-red-400 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
               LIVE
             </span>
-          )}
-          {!live && time && (
-            <span className="text-[10px] uppercase font-bold text-blue-400">⏱ {time}</span>
+          ) : (
+            time && <span className="text-[10px] uppercase font-bold text-blue-400">⏱ {time}</span>
           )}
         </div>
       </div>
 
       {/* Players — side-by-side com foto */}
       <div className="flex items-center gap-2 mb-3">
-        {/* P1 (selection / favorito) */}
         <div className="flex items-center gap-1.5 md:gap-2 flex-1 min-w-0">
           <PlayerAvatar src={p.p1_photo_url} flag={p.p1_flag} name={p.p1_name ?? p.selection} />
-          <span className="font-semibold text-sm md:text-base truncate">
+          <span className={`font-semibold text-sm md:text-base truncate ${isWin ? 'text-[var(--color-accent)]' : isLoss ? 'text-red-300' : ''}`}>
             {p.p1_name ?? p.selection}
           </span>
         </div>
         <span className="text-[10px] uppercase tracking-wider text-gray-600 shrink-0">vs</span>
-        {/* P2 (adversário) */}
         <div className="flex items-center gap-1.5 md:gap-2 flex-1 min-w-0 justify-end">
           <span className="text-gray-400 text-sm md:text-base truncate">
             {p.p2_name ?? '–'}
@@ -211,19 +242,36 @@ function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
       {/* Stats */}
       <div className="flex items-end justify-between pt-3 border-t border-[var(--color-border)] mb-3">
         <div>
-          <div className="text-xs text-gray-500 mb-1">{isBR ? 'Aposta' : 'Aposta'}</div>
+          <div className="text-xs text-gray-500 mb-1">Aposta</div>
           <div className="font-semibold text-sm">{p.market}</div>
           <div className="text-xs">@ <span className="text-[var(--color-accent)] font-mono font-semibold">{Number(p.odd).toFixed(2)}</span></div>
         </div>
         <div className="text-center">
-          <div className="text-xs text-gray-500 mb-1">Edge</div>
-          <div className="font-bold text-[var(--color-accent)]">+{Number(p.edge_pct).toFixed(1)}%</div>
+          <div className="text-xs text-gray-500 mb-1">{settled ? 'P&L' : 'Edge'}</div>
+          {settled ? (
+            <div className={`font-bold font-mono ${(p.pl ?? 0) > 0 ? 'text-[var(--color-accent)]' : (p.pl ?? 0) < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+              {(p.pl ?? 0) > 0 ? '+' : ''}€{Math.abs(p.pl ?? 0).toFixed(0)}
+            </div>
+          ) : (
+            <div className="font-bold text-[var(--color-accent)]">+{Number(p.edge_pct).toFixed(1)}%</div>
+          )}
         </div>
         <span className={`grade-${p.grade} px-2 py-1 rounded text-xs font-bold`}>{p.grade}</span>
       </div>
 
-      {/* CTAs */}
-      <AffiliateButtons variant="compact" prefix="Apostar @" />
+      {/* CTAs — só para picks por jogar (pré-live).
+          Para settled/live, mostramos info em vez de botões. */}
+      {settled ? (
+        <div className="text-center text-xs text-gray-500 py-2">
+          {isBR ? 'Resultado já conhecido — pick fechado' : 'Resultado já conhecido — pick fechado'}
+        </div>
+      ) : live ? (
+        <div className="text-center text-xs text-red-400 py-2">
+          {isBR ? '⚠ Em curso — modelo só aposta pré-live' : '⚠ Em curso — modelo só aposta pré-live'}
+        </div>
+      ) : (
+        <AffiliateButtons variant="compact" prefix="Apostar @" />
+      )}
     </div>
   );
 }
@@ -238,8 +286,19 @@ export default async function PicksPage() {
     fetchYesterdayPicks(),
   ]);
 
-  const liveCount    = today.filter(isLive).length;
-  const pendingCount = today.filter(p => !isLive(p) && !p.result).length;
+  // Partição: settled (já tem result) > live (em curso) > upcoming (pré-jogo)
+  const todaySettled = today.filter(p => p.result != null);
+  const todayLive    = today.filter(p => p.result == null && isLive(p));
+  const todayUpcoming = today.filter(p => p.result == null && !isLive(p));
+
+  const liveCount    = todayLive.length;
+  const upcomingCount = todayUpcoming.length;
+  const settledCount = todaySettled.length;
+
+  // Stats de hoje (settled)
+  const todayWins = todaySettled.filter(p => p.result === 'win').length;
+  const todayLoss = todaySettled.filter(p => p.result === 'loss').length;
+  const todayPL   = todaySettled.reduce((s, p) => s + (p.pl ?? 0), 0);
 
   const ydayWins  = yesterday.filter(p => p.result === 'win').length;
   const ydayLoss  = yesterday.filter(p => p.result === 'loss').length;
@@ -259,7 +318,7 @@ export default async function PicksPage() {
           <div className="mb-8">
             <div className="inline-flex items-center gap-2 bg-[var(--color-card)] border border-[var(--color-border)] rounded-full px-3 py-1 text-xs mb-4 flex-wrap">
               <span className="w-2 h-2 rounded-full bg-[var(--color-accent)] animate-pulse" />
-              {liveCount} {isBR ? 'ao vivo' : 'ao vivo'} · {pendingCount} {isBR ? 'pendentes' : 'pendentes'} · modelo ELO
+              {upcomingCount} {isBR ? 'por jogar' : 'por jogar'} · {liveCount} ao vivo · {settledCount} {isBR ? 'terminados' : 'terminados'}
             </div>
             <h1 className="text-2xl md:text-4xl font-extrabold mb-2">
               {isBR ? 'Palpites de hoje' : 'Picks de hoje'}
@@ -292,9 +351,14 @@ export default async function PicksPage() {
           </div>
 
           {/* Picks de hoje */}
-          <h2 className="text-xl font-bold mb-4">
+          <h2 className="text-xl font-bold mb-1">
             {isBR ? 'Palpites' : 'Picks'} · {new Date().toLocaleDateString(dateLocale, { day: 'numeric', month: 'long' })}
           </h2>
+          <p className="text-xs text-gray-500 mb-6">
+            {isBR
+              ? 'O modelo só publica antes do início do jogo. Picks em curso ou terminados ficam para histórico.'
+              : 'O modelo só publica antes do início do jogo. Picks em curso ou terminados ficam para histórico.'}
+          </p>
 
           {noPicksToday ? (
             <div className="stat-card p-8 text-center mb-12">
@@ -309,9 +373,68 @@ export default async function PicksPage() {
               </p>
             </div>
           ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-12">
-              {today.map(p => <PickCard key={p.id} p={p} locale={locale} />)}
-            </div>
+            <>
+              {/* 1. POR JOGAR (pré-live) — o que interessa para apostar agora */}
+              {todayUpcoming.length > 0 && (
+                <section className="mb-10">
+                  <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+                    <h3 className="text-base md:text-lg font-bold flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-blue-400" />
+                      {isBR ? 'Por jogar' : 'Por jogar'}
+                      <span className="text-xs text-gray-500 font-normal">({todayUpcoming.length})</span>
+                    </h3>
+                    <span className="text-[10px] uppercase tracking-wider text-gray-500">
+                      {isBR ? 'Apostar antes do início' : 'Apostar antes do início'}
+                    </span>
+                  </div>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {todayUpcoming.map(p => <PickCard key={p.id} p={p} locale={locale} />)}
+                  </div>
+                </section>
+              )}
+
+              {/* 2. AO VIVO — display only, sem CTAs (modelo só apostou pré-live) */}
+              {todayLive.length > 0 && (
+                <section className="mb-10">
+                  <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+                    <h3 className="text-base md:text-lg font-bold flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
+                      {isBR ? 'Em andamento' : 'Em curso'}
+                      <span className="text-xs text-gray-500 font-normal">({todayLive.length})</span>
+                    </h3>
+                    <span className="text-[10px] uppercase tracking-wider text-gray-500">
+                      {isBR ? 'Já não dá para apostar' : 'Já não dá para apostar'}
+                    </span>
+                  </div>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {todayLive.map(p => <PickCard key={p.id} p={p} locale={locale} />)}
+                  </div>
+                </section>
+              )}
+
+              {/* 3. TERMINADOS HOJE — com resultado green/red */}
+              {todaySettled.length > 0 && (
+                <section className="mb-12">
+                  <div className="flex items-baseline justify-between mb-4 flex-wrap gap-3">
+                    <h3 className="text-base md:text-lg font-bold flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-gray-500" />
+                      {isBR ? 'Terminados hoje' : 'Terminados hoje'}
+                      <span className="text-xs text-gray-500 font-normal">({todaySettled.length})</span>
+                    </h3>
+                    <div className="flex gap-3 text-xs">
+                      <span><span className="text-[var(--color-accent)] font-bold">{todayWins}</span> <span className="text-gray-500">V</span></span>
+                      <span><span className="text-red-400 font-bold">{todayLoss}</span> <span className="text-gray-500">D</span></span>
+                      <span className={`font-bold font-mono ${todayPL >= 0 ? 'text-[var(--color-accent)]' : 'text-red-400'}`}>
+                        {todayPL >= 0 ? '+' : ''}€{Math.abs(todayPL).toFixed(0)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {todaySettled.map(p => <PickCard key={p.id} p={p} locale={locale} />)}
+                  </div>
+                </section>
+              )}
+            </>
           )}
 
           {/* Resultados de ontem */}
