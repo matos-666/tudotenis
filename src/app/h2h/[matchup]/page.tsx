@@ -278,13 +278,24 @@ export default async function H2HPage({
                 <div className="text-[10px] md:text-xs text-gray-500">
                   ELO {eloOverall1} vs {eloOverall2}
                 </div>
+                <div className="text-[10px] text-gray-600 mt-2 leading-relaxed">
+                  Probabilidade de vencer o <strong className="text-gray-400">match</strong> em
+                  formato BO3 (default ATP/WTA). Para Slams ATP (BO5),
+                  consulta a{' '}
+                  <Link href={`${prefix}/ferramentas/predictor`} className="text-[var(--color-accent)] hover:underline">
+                    ferramenta Predictor
+                  </Link>.
+                </div>
               </div>
               <PlayerHeadCard p={p2} isFav={overallFav.id === p2.id} prefix={prefix} />
             </div>
           </div>
 
           {/* Per-surface analysis */}
-          <h2 className="text-xl font-bold mb-4">Probabilidade por superfície</h2>
+          <h2 className="text-xl font-bold mb-1">Probabilidade por superfície</h2>
+          <p className="text-xs text-gray-500 mb-4">
+            Probabilidade de vencer o match em BO3 (formato standard ATP/WTA).
+          </p>
           <div className="grid sm:grid-cols-3 gap-3 md:gap-4 mb-8">
             {surfaceData.map(s => (
               <div key={s.key} className="stat-card p-4 md:p-5">

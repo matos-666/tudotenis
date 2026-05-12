@@ -1,9 +1,30 @@
 /**
  * ELO win probability formula (Arpad Elo, 1960).
  * P1 wins vs P2 = 1 / (1 + 10^((elo2 - elo1) / 400))
+ *
+ * Como o nosso modelo treina em outcomes de match (não de set), o output
+ * aproxima a probabilidade de ganhar O MATCH no formato dominante do
+ * dataset (BO3, que é a maioria do tour ATP/WTA).
  */
 export function eloProb(elo1: number, elo2: number): number {
   return 1 / (1 + Math.pow(10, (elo2 - elo1) / 400));
+}
+
+/**
+ * Probabilidade de ganhar O MATCH, ajustada para BO3 ou BO5.
+ *
+ * Como `eloProb` aproxima BO3, para BO5 invertemos para set-prob e
+ * recompomos pela fórmula BO5 (mais sets → variância reduzida → favorito
+ * ganha mais frequentemente). Esta é uma aproximação até termos ELO
+ * treinado set-a-set; depois disso, este helper passa a usar setProb
+ * directamente em vez de invertê-lo.
+ */
+export function matchProb(elo1: number, elo2: number, bo: 3 | 5 = 3): number {
+  const base = eloProb(elo1, elo2); // ≈ BO3 match prob
+  if (bo === 3) return base;
+  // Inverte para set, recompõe para BO5
+  const setP = setProbFromMatchProb(base, 3);
+  return matchProbFromSetProb(setP, 5);
 }
 
 /**

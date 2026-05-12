@@ -2,10 +2,10 @@
 
 import { useState, useMemo } from 'react';
 import {
-  eloProb,
   fairOdds,
   bo3Distribution,
   bo5Distribution,
+  matchProb,
   setProbFromMatchProb,
   calculateEdge,
 } from '@/lib/elo';
@@ -46,11 +46,11 @@ export function Predictor({ players }: { players: PredictorPlayer[] }) {
   const e1 = p1 ? (p1[SURFACE_FIELD[surface]] as number | null) ?? p1.elo_overall ?? 1500 : 1500;
   const e2 = p2 ? (p2[SURFACE_FIELD[surface]] as number | null) ?? p2.elo_overall ?? 1500 : 1500;
 
-  // ELO próprio é treinado em outcomes de match (vencedor/perdedor por jogo),
-  // logo eloProb() já devolve probabilidade de ganhar O MATCH. Não fazemos
-  // double-counting via BO formula. A probabilidade por set é derivada
-  // inversamente apenas para a distribuição de scores Monte Carlo.
-  const matchProbP1 = eloProb(e1, e2);
+  // matchProb() trata o ELO output como BO3 base e, se bo=5, recompõe via
+  // set-prob inverso. Assim BO3 ≠ BO5 (em BO5 o favorito ganha mais).
+  // Para a distribuição Monte Carlo de scores, derivamos novamente a
+  // set-prob a partir do match-prob final, mantendo tudo consistente.
+  const matchProbP1 = matchProb(e1, e2, bo);
   const matchProbP2 = 1 - matchProbP1;
   const setProbP1 = setProbFromMatchProb(matchProbP1, bo);
   const fairP1 = fairOdds(matchProbP1);

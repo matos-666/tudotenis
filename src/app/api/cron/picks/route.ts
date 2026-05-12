@@ -169,6 +169,36 @@ function eloWinProb(eloA: number, eloB: number): number {
   return 1.0 / (1.0 + Math.pow(10, (eloB - eloA) / 400));
 }
 
+// ── BO5 helpers (Grand Slams ATP) ────────────────────────────────────────
+function bo3MatchProb(setProb: number): number {
+  const p = setProb, q = 1 - p;
+  // P1 wins 2-0 + P1 wins 2-1
+  return p*p + 2*p*p*q;
+}
+function bo5MatchProb(setProb: number): number {
+  const p = setProb, q = 1 - p;
+  // P1 wins 3-0 + 3-1 + 3-2
+  return p**3 + 3*p**3*q + 6*p**3*q*q;
+}
+function setProbFromBO3(matchProb: number): number {
+  if (matchProb <= 0) return 0;
+  if (matchProb >= 1) return 1;
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (bo3MatchProb(mid) < matchProb) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+/** Ajusta probabilidade ELO (que aproxima BO3) para BO5. */
+function adjustForBO5(eloProb: number): number {
+  return bo5MatchProb(setProbFromBO3(eloProb));
+}
+
+// ATP Grand Slams (BO5 para o lado masculino; WTA continua BO3)
+const ATP_SLAM_RE = /\b(australian open|roland garros|french open|wimbledon|us open)\b/i;
+
 function calcEdge(eloProb: number, oddPick: number, oddOpp: number): number {
   const rawPick = 1 / oddPick;
   const rawOpp = 1 / oddOpp;
@@ -345,7 +375,14 @@ export async function POST(req: NextRequest) {
 
       const elo1 = surfaceElo(p1, m.surface);
       const elo2 = surfaceElo(p2, m.surface);
-      const prob1 = eloWinProb(elo1, elo2);
+      let prob1 = eloWinProb(elo1, elo2);
+
+      // ATP Grand Slam → BO5 (favorito ganha ainda mais frequentemente)
+      const isWomen = /WTA|Women|W75|W50|W35|W25|W15/i.test(m.tournamentName);
+      const isAtpSlam = !isWomen && ATP_SLAM_RE.test(m.tournamentName);
+      if (isAtpSlam) {
+        prob1 = adjustForBO5(prob1);
+      }
       const prob2 = 1 - prob1;
 
       const candidates = [
@@ -359,7 +396,6 @@ export async function POST(req: NextRequest) {
         if (edge < MIN_EDGE) continue;
 
         const grade = getGrade(edge);
-        const isWomen = /WTA|Women|W75|W50|W35/i.test(m.tournamentName);
         const market = isWomen ? 'Vencedora' : 'Vencedor';
 
         const row = {
