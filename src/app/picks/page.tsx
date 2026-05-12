@@ -5,6 +5,7 @@ import { Footer } from '@/components/Footer';
 import { AffiliateButtons } from '@/components/AffiliateButtons';
 import { supabase } from '@/lib/supabase';
 import { getLocale, hreflangAlternates, localizedHref, surfaceLabel, type Locale } from '@/lib/i18n';
+import { buildMatchupSlug } from '@/lib/elo';
 
 export const metadata: Metadata = {
   title: 'Picks do dia · ELO + Edge · TudoTénis',
@@ -198,23 +199,16 @@ function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
           ? 'border-red-500/40 shadow-lg shadow-red-500/5'
           : '';
 
-  return (
-    <div className={`stat-card p-4 md:p-5 relative ${cardBorder} ${settled ? 'opacity-90' : ''}`}>
-      {/* Status badge top-right corner for settled picks */}
-      {settled && (
-        <div
-          className={`absolute -top-2 -right-2 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-            isWin
-              ? 'bg-[var(--color-accent)] text-[var(--color-surface)]'
-              : isLoss
-                ? 'bg-red-500 text-white'
-                : 'bg-gray-500 text-white'
-          }`}
-        >
-          {isWin ? (isBR ? '✓ Green' : '✓ Green') : isLoss ? (isBR ? '✗ Red' : '✗ Red') : '⊘ Void'}
-        </div>
-      )}
+  // H2H link (se temos os 2 slugs)
+  const h2hHref =
+    p.p1_slug && p.p2_slug
+      ? localizedHref(locale, `/h2h/${buildMatchupSlug(p.p1_slug, p.p2_slug)}`)
+      : null;
 
+  // Conteúdo principal do card (header + players + stats).
+  // Se temos h2hHref, envolvemos num Link; senão, num <div>.
+  const cardBodyContent = (
+    <>
       {/* Header */}
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <span className="text-xs text-gray-500 truncate">{p.tournament_name ?? 'ATP/WTA'}</span>
@@ -272,19 +266,58 @@ function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
         <span className={`grade-${p.grade} px-2 py-1 rounded text-xs font-bold`}>{p.grade}</span>
       </div>
 
-      {/* CTAs — só para picks por jogar (pré-live).
-          Para settled/live, mostramos info em vez de botões. */}
-      {settled ? (
-        <div className="text-center text-xs text-gray-500 py-2">
-          {isBR ? 'Resultado já conhecido — pick fechado' : 'Resultado já conhecido — pick fechado'}
+      {/* Hint "ver análise H2H" só se temos slugs */}
+      {h2hHref && (
+        <div className="text-[11px] text-[var(--color-accent)] hover:underline mb-1">
+          {isBR ? 'Ver análise H2H →' : 'Ver análise H2H →'}
         </div>
-      ) : live ? (
-        <div className="text-center text-xs text-red-400 py-2">
-          {isBR ? '⚠ Em curso — modelo só aposta pré-live' : '⚠ Em curso — modelo só aposta pré-live'}
-        </div>
-      ) : (
-        <AffiliateButtons variant="compact" prefix="Apostar @" />
       )}
+    </>
+  );
+
+  return (
+    <div className={`stat-card p-4 md:p-5 relative ${cardBorder} ${settled ? 'opacity-90' : ''}`}>
+      {/* Status badge top-right corner for settled picks */}
+      {settled && (
+        <div
+          className={`absolute -top-2 -right-2 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider z-10 ${
+            isWin
+              ? 'bg-[var(--color-accent)] text-[var(--color-surface)]'
+              : isLoss
+                ? 'bg-red-500 text-white'
+                : 'bg-gray-500 text-white'
+          }`}
+        >
+          {isWin ? '✓ Green' : isLoss ? '✗ Red' : '⊘ Void'}
+        </div>
+      )}
+
+      {/* Corpo clicável → /h2h se temos os 2 slugs */}
+      {h2hHref ? (
+        <Link
+          href={h2hHref}
+          className="block -m-4 md:-m-5 p-4 md:p-5 rounded-[inherit] hover:bg-[var(--color-card)]/40 transition"
+        >
+          {cardBodyContent}
+        </Link>
+      ) : (
+        <div>{cardBodyContent}</div>
+      )}
+
+      {/* CTAs / info — fora do Link para não conflitar com cliques internos */}
+      <div className={h2hHref ? 'mt-2' : ''}>
+        {settled ? (
+          <div className="text-center text-xs text-gray-500 py-2">
+            {isBR ? 'Resultado já conhecido — pick fechado' : 'Resultado já conhecido — pick fechado'}
+          </div>
+        ) : live ? (
+          <div className="text-center text-xs text-red-400 py-2">
+            {isBR ? '⚠ Em curso — modelo só aposta pré-live' : '⚠ Em curso — modelo só aposta pré-live'}
+          </div>
+        ) : (
+          <AffiliateButtons variant="compact" prefix="Apostar @" />
+        )}
+      </div>
     </div>
   );
 }
