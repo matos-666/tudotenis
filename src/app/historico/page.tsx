@@ -48,7 +48,7 @@ async function fetchHistory(): Promise<SettledPick[]> {
   return (data ?? []) as SettledPick[];
 }
 
-const SURFACE_CLASS = { clay: 'surface-clay', hard: 'surface-hard', grass: 'surface-grass', indoor: 'surface-indoor' } as const;
+const SURFACE_CLASS = { clay: 'surface-clay', hard: 'surface-hard', grass: 'surface-grass', indoor: 'surface-hard' } as const;
 
 export default async function HistoricoPage() {
   const picks = await fetchHistory();

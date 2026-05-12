@@ -4,14 +4,14 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import type { TournamentLite } from '@/app/torneios/page';
 
+// Indoor mapeado para hard — torneios indoor são quase sempre hard courts
+// cobertos. Não temos UI dedicada à surface indoor.
 const SURFACE_CLASS = {
   clay: 'surface-clay', hard: 'surface-hard',
-  grass: 'surface-grass', indoor: 'surface-indoor',
+  grass: 'surface-grass', indoor: 'surface-hard',
 } as const;
-// Labels variam por locale — passamos via prop. Aqui só PT-PT como fallback.
 function surfaceLabelLocal(locale: 'pt-PT' | 'pt-BR', surf: keyof typeof SURFACE_CLASS): string {
-  if (surf === 'hard')   return 'Hard';
-  if (surf === 'indoor') return 'Indoor';
+  if (surf === 'hard' || surf === 'indoor') return 'Hard';
   if (surf === 'clay')   return locale === 'pt-BR' ? 'Saibro'  : 'Terra batida';
   if (surf === 'grass')  return locale === 'pt-BR' ? 'Grama'   : 'Relvado';
   return surf;

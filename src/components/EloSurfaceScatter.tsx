@@ -13,18 +13,18 @@
 import { supabase } from '@/lib/supabase';
 import { surfaceLabel, type Locale } from '@/lib/i18n';
 
+// Indoor não tem coluna própria na UI — torneios indoor são tratados como
+// hard pelo caller (ver /torneios/[slug]/page.tsx).
 const SURFACE_COL = {
   hard: 'elo_hard',
   clay: 'elo_clay',
   grass: 'elo_grass',
-  indoor: 'elo_indoor',
 } as const;
 
 const SURFACE_ACCENT = {
   hard: '#7fa8ff',
   clay: '#ffa472',
   grass: '#a3e0a3',
-  indoor: '#c4a8ff',
 } as const;
 
 interface Row {

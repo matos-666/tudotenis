@@ -106,7 +106,8 @@ async function fetchYesterdayPicks(): Promise<Pick[]> {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
-const SURFACE_CLASS  = { clay: 'surface-clay', hard: 'surface-hard', grass: 'surface-grass', indoor: 'surface-indoor' } as const;
+// Indoor → hard styling (não temos UI dedicada a indoor).
+const SURFACE_CLASS  = { clay: 'surface-clay', hard: 'surface-hard', grass: 'surface-grass', indoor: 'surface-hard' } as const;
 
 function surfaceKey(s: string | null): keyof typeof SURFACE_CLASS {
   if (s && s in SURFACE_CLASS) return s as keyof typeof SURFACE_CLASS;
@@ -213,7 +214,7 @@ function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <span className="text-xs text-gray-500 truncate">{p.tournament_name ?? 'ATP/WTA'}</span>
         <div className="flex gap-2 items-center">
-          <span className={`surface-pill ${SURFACE_CLASS[surf]}`}>{surfaceLabel(locale, surf)}</span>
+          <span className={`surface-pill ${SURFACE_CLASS[surf]}`}>{surf === 'indoor' ? 'Hard' : surfaceLabel(locale, surf)}</span>
           {settled ? (
             <span className="text-[10px] uppercase font-bold tracking-wider text-gray-500">
               {isBR ? 'Terminado' : 'Terminado'}

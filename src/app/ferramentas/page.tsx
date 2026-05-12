@@ -75,8 +75,8 @@ export default async function FerramentasIndex() {
             </h3>
             <p className="text-sm text-gray-400 leading-relaxed">
               {isBR
-                ? 'Todas as ferramentas usam o nosso modelo ELO proprietário com 59k jogos analisados desde 1968. As probabilidades são calculadas com base em ELOs específicos por piso (Hard, Saibro, Grama, Indoor) e ajustadas para best-of-3 ou best-of-5 (Slams).'
-                : 'Todas as ferramentas usam o nosso modelo ELO proprietário com 59k jogos analisados desde 1968. As probabilidades são calculadas com base em ELOs específicos por superfície (Hard, Terra batida, Relvado, Indoor) e ajustadas para best-of-3 ou best-of-5 (Slams).'}
+                ? 'Todas as ferramentas usam o nosso modelo ELO proprietário com 59k jogos analisados desde 1968. As probabilidades são calculadas com base em ELOs específicos por piso (Hard, Saibro, Grama) e ajustadas para best-of-3 ou best-of-5 (Slams).'
+                : 'Todas as ferramentas usam o nosso modelo ELO proprietário com 59k jogos analisados desde 1968. As probabilidades são calculadas com base em ELOs específicos por superfície (Hard, Terra batida, Relvado) e ajustadas para best-of-3 ou best-of-5 (Slams).'}
             </p>
             <Link
               href={`${prefix}/como-funciona`}

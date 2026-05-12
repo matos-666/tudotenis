@@ -24,7 +24,7 @@ const FAQ_ITEMS = [
   {
     question: 'Como funciona o modelo ELO?',
     answer:
-      'Cada jogador tem 5 ratings ELO em paralelo: geral, hard, terra batida, relvado e indoor. Ao calcular um pick, usamos o ELO da superfície específica do jogo. K-factor varia por importância: Slam pesa 1,4× mais que Challenger; final pesa 1,3× mais que primeira ronda.',
+      'Cada jogador tem 4 ratings ELO em paralelo: geral, hard, terra batida e relvado. Ao calcular um pick, usamos o ELO da superfície específica do jogo. K-factor varia por importância: Slam pesa 1,4× mais que Challenger; final pesa 1,3× mais que primeira ronda.',
   },
   {
     question: 'O que significa o grade A/B/C?',
@@ -104,7 +104,7 @@ export default async function ComoFuncionaPage() {
               <li><strong>Quão favorito era o vencedor</strong> — bater o nº 1 vale mais que bater o nº 100.</li>
               <li><strong>Importância do torneio</strong> — Slam pesa 1,4× mais que um Challenger.</li>
               <li><strong>Ronda</strong> — final pesa 1,3× mais que primeira ronda.</li>
-              <li><strong>Superfície</strong> — terra batida, hard, relvado e indoor têm ratings independentes.</li>
+              <li><strong>Superfície</strong> — terra batida, hard e relvado têm ratings independentes.</li>
             </ul>
             <p className="text-gray-300 leading-relaxed">
               A fórmula é a clássica de Arpad Elo:
@@ -123,15 +123,14 @@ export default async function ComoFuncionaPage() {
               estas nuances completamente</strong>.
             </p>
             <p className="text-gray-300 leading-relaxed mb-4">
-              No TudoTénis, cada jogador tem 5 ratings ELO em paralelo:
+              No TudoTénis, cada jogador tem 4 ratings ELO em paralelo:
             </p>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
               {[
                 { l: 'Geral', c: 'all' },
                 { l: locale === 'pt-BR' ? 'Saibro'  : 'Terra batida', c: 'clay' },
                 { l: 'Hard', c: 'hard' },
                 { l: locale === 'pt-BR' ? 'Grama'   : 'Relvado',      c: 'grass' },
-                { l: 'Indoor', c: 'indoor' },
               ].map(s => (
                 <div key={s.l} className={`stat-card p-3 text-center surface-${s.c}`}>
                   <div className="text-xs text-gray-500 uppercase tracking-wider">{s.l}</div>

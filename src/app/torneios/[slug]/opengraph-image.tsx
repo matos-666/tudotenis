@@ -9,7 +9,8 @@ const SURFACE_COLOR: Record<string, { bg: string; fg: string; label: string }> =
   clay:   { bg: '#c9572422', fg: '#ffa472', label: 'Terra batida' },
   hard:   { bg: '#2c5fc922', fg: '#7fa8ff', label: 'Hard'   },
   grass:  { bg: '#3a8a3a22', fg: '#a3e0a3', label: 'Relvado' },
-  indoor: { bg: '#6b4ec722', fg: '#c4a8ff', label: 'Indoor' },
+  // indoor: torneios indoor são quase sempre hard courts cobertos — caem
+  // para o fallback hard via SURFACE_COLOR[t.surface] ?? SURFACE_COLOR.hard.
 };
 
 const CAT_LABEL: Record<string, string> = {

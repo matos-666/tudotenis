@@ -88,11 +88,13 @@ export async function generateMetadata({
   };
 }
 
+// Indoor não tem styling próprio na UI — torneios indoor são quase sempre
+// hard courts cobertos, por isso caem para a pill 'hard'.
 const SURFACE_CLASS = {
   clay: 'surface-clay',
   hard: 'surface-hard',
   grass: 'surface-grass',
-  indoor: 'surface-indoor',
+  indoor: 'surface-hard',
 } as const;
 
 const CAT_LABEL = {
@@ -249,7 +251,9 @@ export default async function TournamentDetail({
               <p className="text-gray-400 text-xs md:text-sm">{t.location}</p>
               <div className="flex items-center gap-2 mt-2 flex-wrap">
                 {t.surface_label && (
-                  <span className={`surface-pill ${surfClass}`}>{t.surface_label}</span>
+                  <span className={`surface-pill ${surfClass}`}>
+                    {t.surface === 'indoor' ? 'Hard' : t.surface_label}
+                  </span>
                 )}
                 <span className="text-xs text-gray-500">{catLabel}</span>
                 {isLive && (
@@ -317,17 +321,22 @@ export default async function TournamentDetail({
             prefix={prefix}
           />
 
-          {/* Scatter ELO Geral vs ELO Surface (insight diferenciador) */}
-          {t.surface && (
-            <>
-              {(t.tour === 'atp' || t.tour === 'both') && (
-                <EloSurfaceScatter tour="atp" surface={t.surface} locale={locale} />
-              )}
-              {(t.tour === 'wta' || t.tour === 'both') && (
-                <EloSurfaceScatter tour="wta" surface={t.surface} locale={locale} />
-              )}
-            </>
-          )}
+          {/* Scatter ELO Geral vs ELO Surface (insight diferenciador).
+              Indoor é tratado como hard — não temos visualização própria
+              porque há pouquíssima actividade no calendário indoor. */}
+          {t.surface && (() => {
+            const scatterSurface = t.surface === 'indoor' ? 'hard' : t.surface;
+            return (
+              <>
+                {(t.tour === 'atp' || t.tour === 'both') && (
+                  <EloSurfaceScatter tour="atp" surface={scatterSurface} locale={locale} />
+                )}
+                {(t.tour === 'wta' || t.tour === 'both') && (
+                  <EloSurfaceScatter tour="wta" surface={scatterSurface} locale={locale} />
+                )}
+              </>
+            );
+          })()}
 
           {/* CTA */}
           <div className="flex flex-wrap gap-3 mt-8">

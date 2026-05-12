@@ -17,12 +17,13 @@ interface Snapshot {
 }
 
 // Surfaces base — label é localizado em runtime via surfaceLabel().
+// Indoor omitido da UI: pouquíssimos jogos no calendário, ratings normalmente
+// no default 1500. Backend mantém elo_indoor para o ELO geral, só não expõe.
 const SURFACES = [
   { key: 'elo_overall', surf: '',       color: 'var(--color-accent)', strokeWidth: 2.5, dash: '' },
   { key: 'elo_hard',    surf: 'hard',   color: '#7fa8ff',             strokeWidth: 1.5, dash: '4 3' },
   { key: 'elo_clay',    surf: 'clay',   color: '#ffa472',             strokeWidth: 1.5, dash: '4 3' },
   { key: 'elo_grass',   surf: 'grass',  color: '#a3e0a3',             strokeWidth: 1.5, dash: '4 3' },
-  { key: 'elo_indoor',  surf: 'indoor', color: '#c4a8ff',             strokeWidth: 1.5, dash: '4 3' },
 ] as const;
 
 // Layout

@@ -191,13 +191,12 @@ export default async function PlayerPage({
             </div>
           </div>
 
-          {/* ELO por superfície */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
+          {/* ELO por superfície (Indoor omitido — pouca actividade no tour) */}
+          <div className="grid grid-cols-3 gap-3 md:gap-4 mb-8">
             {[
               { label: `Hard ELO`,                                  value: player.elo_hard,   badge: 'Hard',                          cls: 'surface-hard' },
               { label: `${surfaceLabel(locale, 'clay')} ELO`,       value: player.elo_clay,   badge: surfaceLabel(locale, 'clay'),    cls: 'surface-clay' },
               { label: `${surfaceLabel(locale, 'grass')} ELO`,      value: player.elo_grass,  badge: surfaceLabel(locale, 'grass'),   cls: 'surface-grass' },
-              { label: `Indoor ELO`,                                value: player.elo_indoor, badge: 'Indoor',                        cls: 'surface-indoor' },
             ].map(s => (
               <div key={s.label} className="stat-card p-4 md:p-5">
                 <div className="flex items-center justify-between mb-2">

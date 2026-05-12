@@ -11,21 +11,19 @@ import {
 } from '@/lib/elo';
 import type { PredictorPlayer } from '@/app/ferramentas/predictor/page';
 
-type Surface = 'hard' | 'clay' | 'grass' | 'indoor';
+type Surface = 'hard' | 'clay' | 'grass';
 type BoVal = 3 | 5;
 
 const SURFACE_LABEL: Record<Surface, string> = {
   hard: 'Hard',
-  clay: 'Saibro / Terra batida',
-  grass: 'Grama / Relva',
-  indoor: 'Indoor',
+  clay: 'Terra batida',
+  grass: 'Relvado',
 };
 
 const SURFACE_FIELD: Record<Surface, keyof PredictorPlayer> = {
   hard: 'elo_hard',
   clay: 'elo_clay',
   grass: 'elo_grass',
-  indoor: 'elo_indoor',
 };
 
 function shortName(name: string): string {

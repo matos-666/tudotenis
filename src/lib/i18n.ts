@@ -193,16 +193,17 @@ export async function getLocale(): Promise<Locale> {
 
 /**
  * Helper centralizado para labels de surfaces, com diferenciação PT/BR.
- *   - pt-PT: Hard / Terra batida / Relvado / Indoor
- *   - pt-BR: Hard / Saibro / Grama / Indoor
+ *   - pt-PT: Hard / Terra batida / Relvado
+ *   - pt-BR: Hard / Saibro / Grama
+ *
+ * Indoor e Carpet são mapeados para "Hard" — não expomos estas surfaces
+ * separadamente na UI (pouquíssima actividade no calendário).
  */
 export function surfaceLabel(locale: Locale, surface: string | null | undefined): string {
   const s = (surface ?? '').toLowerCase();
   if (s === 'clay')   return locale === 'pt-BR' ? 'Saibro'  : 'Terra batida';
   if (s === 'grass')  return locale === 'pt-BR' ? 'Grama'   : 'Relvado';
-  if (s === 'hard')   return 'Hard';
-  if (s === 'indoor') return 'Indoor';
-  if (s === 'carpet') return locale === 'pt-BR' ? 'Carpete' : 'Carpete';
+  if (s === 'hard' || s === 'indoor' || s === 'carpet') return 'Hard';
   return surface ?? '';
 }
 
