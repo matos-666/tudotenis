@@ -105,11 +105,13 @@ export async function generateMetadata({
 }
 
 // Labels resolvidos em runtime via surfaceLabel(locale, ...).
+// Indoor é omitido — pouquíssimos jogos no calendário, ratings tipicamente
+// no default 1500 e probabilidades 50/50 acabam por confundir mais que
+// ajudar. Hard, terra batida e relvado cobrem >95% do tour.
 const SURFACES = [
   { key: 'hard',   field: 'elo_hard',   cls: 'surface-hard'   },
   { key: 'clay',   field: 'elo_clay',   cls: 'surface-clay'   },
   { key: 'grass',  field: 'elo_grass',  cls: 'surface-grass'  },
-  { key: 'indoor', field: 'elo_indoor', cls: 'surface-indoor' },
 ] as const;
 
 function PlayerHeadCard({ p, isFav, prefix = '' }: { p: Player; isFav: boolean; prefix?: string }) {
@@ -283,7 +285,7 @@ export default async function H2HPage({
 
           {/* Per-surface analysis */}
           <h2 className="text-xl font-bold mb-4">Probabilidade por superfície</h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8">
+          <div className="grid sm:grid-cols-3 gap-3 md:gap-4 mb-8">
             {surfaceData.map(s => (
               <div key={s.key} className="stat-card p-4 md:p-5">
                 <div className="flex items-center justify-between mb-3">
