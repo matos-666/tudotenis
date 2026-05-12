@@ -105,6 +105,27 @@ export function matchProbFromSetProb(setProb: number, bo: 3 | 5): number {
 }
 
 /**
+ * Inverso de matchProbFromSetProb — dado o output do ELO (match-level
+ * porque o nosso modelo treina com vencedor/perdedor por jogo), deriva
+ * a probabilidade por set implícita usando binary search.
+ *
+ * Usado pelo Predictor para que a distribuição de scores Monte Carlo
+ * seja consistente com a match probability mostrada no topo.
+ */
+export function setProbFromMatchProb(matchProb: number, bo: 3 | 5): number {
+  if (matchProb <= 0) return 0;
+  if (matchProb >= 1) return 1;
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (matchProbFromSetProb(mid, bo) < matchProb) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+/**
  * Edge calculation: % vantagem do jogador vs quota da casa.
  * edge > 0 → quota da casa subvaloriza o jogador
  */

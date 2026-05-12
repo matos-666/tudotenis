@@ -6,7 +6,7 @@ import {
   fairOdds,
   bo3Distribution,
   bo5Distribution,
-  matchProbFromSetProb,
+  setProbFromMatchProb,
   calculateEdge,
 } from '@/lib/elo';
 import type { PredictorPlayer } from '@/app/ferramentas/predictor/page';
@@ -46,11 +46,13 @@ export function Predictor({ players }: { players: PredictorPlayer[] }) {
   const e1 = p1 ? (p1[SURFACE_FIELD[surface]] as number | null) ?? p1.elo_overall ?? 1500 : 1500;
   const e2 = p2 ? (p2[SURFACE_FIELD[surface]] as number | null) ?? p2.elo_overall ?? 1500 : 1500;
 
-  // Per-set probability
-  const setProbP1 = eloProb(e1, e2);
-  // Adjust for best-of-N
-  const matchProbP1 = matchProbFromSetProb(setProbP1, bo);
+  // ELO próprio é treinado em outcomes de match (vencedor/perdedor por jogo),
+  // logo eloProb() já devolve probabilidade de ganhar O MATCH. Não fazemos
+  // double-counting via BO formula. A probabilidade por set é derivada
+  // inversamente apenas para a distribuição de scores Monte Carlo.
+  const matchProbP1 = eloProb(e1, e2);
   const matchProbP2 = 1 - matchProbP1;
+  const setProbP1 = setProbFromMatchProb(matchProbP1, bo);
   const fairP1 = fairOdds(matchProbP1);
   const fairP2 = fairOdds(matchProbP2);
   const favIsP1 = matchProbP1 >= 0.5;
