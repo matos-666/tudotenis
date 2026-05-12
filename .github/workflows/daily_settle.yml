@@ -1,12 +1,16 @@
-name: Daily Settlement (extra pass)
+name: Frequent Settlement (2h cadence)
 
-# Vercel Cron faz settle às 22:30 UTC.
-# Este workflow corre 03:30 UTC para apanhar matches que terminaram tarde
-# (US Open, indoor events em USA, etc.)
+# Settle picks de 2 em 2 horas para feedback rápido.
+# O Vercel Cron (22:30 UTC) continua a correr como fallback diário.
+#
+# Janela ATP/WTA típica: ~07:00–24:00 UTC. As 12 execuções/dia (a cada 2h)
+# cobrem isso e ainda margem. Pessoas em PT/BR vêem resultados a aparecer
+# em ~2h após o final dos jogos.
 
 on:
   schedule:
-    - cron: "30 3 * * *"
+    # Cada 2 horas, ao 0 minuto: 00:00, 02:00, ... 22:00 UTC
+    - cron: "0 */2 * * *"
   workflow_dispatch:
 
 jobs:
