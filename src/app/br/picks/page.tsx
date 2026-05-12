@@ -1,8 +1,6 @@
 import type { Metadata } from 'next';
 import { hreflangAlternates } from '@/lib/i18n';
 
-// Reexporta a mesma página — o componente lê locale via header x-locale,
-// que o middleware injecta com 'pt-BR' para todos os paths sob /br/.
 export { default } from '../../picks/page';
 
 export const metadata: Metadata = {

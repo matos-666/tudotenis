@@ -41,9 +41,9 @@ const dict = {
   'term.update':             { 'pt-PT': 'Atualizar',     'pt-BR': 'Atualizar' },
   'term.updated':            { 'pt-PT': 'Atualizado',    'pt-BR': 'Atualizado' },
   'term.activity':           { 'pt-PT': 'Atividade',     'pt-BR': 'Atividade' },
-  'term.clay':               { 'pt-PT': 'Saibro',         'pt-BR': 'Saibro' },       // both ok
+  'term.clay':               { 'pt-PT': 'Terra batida',   'pt-BR': 'Saibro' },
   'term.hard':               { 'pt-PT': 'Hard',           'pt-BR': 'Hard' },
-  'term.grass':              { 'pt-PT': 'Grama',          'pt-BR': 'Grama' },
+  'term.grass':              { 'pt-PT': 'Relvado',        'pt-BR': 'Grama' },
   'term.indoor':             { 'pt-PT': 'Indoor',         'pt-BR': 'Indoor' },
   'term.bet':                { 'pt-PT': 'Aposta',         'pt-BR': 'Aposta' },
   'term.bet_verb':           { 'pt-PT': 'Apostar',        'pt-BR': 'Apostar' },
@@ -189,6 +189,21 @@ export async function getLocale(): Promise<Locale> {
   const { headers } = await import('next/headers');
   const h = await headers();
   return h.get('x-locale') === 'pt-BR' ? 'pt-BR' : 'pt-PT';
+}
+
+/**
+ * Helper centralizado para labels de surfaces, com diferenciação PT/BR.
+ *   - pt-PT: Hard / Terra batida / Relvado / Indoor
+ *   - pt-BR: Hard / Saibro / Grama / Indoor
+ */
+export function surfaceLabel(locale: Locale, surface: string | null | undefined): string {
+  const s = (surface ?? '').toLowerCase();
+  if (s === 'clay')   return locale === 'pt-BR' ? 'Saibro'  : 'Terra batida';
+  if (s === 'grass')  return locale === 'pt-BR' ? 'Grama'   : 'Relvado';
+  if (s === 'hard')   return 'Hard';
+  if (s === 'indoor') return 'Indoor';
+  if (s === 'carpet') return locale === 'pt-BR' ? 'Carpete' : 'Carpete';
+  return surface ?? '';
 }
 
 /**

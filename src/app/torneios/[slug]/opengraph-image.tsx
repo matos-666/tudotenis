@@ -6,9 +6,9 @@ export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
 const SURFACE_COLOR: Record<string, { bg: string; fg: string; label: string }> = {
-  clay:   { bg: '#c9572422', fg: '#ffa472', label: 'Saibro' },
+  clay:   { bg: '#c9572422', fg: '#ffa472', label: 'Terra batida' },
   hard:   { bg: '#2c5fc922', fg: '#7fa8ff', label: 'Hard'   },
-  grass:  { bg: '#3a8a3a22', fg: '#a3e0a3', label: 'Grama'  },
+  grass:  { bg: '#3a8a3a22', fg: '#a3e0a3', label: 'Relvado' },
   indoor: { bg: '#6b4ec722', fg: '#c4a8ff', label: 'Indoor' },
 };
 

@@ -8,9 +8,14 @@ const SURFACE_CLASS = {
   clay: 'surface-clay', hard: 'surface-hard',
   grass: 'surface-grass', indoor: 'surface-indoor',
 } as const;
-const SURFACE_LABEL = {
-  clay: 'Saibro', hard: 'Hard', grass: 'Grama', indoor: 'Indoor',
-} as const;
+// Labels variam por locale — passamos via prop. Aqui só PT-PT como fallback.
+function surfaceLabelLocal(locale: 'pt-PT' | 'pt-BR', surf: keyof typeof SURFACE_CLASS): string {
+  if (surf === 'hard')   return 'Hard';
+  if (surf === 'indoor') return 'Indoor';
+  if (surf === 'clay')   return locale === 'pt-BR' ? 'Saibro'  : 'Terra batida';
+  if (surf === 'grass')  return locale === 'pt-BR' ? 'Grama'   : 'Relvado';
+  return surf;
+}
 
 const PT_MONTH = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
@@ -164,7 +169,7 @@ function TournamentCard({ t, locale = 'pt-PT' }: { t: TournamentLite; locale?: '
   const isLive = t.status === 'live';
   const isUpcoming = t.status === 'scheduled';
   const surfClass = t.surface ? SURFACE_CLASS[t.surface as keyof typeof SURFACE_CLASS] : '';
-  const surfLabel = t.surface ? SURFACE_LABEL[t.surface as keyof typeof SURFACE_LABEL] : '';
+  const surfLabel = t.surface ? surfaceLabelLocal(locale, t.surface as keyof typeof SURFACE_CLASS) : '';
   const start = t.start_date ? new Date(t.start_date) : null;
   const end   = t.end_date   ? new Date(t.end_date)   : null;
   const dateStr = start && end

@@ -190,7 +190,7 @@ export function Predictor({ players }: { players: PredictorPlayer[] }) {
         {/* Result */}
         <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 md:p-6">
           <div className="text-xs uppercase tracking-wider text-gray-500 mb-4">
-            Previsão do modelo · {surface === 'clay' ? 'saibro' : surface} · best-of-{bo}
+            Previsão do modelo · {surface === 'clay' ? 'terra batida' : surface === 'grass' ? 'relvado' : surface} · best-of-{bo}
           </div>
           <div className="grid grid-cols-2 gap-2 mb-4">
             <div className="text-right pr-3">

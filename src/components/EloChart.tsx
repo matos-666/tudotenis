@@ -5,6 +5,7 @@
  * Recebe array de snapshots ordenados por data ascendente.
  */
 import { supabase } from '@/lib/supabase';
+import { surfaceLabel, type Locale } from '@/lib/i18n';
 
 interface Snapshot {
   date: string;
@@ -15,12 +16,13 @@ interface Snapshot {
   elo_indoor: number | null;
 }
 
+// Surfaces base — label é localizado em runtime via surfaceLabel().
 const SURFACES = [
-  { key: 'elo_overall', label: 'Geral',  color: 'var(--color-accent)', strokeWidth: 2.5, dash: '' },
-  { key: 'elo_hard',    label: 'Hard',   color: '#7fa8ff',             strokeWidth: 1.5, dash: '4 3' },
-  { key: 'elo_clay',    label: 'Saibro', color: '#ffa472',             strokeWidth: 1.5, dash: '4 3' },
-  { key: 'elo_grass',   label: 'Grama',  color: '#a3e0a3',             strokeWidth: 1.5, dash: '4 3' },
-  { key: 'elo_indoor',  label: 'Indoor', color: '#c4a8ff',             strokeWidth: 1.5, dash: '4 3' },
+  { key: 'elo_overall', surf: '',       color: 'var(--color-accent)', strokeWidth: 2.5, dash: '' },
+  { key: 'elo_hard',    surf: 'hard',   color: '#7fa8ff',             strokeWidth: 1.5, dash: '4 3' },
+  { key: 'elo_clay',    surf: 'clay',   color: '#ffa472',             strokeWidth: 1.5, dash: '4 3' },
+  { key: 'elo_grass',   surf: 'grass',  color: '#a3e0a3',             strokeWidth: 1.5, dash: '4 3' },
+  { key: 'elo_indoor',  surf: 'indoor', color: '#c4a8ff',             strokeWidth: 1.5, dash: '4 3' },
 ] as const;
 
 // Layout
@@ -31,7 +33,8 @@ const PAD_R = 16;
 const PAD_T = 16;
 const PAD_B = 32;
 
-export async function EloChart({ playerId }: { playerId: number }) {
+export async function EloChart({ playerId, locale = 'pt-PT' }: { playerId: number; locale?: Locale }) {
+  const labelFor = (surf: string) => surf === '' ? 'Geral' : surfaceLabel(locale, surf);
   const { data, error } = await supabase
     .from('elo_history')
     .select('date, elo_overall, elo_hard, elo_clay, elo_grass, elo_indoor')
@@ -156,12 +159,12 @@ export async function EloChart({ playerId }: { playerId: number }) {
                   background: s.dash ? 'transparent' : s.color,
                 }}
               />
-              <span className="text-gray-400">{s.label}</span>
+              <span className="text-gray-400">{labelFor(s.surf)}</span>
             </span>
           ))}
           {activeSurfaces.length < SURFACES.length && (
             <span className="text-[10px] text-gray-600 ml-2">
-              · {SURFACES.length - activeSurfaces.length} superfície(s) sem atividade omitida(s)
+              · {SURFACES.length - activeSurfaces.length} {locale === 'pt-BR' ? 'piso(s)' : 'superfície(s)'} sem atividade omitida(s)
             </span>
           )}
         </div>

@@ -4,12 +4,12 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { AffiliateButtons } from '@/components/AffiliateButtons';
 import { supabase } from '@/lib/supabase';
-import { getLocale, hreflangAlternates, localizedHref, type Locale } from '@/lib/i18n';
+import { getLocale, hreflangAlternates, localizedHref, surfaceLabel, type Locale } from '@/lib/i18n';
 
 export const metadata: Metadata = {
   title: 'Picks do dia · ELO + Edge · TudoTénis',
   description:
-    'Picks de ténis publicados pelo modelo ELO TudoTénis. Yield comprovado +27,6% em 439 tips auditadas. Saibro, hard, grama. ATP, WTA e Challengers.',
+    'Picks de ténis publicados pelo modelo ELO TudoTénis. Yield comprovado +27,6% em 439 tips auditadas. Terra batida, hard, relvado. ATP, WTA e Challengers.',
   alternates: hreflangAlternates('/picks'),
 };
 
@@ -106,7 +106,6 @@ async function fetchYesterdayPicks(): Promise<Pick[]> {
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 const SURFACE_CLASS  = { clay: 'surface-clay', hard: 'surface-hard', grass: 'surface-grass', indoor: 'surface-indoor' } as const;
-const SURFACE_LABEL  = { clay: 'Saibro', hard: 'Hard', grass: 'Grama', indoor: 'Indoor' } as const;
 
 function surfaceKey(s: string | null): keyof typeof SURFACE_CLASS {
   if (s && s in SURFACE_CLASS) return s as keyof typeof SURFACE_CLASS;
@@ -177,7 +176,7 @@ function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <span className="text-xs text-gray-500">{p.tournament_name ?? 'ATP/WTA'}</span>
         <div className="flex gap-2 items-center">
-          <span className={`surface-pill ${SURFACE_CLASS[surf]}`}>{SURFACE_LABEL[surf]}</span>
+          <span className={`surface-pill ${SURFACE_CLASS[surf]}`}>{surfaceLabel(locale, surf)}</span>
           {live && (
             <span className="text-[10px] uppercase font-bold tracking-wider text-red-400 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />

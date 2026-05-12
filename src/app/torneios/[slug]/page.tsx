@@ -321,10 +321,10 @@ export default async function TournamentDetail({
           {t.surface && (
             <>
               {(t.tour === 'atp' || t.tour === 'both') && (
-                <EloSurfaceScatter tour="atp" surface={t.surface} />
+                <EloSurfaceScatter tour="atp" surface={t.surface} locale={locale} />
               )}
               {(t.tour === 'wta' || t.tour === 'both') && (
-                <EloSurfaceScatter tour="wta" surface={t.surface} />
+                <EloSurfaceScatter tour="wta" surface={t.surface} locale={locale} />
               )}
             </>
           )}

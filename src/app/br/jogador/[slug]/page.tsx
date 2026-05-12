@@ -18,7 +18,7 @@ export async function generateMetadata({
   if (!p) return { title: 'Jogador não encontrado' };
   return {
     title: `${p.name} · ELO ${p.elo_overall} · Stats e Perfil`,
-    description: `Perfil de ${p.name} (${(p.tour as string).toUpperCase()} #${p.atp_rank ?? '?'}). ELO próprio: ${p.elo_overall} geral · ${p.elo_hard} hard · ${p.elo_clay} saibro · ${p.elo_grass} grama. Histórico, splits por piso, próximos jogos.`,
+    description: `Perfil de ${p.name} (${(p.tour as string).toUpperCase()} #${p.atp_rank ?? '?'}). ELO próprio: ${p.elo_overall} geral · ${p.elo_hard} hard · ${p.elo_clay} saibro · ${p.elo_grass} grama. Histórico, splits por piso, próximos jogos.`, // pt-BR keeps saibro/grama
     alternates: hreflangAlternates(`/jogador/${p.slug}`),
     openGraph: {
       title: `${p.name} · TudoTênis`,

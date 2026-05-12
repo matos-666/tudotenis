@@ -7,7 +7,7 @@ import { eloProb, fairOdds, parseMatchupSlug } from '@/lib/elo';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { breadcrumbJsonLd } from '@/lib/jsonld';
-import { getLocale, hreflangAlternates } from '@/lib/i18n';
+import { getLocale, hreflangAlternates, surfaceLabel } from '@/lib/i18n';
 
 export const revalidate = 3600;
 
@@ -95,7 +95,7 @@ export async function generateMetadata({
   const probP1 = Math.round(eloProb(e1, e2) * 100);
   return {
     title: `${p1.name} vs ${p2.name} · H2H · Probabilidade ${probP1}/${100 - probP1}`,
-    description: `Confronto direto entre ${p1.name} (ELO ${e1}) e ${p2.name} (ELO ${e2}). Probabilidades por superfície (saibro, hard, grama), comparação de forma, quotas justas. Análise pelo modelo ELO TudoTénis.`,
+    description: `Confronto direto entre ${p1.name} (ELO ${e1}) e ${p2.name} (ELO ${e2}). Probabilidades por superfície (terra batida, hard, relvado), comparação de forma, quotas justas. Análise pelo modelo ELO TudoTénis.`,
     alternates: hreflangAlternates(`/h2h/${matchup}`),
     openGraph: {
       title: `${p1.name} vs ${p2.name} · H2H`,
@@ -104,11 +104,12 @@ export async function generateMetadata({
   };
 }
 
+// Labels resolvidos em runtime via surfaceLabel(locale, ...).
 const SURFACES = [
-  { key: 'hard',   label: 'Hard',   field: 'elo_hard',   ptLabel: 'Hard',          cls: 'surface-hard' },
-  { key: 'clay',   label: 'Saibro', field: 'elo_clay',   ptLabel: 'Saibro',        cls: 'surface-clay' },
-  { key: 'grass',  label: 'Grama',  field: 'elo_grass',  ptLabel: 'Grama',         cls: 'surface-grass' },
-  { key: 'indoor', label: 'Indoor', field: 'elo_indoor', ptLabel: 'Indoor',        cls: 'surface-indoor' },
+  { key: 'hard',   field: 'elo_hard',   cls: 'surface-hard'   },
+  { key: 'clay',   field: 'elo_clay',   cls: 'surface-clay'   },
+  { key: 'grass',  field: 'elo_grass',  cls: 'surface-grass'  },
+  { key: 'indoor', field: 'elo_indoor', cls: 'surface-indoor' },
 ] as const;
 
 function PlayerHeadCard({ p, isFav, prefix = '' }: { p: Player; isFav: boolean; prefix?: string }) {
@@ -212,7 +213,7 @@ export default async function H2HPage({
   } else {
     const pBest = [...surfaceData].sort((a, b) => b.prob1 - a.prob1)[0];
     const pWorst = [...surfaceData].sort((a, b) => a.prob1 - b.prob1)[0];
-    insight = `${p1.name.split(' ').pop()} é mais forte em ${pBest.ptLabel.toLowerCase()} (${Math.round(pBest.prob1 * 100)}%), mas em ${pWorst.ptLabel.toLowerCase()} ${p2.name.split(' ').pop()} ganha vantagem (${Math.round(pWorst.prob2 * 100)}%).`;
+    insight = `${p1.name.split(' ').pop()} é mais forte em ${surfaceLabel(locale, pBest.key).toLowerCase()} (${Math.round(pBest.prob1 * 100)}%), mas em ${surfaceLabel(locale, pWorst.key).toLowerCase()} ${p2.name.split(' ').pop()} ganha vantagem (${Math.round(pWorst.prob2 * 100)}%).`;
   }
 
   // JSON-LD: SportsEvent (potencial)
@@ -286,8 +287,8 @@ export default async function H2HPage({
             {surfaceData.map(s => (
               <div key={s.key} className="stat-card p-4 md:p-5">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs uppercase text-gray-500">{s.ptLabel}</span>
-                  <span className={`surface-pill ${s.cls}`}>{s.label}</span>
+                  <span className="text-xs uppercase text-gray-500">{surfaceLabel(locale, s.key)}</span>
+                  <span className={`surface-pill ${s.cls}`}>{surfaceLabel(locale, s.key)}</span>
                 </div>
                 <div className="text-2xl font-extrabold font-mono mb-2">
                   <span className={s.favIsP1 ? 'text-[var(--color-accent)]' : ''}>

@@ -7,7 +7,7 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { EloChart } from '@/components/EloChart';
 import { breadcrumbJsonLd } from '@/lib/jsonld';
-import { getLocale, hreflangAlternates } from '@/lib/i18n';
+import { getLocale, hreflangAlternates, surfaceLabel } from '@/lib/i18n';
 
 // Re-gerar a cada hora; novos jogadores acrescentados via cron
 export const revalidate = 3600;
@@ -63,7 +63,7 @@ export async function generateMetadata({
   if (!p) return { title: 'Jogador não encontrado' };
   return {
     title: `${p.name} · ELO ${p.elo_overall} · Stats e Perfil`,
-    description: `Perfil de ${p.name} (${p.tour.toUpperCase()} #${p.atp_rank ?? '?'}). ELO próprio: ${p.elo_overall} geral · ${p.elo_hard} hard · ${p.elo_clay} saibro · ${p.elo_grass} grama. Histórico, splits por superfície, próximos jogos.`,
+    description: `Perfil de ${p.name} (${p.tour.toUpperCase()} #${p.atp_rank ?? '?'}). ELO próprio: ${p.elo_overall} geral · ${p.elo_hard} hard · ${p.elo_clay} terra batida · ${p.elo_grass} relvado. Histórico, splits por superfície, próximos jogos.`,
     alternates: hreflangAlternates(`/jogador/${p.slug}`),
     openGraph: {
       title: `${p.name} · TudoTénis`,
@@ -194,10 +194,10 @@ export default async function PlayerPage({
           {/* ELO por superfície */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
             {[
-              { label: 'Hard ELO', value: player.elo_hard, badge: 'Hard', cls: 'surface-hard' },
-              { label: 'Saibro ELO', value: player.elo_clay, badge: 'Saibro', cls: 'surface-clay' },
-              { label: 'Grama ELO', value: player.elo_grass, badge: 'Grama', cls: 'surface-grass' },
-              { label: 'Indoor ELO', value: player.elo_indoor, badge: 'Indoor', cls: 'surface-indoor' },
+              { label: `Hard ELO`,                                  value: player.elo_hard,   badge: 'Hard',                          cls: 'surface-hard' },
+              { label: `${surfaceLabel(locale, 'clay')} ELO`,       value: player.elo_clay,   badge: surfaceLabel(locale, 'clay'),    cls: 'surface-clay' },
+              { label: `${surfaceLabel(locale, 'grass')} ELO`,      value: player.elo_grass,  badge: surfaceLabel(locale, 'grass'),   cls: 'surface-grass' },
+              { label: `Indoor ELO`,                                value: player.elo_indoor, badge: 'Indoor',                        cls: 'surface-indoor' },
             ].map(s => (
               <div key={s.label} className="stat-card p-4 md:p-5">
                 <div className="flex items-center justify-between mb-2">
@@ -233,7 +233,7 @@ export default async function PlayerPage({
           )}
 
           {/* ELO chart (24 meses, 5 superfícies) */}
-          <EloChart playerId={player.id} />
+          <EloChart playerId={player.id} locale={locale} />
 
           {/* Quick links */}
           <div className="grid sm:grid-cols-3 gap-3">

@@ -11,19 +11,13 @@
  * Server component (sem JS no cliente).
  */
 import { supabase } from '@/lib/supabase';
+import { surfaceLabel, type Locale } from '@/lib/i18n';
 
 const SURFACE_COL = {
   hard: 'elo_hard',
   clay: 'elo_clay',
   grass: 'elo_grass',
   indoor: 'elo_indoor',
-} as const;
-
-const SURFACE_LABEL = {
-  hard: 'Hard',
-  clay: 'Saibro',
-  grass: 'Grama',
-  indoor: 'Indoor',
 } as const;
 
 const SURFACE_ACCENT = {
@@ -55,10 +49,12 @@ export async function EloSurfaceScatter({
   tour,
   surface,
   limit = 32,
+  locale = 'pt-PT',
 }: {
   tour: string;          // 'atp' | 'wta'
   surface: string;       // 'hard' | 'clay' | 'grass' | 'indoor'
   limit?: number;
+  locale?: Locale;
 }) {
   const surfKey = surface.toLowerCase() as keyof typeof SURFACE_COL;
   const surfCol = SURFACE_COL[surfKey];
@@ -68,7 +64,7 @@ export async function EloSurfaceScatter({
   if (!surfCol || (tourLower !== 'atp' && tourLower !== 'wta')) return null;
 
   const accent = SURFACE_ACCENT[surfKey];
-  const surfLabel = SURFACE_LABEL[surfKey];
+  const surfLabel = surfaceLabel(locale, surfKey);
 
   // Top N por ELO geral, com ELO da surface populado
   const { data, error } = await supabase

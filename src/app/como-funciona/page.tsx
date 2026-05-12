@@ -24,7 +24,7 @@ const FAQ_ITEMS = [
   {
     question: 'Como funciona o modelo ELO?',
     answer:
-      'Cada jogador tem 5 ratings ELO em paralelo: geral, hard, saibro, grama e indoor. Ao calcular um pick, usamos o ELO da superfície específica do jogo. K-factor varia por importância: Slam pesa 1,4× mais que Challenger; final pesa 1,3× mais que primeira ronda.',
+      'Cada jogador tem 5 ratings ELO em paralelo: geral, hard, terra batida, relvado e indoor. Ao calcular um pick, usamos o ELO da superfície específica do jogo. K-factor varia por importância: Slam pesa 1,4× mais que Challenger; final pesa 1,3× mais que primeira ronda.',
   },
   {
     question: 'O que significa o grade A/B/C?',
@@ -104,7 +104,7 @@ export default async function ComoFuncionaPage() {
               <li><strong>Quão favorito era o vencedor</strong> — bater o nº 1 vale mais que bater o nº 100.</li>
               <li><strong>Importância do torneio</strong> — Slam pesa 1,4× mais que um Challenger.</li>
               <li><strong>Ronda</strong> — final pesa 1,3× mais que primeira ronda.</li>
-              <li><strong>Superfície</strong> — saibro, hard, grama e indoor têm ratings independentes.</li>
+              <li><strong>Superfície</strong> — terra batida, hard, relvado e indoor têm ratings independentes.</li>
             </ul>
             <p className="text-gray-300 leading-relaxed">
               A fórmula é a clássica de Arpad Elo:
@@ -118,8 +118,8 @@ export default async function ComoFuncionaPage() {
           <section id="superficie" className="mb-12">
             <h2 className="text-2xl md:text-3xl font-bold mb-4">2. ELO por superfície</h2>
             <p className="text-gray-300 leading-relaxed mb-4">
-              Nadal era o melhor saibrista da história mas tinha problemas em grama. Federer era
-              quase imbatível em grama. Um modelo que não distinga superfícies <strong>perde
+              Nadal era o melhor jogador de terra batida da história mas tinha problemas em relvado. Federer era
+              quase imbatível em relvado. Um modelo que não distinga superfícies <strong>perde
               estas nuances completamente</strong>.
             </p>
             <p className="text-gray-300 leading-relaxed mb-4">
@@ -128,9 +128,9 @@ export default async function ComoFuncionaPage() {
             <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
               {[
                 { l: 'Geral', c: 'all' },
-                { l: 'Saibro', c: 'clay' },
+                { l: locale === 'pt-BR' ? 'Saibro'  : 'Terra batida', c: 'clay' },
                 { l: 'Hard', c: 'hard' },
-                { l: 'Grama', c: 'grass' },
+                { l: locale === 'pt-BR' ? 'Grama'   : 'Relvado',      c: 'grass' },
                 { l: 'Indoor', c: 'indoor' },
               ].map(s => (
                 <div key={s.l} className={`stat-card p-3 text-center surface-${s.c}`}>
@@ -139,8 +139,8 @@ export default async function ComoFuncionaPage() {
               ))}
             </div>
             <p className="text-gray-300 leading-relaxed">
-              Quando geramos um pick para um jogo em saibro, usamos o ELO de saibro — não o geral.
-              Esta diferenciação é o factor principal do nosso edge.
+              Quando geramos um pick para um jogo em {locale === 'pt-BR' ? 'saibro' : 'terra batida'}, usamos o ELO dessa superfície — não o geral.
+              Esta diferenciação é o fator principal do nosso edge.
             </p>
           </section>
 
