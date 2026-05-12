@@ -2,11 +2,11 @@ import type { Metadata } from 'next';
 import { HomePage } from '@/components/HomePage';
 
 export const metadata: Metadata = {
-  title: 'TudoTénis · Picks ELO + Stats',
+  title: 'TudoTênis · Palpites ELO + Stats',
   description:
-    'Modelo ELO próprio com 59k jogos analisados de ténis ATP, WTA, Challengers e ITF. Yield +27,6% em 439 tips auditadas. Em português.',
+    'Modelo ELO próprio com 59k jogos analisados de tênis ATP, WTA, Challengers e ITF. Yield +27,6% em 439 tips auditados. Em português.',
   alternates: {
-    canonical: '/',
+    canonical: '/br',
     languages: {
       'pt-PT': 'https://tudotenis.com/',
       'pt-BR': 'https://tudotenis.com/br',
@@ -15,6 +15,6 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Page() {
-  return <HomePage locale="pt-PT" />;
+export default function BrPage() {
+  return <HomePage locale="pt-BR" />;
 }

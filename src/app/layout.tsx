@@ -96,11 +96,17 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // Lê locale do header propagado pelo middleware (pt-PT ou pt-BR)
+  const { headers } = await import('next/headers');
+  const h = await headers();
+  const locale = (h.get('x-locale') ?? 'pt-PT') as 'pt-PT' | 'pt-BR';
+  const skipText = locale === 'pt-BR' ? 'Pular para o conteúdo principal' : 'Saltar para o conteúdo principal';
+
   return (
-    <html lang="pt-BR" className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang={locale} className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
         {/* Theme init: aplica antes de pintar para evitar flash */}
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
@@ -111,7 +117,7 @@ export default function RootLayout({
           href="#main"
           className="absolute -top-10 left-0 bg-[var(--color-accent)] text-[var(--color-surface)] px-4 py-2 font-semibold z-[1000] focus:top-0 transition-all"
         >
-          Saltar para o conteúdo principal
+          {skipText}
         </a>
 
         {/* JSON-LD: Organization */}

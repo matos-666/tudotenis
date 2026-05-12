@@ -5,18 +5,26 @@ import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import type { Locale } from '@/lib/i18n';
 
-const NAV_LINKS = [
-  { href: '/picks', label: 'Picks do dia' },
-  { href: '/jogadores', label: 'Jogadores' },
-  { href: '/h2h', label: 'H2H' },
-  { href: '/ferramentas', label: 'Ferramentas' },
-  { href: '/ranking', label: 'Ranking ELO' },
-  { href: '/torneios', label: 'Torneios' },
-  { href: '/como-funciona', label: 'Como funciona' },
-];
+function navLinks(locale: Locale) {
+  // Inline para evitar import de função `t` server-side no client.
+  const labels = locale === 'pt-BR'
+    ? { picks: 'Palpites do dia', players: 'Jogadores', h2h: 'H2H', tools: 'Ferramentas', ranking: 'Ranking ELO', tournaments: 'Torneios', how: 'Como funciona' }
+    : { picks: 'Picks do dia',    players: 'Jogadores', h2h: 'H2H', tools: 'Ferramentas', ranking: 'Ranking ELO', tournaments: 'Torneios', how: 'Como funciona' };
+  const prefix = locale === 'pt-BR' ? '/br' : '';
+  return [
+    { href: `${prefix}/picks`,         label: labels.picks       },
+    { href: `${prefix}/jogadores`,     label: labels.players     },
+    { href: `${prefix}/h2h`,           label: labels.h2h         },
+    { href: `${prefix}/ferramentas`,   label: labels.tools       },
+    { href: `${prefix}/ranking`,       label: labels.ranking     },
+    { href: `${prefix}/torneios`,      label: labels.tournaments },
+    { href: `${prefix}/como-funciona`, label: labels.how         },
+  ];
+}
 
-export function MobileMenu() {
+export function MobileMenu({ locale = 'pt-PT' }: { locale?: Locale }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
@@ -97,7 +105,7 @@ export function MobileMenu() {
             }}
           >
         <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
-          <Link href="/" onClick={() => setOpen(false)} aria-label="TudoTénis">
+          <Link href={locale === 'pt-BR' ? '/br' : '/'} onClick={() => setOpen(false)} aria-label="TudoTénis">
             <Image src="/logo.png" alt="TudoTénis" width={1536} height={1024} className="h-14 w-auto" />
           </Link>
           <button
@@ -110,7 +118,7 @@ export function MobileMenu() {
         </div>
 
         <nav className="flex flex-col gap-1 p-4 text-base">
-          {NAV_LINKS.map(link => {
+          {navLinks(locale).map(link => {
             const active =
               pathname === link.href ||
               (link.href !== '/' && pathname.startsWith(link.href));
@@ -138,7 +146,9 @@ export function MobileMenu() {
           <p className="text-xs text-gray-500 text-center">
             Modelo ELO próprio · 2.557 jogadores
             <br />
-            <span className="text-gray-600">+18 · Joga responsável</span>
+            <span className="text-gray-600">
+              {locale === 'pt-BR' ? '+18 · Jogue com responsabilidade' : '+18 · Joga responsável'}
+            </span>
           </p>
         </div>
       </div>

@@ -6,31 +6,68 @@ const BASE = process.env.NEXT_PUBLIC_SITE_URL || 'https://tudotenis.com';
 /**
  * Sitemap dinâmico — Next.js gera /sitemap.xml automaticamente.
  *
- * Inclui:
- *   - Páginas estáticas (alta prioridade)
- *   - Todos os jogadores activos (~1000)
- *   - Todos os torneios principais (slam/M1000/500/250) ~1000
+ * Inclui ambos os locales (pt-PT canonical + pt-BR sob /br/) com
+ * `alternates.languages` para hreflang. O Google consome isto e
+ * mostra a versão correcta por país.
  *
- * H2H pages (4950) são deliberadamente omitidas — duplicate content
- * com baixo signal individual; vale mais ranking nas páginas-mãe.
+ * H2H pages (4950) deliberadamente omitidas — duplicate content
+ * com baixo signal individual.
  */
+type SitemapEntry = MetadataRoute.Sitemap[number];
+
+function withAlternates(path: string, lastModified: Date, changeFrequency: SitemapEntry['changeFrequency'], priority: number): SitemapEntry {
+  const ptUrl = `${BASE}${path}`;
+  const brUrl = path === '' || path === '/' ? `${BASE}/br` : `${BASE}/br${path}`;
+  return {
+    url: ptUrl,
+    lastModified,
+    changeFrequency,
+    priority,
+    alternates: {
+      languages: {
+        'pt-PT': ptUrl,
+        'pt-BR': brUrl,
+        'x-default': ptUrl,
+      },
+    },
+  };
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
 
   // ── Static pages ──
-  const staticPages: MetadataRoute.Sitemap = [
-    { url: BASE,                         lastModified: now, changeFrequency: 'daily',  priority: 1.0 },
-    { url: `${BASE}/picks`,              lastModified: now, changeFrequency: 'hourly', priority: 0.95 },
-    { url: `${BASE}/ranking`,            lastModified: now, changeFrequency: 'daily',  priority: 0.9 },
-    { url: `${BASE}/jogadores`,          lastModified: now, changeFrequency: 'weekly', priority: 0.85 },
-    { url: `${BASE}/h2h`,                lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
-    { url: `${BASE}/torneios`,           lastModified: now, changeFrequency: 'daily',  priority: 0.85 },
-    { url: `${BASE}/ferramentas`,        lastModified: now, changeFrequency: 'monthly', priority: 0.75 },
-    { url: `${BASE}/ferramentas/predictor`, lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
-    { url: `${BASE}/ferramentas/kelly`,  lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
-    { url: `${BASE}/como-funciona`,      lastModified: now, changeFrequency: 'monthly', priority: 0.8 },
-    { url: `${BASE}/historico`,          lastModified: now, changeFrequency: 'daily',  priority: 0.7 },
+  const staticPaths: Array<[string, SitemapEntry['changeFrequency'], number]> = [
+    ['',                       'daily',   1.0],
+    ['/picks',                 'hourly',  0.95],
+    ['/ranking',               'daily',   0.9],
+    ['/jogadores',             'weekly',  0.85],
+    ['/h2h',                   'weekly',  0.8],
+    ['/torneios',              'daily',   0.85],
+    ['/ferramentas',           'monthly', 0.75],
+    ['/ferramentas/predictor', 'monthly', 0.7],
+    ['/ferramentas/kelly',     'monthly', 0.7],
+    ['/como-funciona',         'monthly', 0.8],
+    ['/historico',             'daily',   0.7],
   ];
+  const staticPages: MetadataRoute.Sitemap = [];
+  for (const [p, freq, pri] of staticPaths) {
+    staticPages.push(withAlternates(p, now, freq, pri));
+    // Também registamos /br/... como entradas separadas
+    staticPages.push({
+      url: `${BASE}/br${p}`,
+      lastModified: now,
+      changeFrequency: freq,
+      priority: pri * 0.9, // BR um pouco abaixo até consolidar
+      alternates: {
+        languages: {
+          'pt-PT': `${BASE}${p}`,
+          'pt-BR': `${BASE}/br${p}`,
+          'x-default': `${BASE}${p}`,
+        },
+      },
+    });
+  }
 
   // ── Players ──
   const { data: players } = await supabase
@@ -39,26 +76,52 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .eq('active', true)
     .order('elo_overall', { ascending: false });
 
-  const playerPages: MetadataRoute.Sitemap = (players ?? []).map(p => ({
-    url: `${BASE}/jogador/${p.slug}`,
-    lastModified: p.updated_at ? new Date(p.updated_at) : now,
-    changeFrequency: 'weekly',
-    priority: 0.6,
-  }));
+  const playerPages: MetadataRoute.Sitemap = (players ?? []).flatMap(p => {
+    const lastModified = p.updated_at ? new Date(p.updated_at) : now;
+    return [
+      withAlternates(`/jogador/${p.slug}`, lastModified, 'weekly', 0.6),
+      {
+        url: `${BASE}/br/jogador/${p.slug}`,
+        lastModified,
+        changeFrequency: 'weekly' as const,
+        priority: 0.55,
+        alternates: {
+          languages: {
+            'pt-PT': `${BASE}/jogador/${p.slug}`,
+            'pt-BR': `${BASE}/br/jogador/${p.slug}`,
+            'x-default': `${BASE}/jogador/${p.slug}`,
+          },
+        },
+      },
+    ];
+  });
 
   // ── Tournaments ──
   const { data: tournaments } = await supabase
     .from('tournaments')
-    .select('slug, updated_at, year')
+    .select('slug, updated_at')
     .in('category', ['slam', '1000', '500', '250', 'finals'])
     .order('year', { ascending: false });
 
-  const tournamentPages: MetadataRoute.Sitemap = (tournaments ?? []).map(t => ({
-    url: `${BASE}/torneios/${t.slug}`,
-    lastModified: t.updated_at ? new Date(t.updated_at) : now,
-    changeFrequency: 'monthly',
-    priority: 0.55,
-  }));
+  const tournamentPages: MetadataRoute.Sitemap = (tournaments ?? []).flatMap(t => {
+    const lastModified = t.updated_at ? new Date(t.updated_at) : now;
+    return [
+      withAlternates(`/torneios/${t.slug}`, lastModified, 'monthly', 0.55),
+      {
+        url: `${BASE}/br/torneios/${t.slug}`,
+        lastModified,
+        changeFrequency: 'monthly' as const,
+        priority: 0.5,
+        alternates: {
+          languages: {
+            'pt-PT': `${BASE}/torneios/${t.slug}`,
+            'pt-BR': `${BASE}/br/torneios/${t.slug}`,
+            'x-default': `${BASE}/torneios/${t.slug}`,
+          },
+        },
+      },
+    ];
+  });
 
   return [...staticPages, ...playerPages, ...tournamentPages];
 }
