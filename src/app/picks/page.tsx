@@ -255,7 +255,7 @@ function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
           <div className="text-xs">@ <span className="text-[var(--color-accent)] font-mono font-semibold">{Number(p.odd).toFixed(2)}</span></div>
         </div>
         <div className="text-center">
-          <div className="text-xs text-gray-500 mb-1">{settled ? 'P&L' : 'Edge'}</div>
+          <div className="text-xs text-gray-500 mb-1">{settled ? 'P&L' : 'EV'}</div>
           {settled ? (
             <div className={`font-bold font-mono ${(p.pl ?? 0) > 0 ? 'text-[var(--color-accent)]' : (p.pl ?? 0) < 0 ? 'text-red-400' : 'text-gray-500'}`}>
               {(p.pl ?? 0) > 0 ? '+' : ''}€{Math.abs(p.pl ?? 0).toFixed(0)}
@@ -372,8 +372,8 @@ export default async function PicksPage() {
             </h1>
             <p className="text-gray-400 text-sm md:text-base mb-6">
               {isBR
-                ? 'Edge ≥ 5% · grades A/B/C · liquidação automática após cada jogo'
-                : 'Edge ≥ 5% · grades A/B/C · settlement automático após cada jogo'}
+                ? 'EV ≥ 5% · grades A/B/C · liquidação automática após cada jogo'
+                : 'EV ≥ 5% · grades A/B/C · settlement automático após cada jogo'}
             </p>
 
             {/* Performance KPIs — histórico do modelo */}

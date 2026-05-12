@@ -249,7 +249,7 @@ export function Predictor({ players }: { players: PredictorPlayer[] }) {
               <div className="font-mono font-bold text-base md:text-lg">{fairP2.toFixed(2)}</div>
             </div>
             <div className="col-span-2 md:col-span-1">
-              <div className="text-xs text-gray-500 mb-1">Edge vs casa</div>
+              <div className="text-xs text-gray-500 mb-1">EV vs casa</div>
               <div className={`font-mono font-bold text-base md:text-lg ${
                 edge == null ? 'text-gray-400' :
                 edge >= 5  ? 'text-[var(--color-accent)]' :

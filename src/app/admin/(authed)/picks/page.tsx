@@ -98,7 +98,7 @@ export default async function AdminPicksPage({
               <th className="text-left p-3">Pick</th>
               <th className="text-left p-3">vs</th>
               <th className="text-left p-3">Quota</th>
-              <th className="text-left p-3">Edge</th>
+              <th className="text-left p-3">EV%</th>
               <th className="text-left p-3">Grade</th>
               <th className="text-left p-3">Resultado</th>
               <th className="text-left p-3">P&amp;L</th>

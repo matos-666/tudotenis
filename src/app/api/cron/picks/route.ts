@@ -42,7 +42,7 @@ interface Player {
 
 // ── Config ────────────────────────────────────────────────────────────────
 const TENNISSTATS_URL = 'https://tennisstats.com/';
-const MIN_EDGE = 5.0;
+const MIN_EV = 5.0;     // EV% mínimo para considerar um pick (5% ROI esperado)
 const MIN_ODD = 1.15;
 const MAX_ODD = 8.0;
 
@@ -213,11 +213,19 @@ function adjustForBO5(eloProb: number): number {
 // ATP Grand Slams (BO5 para o lado masculino; WTA continua BO3)
 const ATP_SLAM_RE = /\b(australian open|roland garros|french open|wimbledon|us open)\b/i;
 
-function calcEdge(eloProb: number, oddPick: number, oddOpp: number): number {
-  const rawPick = 1 / oddPick;
-  const rawOpp = 1 / oddOpp;
-  const fair = rawPick / (rawPick + rawOpp);
-  return (eloProb - fair) * 100;
+/**
+ * EV% = (modelProb × odd_real − 1) × 100
+ *
+ * Usa a odd real (com margem da casa), porque é o que recebemos se
+ * apostarmos. EV positivo significa lucro esperado por unidade apostada
+ * a longo prazo — exemplo: EV +6% em €10 stake = +€0.60 expected/match.
+ *
+ * Anteriormente este helper devolvia a diferença de probabilidades
+ * (modelProb − fair_devigged), que é "edge" (medido em pontos
+ * percentuais de probabilidade). EV é o correcto para decidir picks.
+ */
+function calcEV(modelProb: number, oddPick: number): number {
+  return (modelProb * oddPick - 1) * 100;
 }
 
 function getGrade(edge: number): 'A' | 'B' | 'C' {
@@ -405,10 +413,10 @@ export async function POST(req: NextRequest) {
 
       for (const c of candidates) {
         if (!c.odd || c.odd < MIN_ODD || c.odd > MAX_ODD) continue;
-        const edge = calcEdge(c.prob, c.odd, c.oddOpp);
-        if (edge < MIN_EDGE) continue;
+        const ev = calcEV(c.prob, c.odd);
+        if (ev < MIN_EV) continue;
 
-        const grade = getGrade(edge);
+        const grade = getGrade(ev);
         const market = isWomen ? 'Vencedora' : 'Vencedor';
 
         const row = {
@@ -416,7 +424,7 @@ export async function POST(req: NextRequest) {
           market,
           selection:       c.player.name,
           odd:             c.odd,
-          edge_pct:        Math.round(edge * 100) / 100,
+          edge_pct:        Math.round(ev * 100) / 100, // column é legacy "edge_pct" mas armazena EV%
           grade,
           stake:           10,
           source:          'tennisstats',
@@ -432,7 +440,7 @@ export async function POST(req: NextRequest) {
         const { error } = await supa.from('picks').insert(row);
         if (!error) {
           inserted++;
-          logs.push(`  ✅ ${grade}  ${c.player.name} vs ${c.opp.name}  @${c.odd.toFixed(2)}  edge=${edge.toFixed(1)}%`);
+          logs.push(`  ✅ ${grade}  ${c.player.name} vs ${c.opp.name}  @${c.odd.toFixed(2)}  EV=${ev.toFixed(1)}%`);
           existingSet.add(`${c.player.name}|${c.opp.name}|${m.tournamentName}`);
         } else {
           logs.push(`  ❌ Insert error: ${error.message}`);

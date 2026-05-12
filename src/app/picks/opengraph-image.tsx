@@ -74,7 +74,7 @@ export default async function Image() {
               gap: 18,
             }}
           >
-            <span>Edge ≥</span>
+            <span>EV ≥</span>
             <span style={{ color: '#d4ff3a' }}>5%</span>
           </div>
           <div

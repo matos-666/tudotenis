@@ -14,7 +14,7 @@ const FAQ_ITEMS = [
   {
     question: 'Quantos picks por dia?',
     answer:
-      'Varia. Em semanas de Slam podem ser 5–10 picks/dia. Em semanas mortas podem ser 0. Não publicamos picks à força — só quando o modelo encontra valor real (edge ≥ 5% contra a quota das casas).',
+      'Varia. Em semanas de Slam podem ser 5–10 picks/dia. Em semanas mortas podem ser 0. Não publicamos picks à força — só quando o modelo encontra valor real (EV ≥ 5%, ou seja +5% de retorno esperado por unidade apostada).',
   },
   {
     question: 'Que fonte de dados usam?',
@@ -29,7 +29,7 @@ const FAQ_ITEMS = [
   {
     question: 'O que significa o grade A/B/C?',
     answer:
-      'Grade A = edge ≥ 12% (máxima confiança, stake 2× normal). Grade B = edge 8-12% (sólido, stake normal). Grade C = edge 5-8% (marginal, stake 0,5×).',
+      'Grade A = EV ≥ 12% (máxima confiança, stake 2× normal). Grade B = EV 8-12% (sólido, stake normal). Grade C = EV 5-8% (marginal, stake 0,5×).',
   },
   {
     question: 'Posso confiar 100% nos picks?',
