@@ -173,3 +173,26 @@ export function kellyFraction(prob: number, odd: number): number {
   const q = 1 - prob;
   return Math.max(0, (b * prob - q) / b);
 }
+
+/**
+ * Converte set-level ELO interno → display ELO em escala match-level.
+ *
+ * O nosso modelo treina em outcomes de set (Phase C), logo eloProb(setELO)
+ * devolve probabilidade por set. Internamente todos os cálculos
+ * (probabilidades, EV, picks) usam set-ELO. Para a UI, convertemos para
+ * a escala match-level que Tennis Abstract e a maioria das publicações
+ * de tennis stats usam, para os números serem comparáveis.
+ *
+ * Pipeline: setELO → P(set vs 1500) → P(BO3 match) → inverso eloProb → matchELO
+ *
+ * Exemplo: setELO 2003 (Sinner) → P(set vs 1500) ≈ 0.948 →
+ *          P(BO3) ≈ 0.992 → matchELO display ≈ 2338  ≈ TA 2331.
+ */
+export function displayElo(setElo: number | null | undefined): number | null {
+  if (setElo == null) return null;
+  const setProb = 1 / (1 + Math.pow(10, -(setElo - 1500) / 400));
+  const bo3Prob = setProb * setProb * (3 - 2 * setProb);
+  // Clamp para evitar Infinity nos extremos
+  const p = Math.max(0.001, Math.min(0.999, bo3Prob));
+  return 1500 + 400 * Math.log10(p / (1 - p));
+}

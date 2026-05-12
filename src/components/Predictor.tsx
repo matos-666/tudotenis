@@ -8,6 +8,7 @@ import {
   bo5Distribution,
   matchProb,
   calculateEdge,
+  displayElo,
 } from '@/lib/elo';
 import type { PredictorPlayer } from '@/app/ferramentas/predictor/page';
 
@@ -123,11 +124,11 @@ export function Predictor({ players }: { players: PredictorPlayer[] }) {
               {p1 ? (
                 <>
                   ELO: <span className="text-[var(--color-accent)] font-mono font-semibold">
-                    {Math.round(p1.elo_set_overall ?? p1.elo_overall ?? 1500)}
+                    {Math.round(displayElo(p1.elo_set_overall) ?? p1.elo_overall ?? 1500)}
                   </span>
-                  {' · '}Hard {Math.round(p1.elo_set_hard ?? p1.elo_hard ?? 1500)} ·{' '}
-                  Clay {Math.round(p1.elo_set_clay ?? p1.elo_clay ?? 1500)} ·{' '}
-                  Grass {Math.round(p1.elo_set_grass ?? p1.elo_grass ?? 1500)}
+                  {' · '}Hard {Math.round(displayElo(p1.elo_set_hard) ?? p1.elo_hard ?? 1500)} ·{' '}
+                  Clay {Math.round(displayElo(p1.elo_set_clay) ?? p1.elo_clay ?? 1500)} ·{' '}
+                  Grass {Math.round(displayElo(p1.elo_set_grass) ?? p1.elo_grass ?? 1500)}
                 </>
               ) : (
                 <span className="text-gray-600">Jogador não encontrado · escolhe da lista</span>
@@ -159,11 +160,11 @@ export function Predictor({ players }: { players: PredictorPlayer[] }) {
               {p2 ? (
                 <>
                   ELO: <span className="text-[var(--color-accent)] font-mono font-semibold">
-                    {Math.round(p2.elo_set_overall ?? p2.elo_overall ?? 1500)}
+                    {Math.round(displayElo(p2.elo_set_overall) ?? p2.elo_overall ?? 1500)}
                   </span>
-                  {' · '}Hard {Math.round(p2.elo_set_hard ?? p2.elo_hard ?? 1500)} ·{' '}
-                  Clay {Math.round(p2.elo_set_clay ?? p2.elo_clay ?? 1500)} ·{' '}
-                  Grass {Math.round(p2.elo_set_grass ?? p2.elo_grass ?? 1500)}
+                  {' · '}Hard {Math.round(displayElo(p2.elo_set_hard) ?? p2.elo_hard ?? 1500)} ·{' '}
+                  Clay {Math.round(displayElo(p2.elo_set_clay) ?? p2.elo_clay ?? 1500)} ·{' '}
+                  Grass {Math.round(displayElo(p2.elo_set_grass) ?? p2.elo_grass ?? 1500)}
                 </>
               ) : (
                 <span className="text-gray-600">Jogador não encontrado</span>

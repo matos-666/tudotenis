@@ -10,21 +10,30 @@ Estratégia
   precisa por update)
 - 4 ratings em paralelo: overall, hard, clay, grass
 
+Ajustes adicionais (Phase D)
+────────────────────────────
+- Recency decay: peso w = exp(-λ × idade_em_anos), half-life 18 meses.
+  Matches antigos contribuem menos para o rating final.
+- Injury detection: gap > 9 semanas entre matches de um jogador →
+  penalty = 25 × √(weeks_off - 4) descontado ao ELO de retorno.
+- K-factor inflado pós-lesão: 1.5× nos primeiros 20 matches de retorno,
+  decaindo linearmente para 1× (Tennis Abstract style).
+- Offseason exemption: gaps Nov-Jan descontam 6 semanas (offseason
+  ATP/WTA normal é ~6 sem, não é lesão).
+
 Composição BO3/BO5
 ──────────────────
-O modelo passa a treinar em set outcomes. Com setProb derivado por
-eloProb(setELO1, setELO2), a probabilidade de match é a composição
-exacta:
+Com setProb derivado por eloProb(setELO1, setELO2):
   P(BO3) = p² + 2p²q = p²(3 - 2p)
   P(BO5) = p³ + 3p³q + 6p³q²
 
 Output
 ──────
-Escreve elo_set_* + set_count em players (UPSERT por slug). Não toca
-nos elo_* match-level existentes — Phase C-validation depois decide.
+Escreve elo_set_* + set_count em players (UPSERT por slug).
 """
-import os, re, csv, json, sys, urllib.request, urllib.error
+import os, re, csv, json, sys, math, urllib.request, urllib.error
 from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 
 # ── ENV ──────────────────────────────────────────────────────────────────
@@ -71,6 +80,17 @@ SURFACE_MAP = {
     'Carpet': None,   # tratamos carpet como neutro (não actualiza surface ELO)
 }
 
+# ── Recency decay ────────────────────────────────────────────────────────
+# half-life de 18 meses (1.5 anos): match há 1.5a vale 50%, há 3a vale 25%
+HALF_LIFE_YEARS = 1.5
+LAMBDA = math.log(2) / HALF_LIFE_YEARS  # ≈ 0.4621 por ano
+
+# ── Injury / layoff ──────────────────────────────────────────────────────
+INJURY_THRESHOLD_WEEKS = 9            # gap > 9 sem = lesão
+OFFSEASON_DISCOUNT_WEEKS = 6          # gaps Nov-Jan descontam offseason normal
+K_BOOST_MATCHES = 20                  # # matches sob K inflado pós-retorno
+K_BOOST_MAX = 1.5                     # K × 1.5 no 1º match pós-lesão (Tennis Abstract)
+
 # ── Helpers ──────────────────────────────────────────────────────────────
 def slugify(name):
     if not name: return ''
@@ -108,6 +128,52 @@ def parse_sets(score):
 def expected(eloA, eloB):
     return 1.0 / (1.0 + 10 ** ((eloB - eloA) / 400))
 
+def parse_yyyymmdd(s):
+    return datetime.strptime(s, '%Y%m%d')
+
+def inactivity_decay(rating, days_since_last):
+    """
+    Recency decay aplicado durante gaps de inactividade.
+    Rating "envelhece" em direcção ao INITIAL_ELO entre matches consecutivos:
+      r_new = INITIAL + (r_old - INITIAL) × exp(-λ × gap_years)
+
+    Por construção, half-life de 18 meses significa que um jogador que pare
+    18m perde metade da distância para 1500. Para jogadores activos (gap
+    ~1 semana entre matches), o decay é ~0.1% por match — irrelevante.
+
+    Esta abordagem mantém K cheio nos updates (sem compressão), e dá um
+    "rust factor" automático que substitui a necessidade de detector
+    explícito de lesão.
+    """
+    if days_since_last <= 0: return rating
+    gap_years = days_since_last / 365.25
+    factor = math.exp(-LAMBDA * gap_years)
+    return INITIAL_ELO + (rating - INITIAL_ELO) * factor
+
+def is_offseason_gap(last_date_str, current_date_str):
+    """
+    True se o gap atravessa o offseason típico ATP/WTA (Nov-Jan).
+    Tour finals ~mid-Nov, restart ~Dec 28. Offseason = ~6 semanas.
+    """
+    last = parse_yyyymmdd(last_date_str)
+    curr = parse_yyyymmdd(current_date_str)
+    # Gap em diferentes anos OU diferente cycle de season
+    if last.month >= 10 and curr.month <= 3 and curr.year > last.year:
+        return True
+    return False
+
+def injury_penalty(weeks_off):
+    """25 × √(weeks_off − 4) — cresce continuamente, sem plateau."""
+    if weeks_off < INJURY_THRESHOLD_WEEKS: return 0.0
+    return 25.0 * math.sqrt(weeks_off - 4)
+
+def k_boost(matches_since_injury):
+    """1.5× → 1.0× linear em 20 matches (Tennis Abstract)."""
+    if matches_since_injury is None or matches_since_injury >= K_BOOST_MATCHES:
+        return 1.0
+    progress = matches_since_injury / K_BOOST_MATCHES   # 0..1
+    return 1.0 + (K_BOOST_MAX - 1.0) * (1.0 - progress)
+
 # ── Phase 1: load all matches chronologically ─────────────────────────────
 def load_matches():
     rows = []
@@ -138,8 +204,13 @@ def train(matches):
         'set_count': 0,
     })
 
+    # Per-player: data do último match para calcular gap → inactivity decay
+    last_match_date = {}        # slug -> 'YYYYMMDD'
+    matches_since_layoff = {}   # slug -> int para K boost (Tennis Abstract style)
+
     skipped_score = 0
     trained_sets = 0
+    layoffs_detected = 0
     last_year = None
 
     for m in matches:
@@ -149,7 +220,6 @@ def train(matches):
             last_year = year
 
         surf = SURFACE_MAP.get(m['surface'])
-        # surf é None se Carpet/Unknown → só treina overall, não surface
         winner_name = m['winner']
         loser_name  = m['loser']
         if not winner_name or not loser_name: continue
@@ -163,7 +233,33 @@ def train(matches):
         ls = slugify(loser_name)
         if not ws or not ls: continue
 
-        K = k_for_level(m['level'])
+        match_dt = parse_yyyymmdd(m['date'])
+
+        # ── Aplica inactivity decay a cada jogador (recency built-in)
+        for player in (ws, ls):
+            last_d = last_match_date.get(player)
+            if last_d is None:
+                continue
+            gap_days = (match_dt - parse_yyyymmdd(last_d)).days
+            if gap_days <= 7:
+                continue   # actividade normal, decay desprezível
+            # Desconta offseason quando aplicável
+            effective_gap = gap_days
+            if is_offseason_gap(last_d, m['date']):
+                effective_gap = max(0, gap_days - OFFSEASON_DISCOUNT_WEEKS * 7)
+            for key in ('overall', 'hard', 'clay', 'grass'):
+                elos[player][key] = inactivity_decay(elos[player][key], effective_gap)
+            # Long layoff (≥ 9 sem após offseason) → flag K boost para 20 matches
+            if effective_gap >= INJURY_THRESHOLD_WEEKS * 7:
+                matches_since_layoff[player] = 0
+                layoffs_detected += 1
+
+        # ── K-factor: base + boost pós-layoff (média entre os dois jogadores
+        #    para preservar zero-sum)
+        K_base = k_for_level(m['level'])
+        boost = (k_boost(matches_since_layoff.get(ws))
+               + k_boost(matches_since_layoff.get(ls))) / 2
+        K = K_base * boost
 
         for set_winner_side, _ga, _gb in sets:
             if set_winner_side == 0:
@@ -171,7 +267,6 @@ def train(matches):
             else:
                 wslug, lslug = ls, ws
 
-            # Overall (sempre)
             for key in ['overall'] + ([surf] if surf else []):
                 ew = elos[wslug][key]
                 el = elos[lslug][key]
@@ -184,7 +279,15 @@ def train(matches):
             elos[lslug]['set_count'] += 1
             trained_sets += 1
 
+        # Update tracking pós-match
+        last_match_date[ws] = m['date']
+        last_match_date[ls] = m['date']
+        for player in (ws, ls):
+            if player in matches_since_layoff:
+                matches_since_layoff[player] += 1
+
     print(f'  ✅ {trained_sets:,} sets treinados  ·  {skipped_score} matches sem score válido')
+    print(f'     {layoffs_detected:,} layoffs detectados (gap ≥ {INJURY_THRESHOLD_WEEKS} sem após offseason)')
     return elos
 
 # ── Phase 3: write to Supabase ───────────────────────────────────────────

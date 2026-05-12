@@ -8,6 +8,7 @@ import { Footer } from '@/components/Footer';
 import { EloChart } from '@/components/EloChart';
 import { breadcrumbJsonLd } from '@/lib/jsonld';
 import { getLocale, hreflangAlternates, surfaceLabel } from '@/lib/i18n';
+import { displayElo } from '@/lib/elo';
 
 // Re-gerar a cada hora; novos jogadores acrescentados via cron
 export const revalidate = 3600;
@@ -185,7 +186,7 @@ export default async function PlayerPage({
             <div className="text-left sm:text-right flex-shrink-0">
               <div className="text-xs text-gray-500 mb-1">ELO Geral</div>
               <div className="text-3xl md:text-4xl font-extrabold text-[var(--color-accent)] font-mono">
-                {Math.round(player.elo_set_overall ?? player.elo_overall ?? 0) || '—'}
+                {Math.round(displayElo(player.elo_set_overall) ?? player.elo_overall ?? 0) || '—'}
               </div>
               {delta != null && (
                 <div className={`text-xs ${delta >= 0 ? 'win' : 'loss'}`}>
@@ -198,9 +199,9 @@ export default async function PlayerPage({
           {/* ELO por superfície (Indoor omitido — pouca actividade no tour) */}
           <div className="grid grid-cols-3 gap-3 md:gap-4 mb-8">
             {[
-              { label: `Hard ELO`,                                  value: Math.round(player.elo_set_hard  ?? player.elo_hard  ?? 0) || null, badge: 'Hard',                          cls: 'surface-hard' },
-              { label: `${surfaceLabel(locale, 'clay')} ELO`,       value: Math.round(player.elo_set_clay  ?? player.elo_clay  ?? 0) || null, badge: surfaceLabel(locale, 'clay'),    cls: 'surface-clay' },
-              { label: `${surfaceLabel(locale, 'grass')} ELO`,      value: Math.round(player.elo_set_grass ?? player.elo_grass ?? 0) || null, badge: surfaceLabel(locale, 'grass'),   cls: 'surface-grass' },
+              { label: `Hard ELO`,                                  value: Math.round(displayElo(player.elo_set_hard)  ?? player.elo_hard  ?? 0) || null, badge: 'Hard',                          cls: 'surface-hard' },
+              { label: `${surfaceLabel(locale, 'clay')} ELO`,       value: Math.round(displayElo(player.elo_set_clay)  ?? player.elo_clay  ?? 0) || null, badge: surfaceLabel(locale, 'clay'),    cls: 'surface-clay' },
+              { label: `${surfaceLabel(locale, 'grass')} ELO`,      value: Math.round(displayElo(player.elo_set_grass) ?? player.elo_grass ?? 0) || null, badge: surfaceLabel(locale, 'grass'),   cls: 'surface-grass' },
             ].map(s => (
               <div key={s.label} className="stat-card p-4 md:p-5">
                 <div className="flex items-center justify-between mb-2">

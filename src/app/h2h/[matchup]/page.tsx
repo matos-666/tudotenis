@@ -3,7 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { supabase } from '@/lib/supabase';
-import { eloProb, fairOdds, parseMatchupSlug } from '@/lib/elo';
+import { eloProb, fairOdds, parseMatchupSlug, displayElo } from '@/lib/elo';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { breadcrumbJsonLd } from '@/lib/jsonld';
@@ -165,7 +165,7 @@ function PlayerHeadCard({ p, isFav, prefix = '' }: { p: Player; isFav: boolean; 
         {p.flag} {p.tour.toUpperCase()} #{p.atp_rank ?? '—'}
       </div>
       <div className="font-mono text-xl md:text-2xl font-extrabold">
-        {Math.round(p.elo_set_overall ?? p.elo_overall ?? 0) || '—'}
+        {Math.round(displayElo(p.elo_set_overall) ?? p.elo_overall ?? 0) || '—'}
       </div>
       <div className="text-[10px] text-gray-600 uppercase tracking-wider">ELO geral</div>
     </div>
@@ -300,7 +300,7 @@ export default async function H2HPage({
                   </span>
                 </div>
                 <div className="text-[10px] md:text-xs text-gray-500">
-                  set-ELO {Math.round(eloOverall1)} vs {Math.round(eloOverall2)}
+                  ELO {Math.round(displayElo(eloOverall1) ?? eloOverall1)} vs {Math.round(displayElo(eloOverall2) ?? eloOverall2)}
                 </div>
                 <div className="text-[10px] text-gray-600 mt-2 leading-relaxed">
                   Probabilidade de vencer o <strong className="text-gray-400">match</strong> em
@@ -337,7 +337,7 @@ export default async function H2HPage({
                   </span>
                 </div>
                 <div className="text-[10px] text-gray-500 mb-3">
-                  set-ELO {Math.round(s.e1)} vs {Math.round(s.e2)}
+                  ELO {Math.round(displayElo(s.e1) ?? s.e1)} vs {Math.round(displayElo(s.e2) ?? s.e2)}
                 </div>
                 <div className="pt-3 border-t border-[var(--color-border)] grid grid-cols-2 gap-2 text-[11px]">
                   <div>
@@ -367,9 +367,9 @@ export default async function H2HPage({
             <table className="w-full text-sm">
               <tbody className="font-mono">
                 <tr className="border-b border-[var(--color-border)]">
-                  <td className="p-3 md:p-4 font-sans text-gray-500 text-xs uppercase">set-ELO geral</td>
-                  <td className="text-center p-3 md:p-4 font-bold">{Math.round(eloOverall1)}</td>
-                  <td className="text-center p-3 md:p-4 font-bold">{Math.round(eloOverall2)}</td>
+                  <td className="p-3 md:p-4 font-sans text-gray-500 text-xs uppercase">ELO geral</td>
+                  <td className="text-center p-3 md:p-4 font-bold">{Math.round(displayElo(eloOverall1) ?? eloOverall1)}</td>
+                  <td className="text-center p-3 md:p-4 font-bold">{Math.round(displayElo(eloOverall2) ?? eloOverall2)}</td>
                 </tr>
                 <tr className="border-b border-[var(--color-border)]">
                   <td className="p-3 md:p-4 font-sans text-gray-500 text-xs uppercase">Ranking</td>

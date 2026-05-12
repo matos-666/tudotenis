@@ -4,6 +4,7 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import type { Metadata } from 'next';
 import { getLocale, hreflangAlternates, type Locale } from '@/lib/i18n';
+import { displayElo } from '@/lib/elo';
 
 export const metadata: Metadata = {
   title: 'Ranking ELO ATP/WTA · 2.557 jogadores',
@@ -153,10 +154,10 @@ export default async function RankingPage() {
                           <td className="p-2 md:p-4 font-sans">
                             <PlayerCell p={p} locale={locale} />
                           </td>
-                          <td className="text-right p-3 md:p-4 font-bold">{Math.round(p.elo_set_overall ?? p.elo_overall ?? 0) || '—'}</td>
-                          <td className="hidden md:table-cell text-right p-4">{Math.round(p.elo_set_hard  ?? p.elo_hard  ?? 0) || '—'}</td>
-                          <td className="hidden md:table-cell text-right p-4">{Math.round(p.elo_set_clay  ?? p.elo_clay  ?? 0) || '—'}</td>
-                          <td className="hidden md:table-cell text-right p-4">{Math.round(p.elo_set_grass ?? p.elo_grass ?? 0) || '—'}</td>
+                          <td className="text-right p-3 md:p-4 font-bold">{Math.round(displayElo(p.elo_set_overall) ?? p.elo_overall ?? 0) || '—'}</td>
+                          <td className="hidden md:table-cell text-right p-4">{Math.round(displayElo(p.elo_set_hard)  ?? p.elo_hard  ?? 0) || '—'}</td>
+                          <td className="hidden md:table-cell text-right p-4">{Math.round(displayElo(p.elo_set_clay)  ?? p.elo_clay  ?? 0) || '—'}</td>
+                          <td className="hidden md:table-cell text-right p-4">{Math.round(displayElo(p.elo_set_grass) ?? p.elo_grass ?? 0) || '—'}</td>
                           <td className={`text-right p-3 md:p-4 ${delta && delta > 0 ? 'win' : delta && delta < 0 ? 'loss' : ''}`}>
                             {delta != null ? (delta > 0 ? `+${delta}` : delta) : '—'}
                           </td>
@@ -197,10 +198,10 @@ export default async function RankingPage() {
                           <td className="p-2 md:p-4 font-sans">
                             <PlayerCell p={p} locale={locale} />
                           </td>
-                          <td className="text-right p-3 md:p-4 font-bold">{Math.round(p.elo_set_overall ?? p.elo_overall ?? 0) || '—'}</td>
-                          <td className="hidden md:table-cell text-right p-4">{Math.round(p.elo_set_hard  ?? p.elo_hard  ?? 0) || '—'}</td>
-                          <td className="hidden md:table-cell text-right p-4">{Math.round(p.elo_set_clay  ?? p.elo_clay  ?? 0) || '—'}</td>
-                          <td className="hidden md:table-cell text-right p-4">{Math.round(p.elo_set_grass ?? p.elo_grass ?? 0) || '—'}</td>
+                          <td className="text-right p-3 md:p-4 font-bold">{Math.round(displayElo(p.elo_set_overall) ?? p.elo_overall ?? 0) || '—'}</td>
+                          <td className="hidden md:table-cell text-right p-4">{Math.round(displayElo(p.elo_set_hard)  ?? p.elo_hard  ?? 0) || '—'}</td>
+                          <td className="hidden md:table-cell text-right p-4">{Math.round(displayElo(p.elo_set_clay)  ?? p.elo_clay  ?? 0) || '—'}</td>
+                          <td className="hidden md:table-cell text-right p-4">{Math.round(displayElo(p.elo_set_grass) ?? p.elo_grass ?? 0) || '—'}</td>
                           <td className={`text-right p-3 md:p-4 ${delta && delta > 0 ? 'win' : delta && delta < 0 ? 'loss' : ''}`}>
                             {delta != null ? (delta > 0 ? `+${delta}` : delta) : '—'}
                           </td>
