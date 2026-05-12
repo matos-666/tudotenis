@@ -7,6 +7,7 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { EloChart } from '@/components/EloChart';
 import { breadcrumbJsonLd } from '@/lib/jsonld';
+import { getLocale, hreflangAlternates } from '@/lib/i18n';
 
 // Re-gerar a cada hora; novos jogadores acrescentados via cron
 export const revalidate = 3600;
@@ -63,7 +64,7 @@ export async function generateMetadata({
   return {
     title: `${p.name} · ELO ${p.elo_overall} · Stats e Perfil`,
     description: `Perfil de ${p.name} (${p.tour.toUpperCase()} #${p.atp_rank ?? '?'}). ELO próprio: ${p.elo_overall} geral · ${p.elo_hard} hard · ${p.elo_clay} saibro · ${p.elo_grass} grama. Histórico, splits por superfície, próximos jogos.`,
-    alternates: { canonical: `/jogador/${p.slug}` },
+    alternates: hreflangAlternates(`/jogador/${p.slug}`),
     openGraph: {
       title: `${p.name} · TudoTénis`,
       description: `ELO ${p.elo_overall} · ${p.tour.toUpperCase()} #${p.atp_rank ?? '?'}`,
@@ -91,6 +92,9 @@ export default async function PlayerPage({
   const player = await fetchPlayer(slug);
   if (!player) notFound();
 
+  const locale = await getLocale();
+  const prefix = locale === 'pt-BR' ? '/br' : '';
+
   const delta = player.elo_overall && player.elo_30d_ago
     ? player.elo_overall - player.elo_30d_ago
     : null;
@@ -117,25 +121,25 @@ export default async function PlayerPage({
   };
 
   const breadcrumb = breadcrumbJsonLd([
-    { name: 'Início',     href: '/' },
-    { name: 'Jogadores',  href: '/jogadores' },
-    { name: player.name,  href: `/jogador/${player.slug}` },
+    { name: 'Início',     href: `${prefix}/` },
+    { name: 'Jogadores',  href: `${prefix}/jogadores` },
+    { name: player.name,  href: `${prefix}/jogador/${player.slug}` },
   ]);
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }} />
-      <Header />
+      <Header locale={locale} />
       <main id="main" className="flex-1">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
           {/* Breadcrumb */}
           <div className="text-xs text-gray-500 mb-4">
-            <Link href="/" className="hover:text-[var(--color-accent)]">
+            <Link href={`${prefix}/`} className="hover:text-[var(--color-accent)]">
               Início
             </Link>
             <span className="mx-2">/</span>
-            <Link href="/jogadores" className="hover:text-[var(--color-accent)]">
+            <Link href={`${prefix}/jogadores`} className="hover:text-[var(--color-accent)]">
               Jogadores
             </Link>
             <span className="mx-2">/</span>
@@ -234,15 +238,17 @@ export default async function PlayerPage({
           {/* Quick links */}
           <div className="grid sm:grid-cols-3 gap-3">
             <Link
-              href={`/h2h/${player.slug}`}
+              href={`${prefix}/h2h/${player.slug}`}
               className="stat-card p-4 hover:border-[var(--color-accent)]/50"
             >
               <div className="text-2xl mb-2">⚔️</div>
               <div className="font-semibold">H2H</div>
-              <div className="text-xs text-gray-500">Compara com qualquer jogador</div>
+              <div className="text-xs text-gray-500">
+                {locale === 'pt-BR' ? 'Compare com qualquer jogador' : 'Compara com qualquer jogador'}
+              </div>
             </Link>
             <Link
-              href="/ferramentas/predictor"
+              href={`${prefix}/ferramentas/predictor`}
               className="stat-card p-4 hover:border-[var(--color-accent)]/50"
             >
               <div className="text-2xl mb-2">🎯</div>
@@ -252,7 +258,7 @@ export default async function PlayerPage({
               </div>
             </Link>
             <Link
-              href="/ranking"
+              href={`${prefix}/ranking`}
               className="stat-card p-4 hover:border-[var(--color-accent)]/50"
             >
               <div className="text-2xl mb-2">🏆</div>
@@ -264,7 +270,7 @@ export default async function PlayerPage({
           </div>
         </div>
       </main>
-      <Footer />
+      <Footer locale={locale} />
     </>
   );
 }

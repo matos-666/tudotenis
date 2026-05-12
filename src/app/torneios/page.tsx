@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { TournamentsExplorer } from '@/components/TournamentsExplorer';
+import { getLocale, hreflangAlternates } from '@/lib/i18n';
 
 export const revalidate = 3600;
 
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
   title: 'Calendário de Torneios · ATP, WTA, Slams, Masters 1000, ATP 250',
   description:
     'Calendário completo de torneios ATP/WTA. Resultados, vencedores, finalistas e previsões pelo modelo ELO. Slams, Masters 1000, ATP/WTA 500, ATP/WTA 250 e Challengers.',
-  alternates: { canonical: '/torneios' },
+  alternates: hreflangAlternates('/torneios'),
 };
 
 export interface TournamentLite {
@@ -40,20 +41,21 @@ async function fetchTournaments(): Promise<TournamentLite[]> {
 }
 
 export default async function TournamentsPage() {
+  const locale = await getLocale();
   const tournaments = await fetchTournaments();
   return (
     <>
-      <Header />
+      <Header locale={locale} />
       <main id="main" className="flex-1">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
           <h1 className="text-2xl md:text-3xl font-extrabold mb-2">Calendário de Torneios</h1>
           <p className="text-gray-400 text-sm md:text-base mb-6 md:mb-8">
             ATP + WTA · {tournaments.length} torneios · resultados oficiais e previsões ELO
           </p>
-          <TournamentsExplorer tournaments={tournaments} />
+          <TournamentsExplorer tournaments={tournaments} locale={locale} />
         </div>
       </main>
-      <Footer />
+      <Footer locale={locale} />
     </>
   );
 }

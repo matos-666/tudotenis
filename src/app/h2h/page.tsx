@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { eloProb, buildMatchupSlug } from '@/lib/elo';
+import { getLocale, hreflangAlternates } from '@/lib/i18n';
 
 export const revalidate = 3600;
 
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
   title: 'H2H · Confrontos diretos · ATP/WTA',
   description:
     'Análise H2H entre 33 jogadores ATP/WTA. Probabilidades por superfície, comparação ELO e quotas justas. 528 confrontos analisados.',
-  alternates: { canonical: '/h2h' },
+  alternates: hreflangAlternates('/h2h'),
 };
 
 interface Player {
@@ -24,6 +25,10 @@ interface Player {
 }
 
 export default async function H2HIndexPage() {
+  const locale = await getLocale();
+  const isBR = locale === 'pt-BR';
+  const prefix = isBR ? '/br' : '';
+
   const { data: players } = await supabase
     .from('players')
     .select('id, slug, name, flag, tour, elo_overall')
@@ -52,12 +57,14 @@ export default async function H2HIndexPage() {
 
   return (
     <>
-      <Header />
+      <Header locale={locale} />
       <main id="main" className="flex-1">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
           <h1 className="text-2xl md:text-3xl font-extrabold mb-2">H2H · Confrontos diretos</h1>
           <p className="text-gray-400 text-sm md:text-base mb-6 md:mb-8">
-            528 confrontos analisados pelo modelo ELO · Probabilidades por superfície
+            {isBR
+              ? '528 confrontos analisados pelo modelo ELO · Probabilidades por piso'
+              : '528 confrontos analisados pelo modelo ELO · Probabilidades por superfície'}
           </p>
 
           {/* Featured rivalries */}
@@ -66,7 +73,7 @@ export default async function H2HIndexPage() {
             {featured.map(({ p1, p2, prob1 }) => (
               <Link
                 key={`${p1.slug}-${p2.slug}`}
-                href={`/h2h/${buildMatchupSlug(p1.slug, p2.slug)}`}
+                href={`${prefix}/h2h/${buildMatchupSlug(p1.slug, p2.slug)}`}
                 className="stat-card p-4 hover:border-[var(--color-accent)]/50"
               >
                 <div className="text-xs text-gray-500 mb-3 uppercase tracking-wider">
@@ -99,7 +106,9 @@ export default async function H2HIndexPage() {
           {/* Browse by player */}
           <h2 className="text-xl font-bold mb-4">Explorar por jogador</h2>
           <p className="text-sm text-gray-500 mb-4">
-            Click num jogador para ver todos os confrontos H2H disponíveis.
+            {isBR
+              ? 'Clique em um jogador para ver todos os confrontos H2H disponíveis.'
+              : 'Clica num jogador para ver todos os confrontos H2H disponíveis.'}
           </p>
 
           <div className="grid sm:grid-cols-2 gap-6">
@@ -109,7 +118,7 @@ export default async function H2HIndexPage() {
                 {topAtp.map(p => (
                   <Link
                     key={p.id}
-                    href={`/jogador/${p.slug}`}
+                    href={`${prefix}/jogador/${p.slug}`}
                     className="flex items-center justify-between bg-[var(--color-card)] border border-[var(--color-border)] hover:border-[var(--color-accent)]/40 rounded-lg p-3 transition"
                   >
                     <div className="flex items-center gap-3">
@@ -127,7 +136,7 @@ export default async function H2HIndexPage() {
                 {topWta.map(p => (
                   <Link
                     key={p.id}
-                    href={`/jogador/${p.slug}`}
+                    href={`${prefix}/jogador/${p.slug}`}
                     className="flex items-center justify-between bg-[var(--color-card)] border border-[var(--color-border)] hover:border-[var(--color-accent)]/40 rounded-lg p-3 transition"
                   >
                     <div className="flex items-center gap-3">
@@ -142,7 +151,7 @@ export default async function H2HIndexPage() {
           </div>
         </div>
       </main>
-      <Footer />
+      <Footer locale={locale} />
     </>
   );
 }

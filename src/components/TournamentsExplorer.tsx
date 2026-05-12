@@ -29,7 +29,7 @@ const TOURS = [
   { id: 'wta', label: 'WTA' },
 ] as const;
 
-export function TournamentsExplorer({ tournaments }: { tournaments: TournamentLite[] }) {
+export function TournamentsExplorer({ tournaments, locale = 'pt-PT' }: { tournaments: TournamentLite[]; locale?: 'pt-PT' | 'pt-BR' }) {
   const [cat,  setCat]  = useState<string>('all');
   const [tour, setTour] = useState<string>('all');
   const [year, setYear] = useState<number | 'all'>(new Date().getFullYear());
@@ -148,7 +148,7 @@ export function TournamentsExplorer({ tournaments }: { tournaments: TournamentLi
                   {label} <span className="text-gray-700">· {items.length}</span>
                 </h2>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {items.map(t => <TournamentCard key={t.id} t={t} />)}
+                  {items.map(t => <TournamentCard key={t.id} t={t} locale={locale} />)}
                 </div>
               </div>
             );
@@ -159,7 +159,8 @@ export function TournamentsExplorer({ tournaments }: { tournaments: TournamentLi
   );
 }
 
-function TournamentCard({ t }: { t: TournamentLite }) {
+function TournamentCard({ t, locale = 'pt-PT' }: { t: TournamentLite; locale?: 'pt-PT' | 'pt-BR' }) {
+  const prefix = locale === 'pt-BR' ? '/br' : '';
   const isLive = t.status === 'live';
   const isUpcoming = t.status === 'scheduled';
   const surfClass = t.surface ? SURFACE_CLASS[t.surface as keyof typeof SURFACE_CLASS] : '';
@@ -182,7 +183,7 @@ function TournamentCard({ t }: { t: TournamentLite }) {
 
   return (
     <Link
-      href={`/torneios/${t.slug}`}
+      href={`${prefix}/torneios/${t.slug}`}
       className={`stat-card p-4 hover:border-[var(--color-accent)]/50 transition ${
         isLive ? 'border-[var(--color-accent)]' : isUpcoming ? 'border-blue-500/40' : ''
       }`}

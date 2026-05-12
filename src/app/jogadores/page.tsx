@@ -3,12 +3,13 @@ import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { supabase } from '@/lib/supabase';
+import { getLocale, hreflangAlternates, localizedHref } from '@/lib/i18n';
 
 export const metadata: Metadata = {
   title: 'Jogadores · ATP, WTA, Challengers · TudoTénis',
   description:
     'Diretório completo de jogadores de ténis. ELO próprio, head-to-head, estatísticas por superfície. ATP, WTA, Challengers e ITF — em português.',
-  alternates: { canonical: '/jogadores' },
+  alternates: hreflangAlternates('/jogadores'),
 };
 
 export const revalidate = 3600;
@@ -38,17 +39,18 @@ async function fetchPlayers(tour: 'atp' | 'wta'): Promise<PlayerLite[]> {
   return data ?? [];
 }
 
-function PlayerCard({ p }: { p: PlayerLite }) {
+function PlayerCard({ p, locale }: { p: PlayerLite; locale: 'pt-PT' | 'pt-BR' }) {
   const initials = p.name
     .split(' ')
     .map(n => n[0])
     .join('')
     .slice(0, 2)
     .toUpperCase();
+  const prefix = locale === 'pt-BR' ? '/br' : '';
 
   return (
     <Link
-      href={`/jogador/${p.slug}`}
+      href={`${prefix}/jogador/${p.slug}`}
       className="stat-card p-4 hover:border-[var(--color-accent)]/40 transition flex items-center gap-3 group"
     >
       <div className="relative w-12 h-12 rounded-full bg-[var(--color-card)] border border-[var(--color-border)] overflow-hidden flex-shrink-0 flex items-center justify-center">
@@ -88,12 +90,15 @@ function PlayerCard({ p }: { p: PlayerLite }) {
 }
 
 export default async function JogadoresPage() {
+  const locale = await getLocale();
+  const isBR = locale === 'pt-BR';
   const [atp, wta] = await Promise.all([fetchPlayers('atp'), fetchPlayers('wta')]);
   const total = atp.length + wta.length;
+  const rankingHref = localizedHref(locale, '/ranking');
 
   return (
     <>
-      <Header />
+      <Header locale={locale} />
       <main id="main" className="flex-1">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
 
@@ -104,8 +109,9 @@ export default async function JogadoresPage() {
             </div>
             <h1 className="text-3xl md:text-5xl font-extrabold mb-3">Jogadores</h1>
             <p className="text-gray-400 text-sm md:text-base max-w-2xl">
-              Perfis completos com ELO próprio por superfície, forma recente, head-to-head e
-              histórico. Clica em qualquer jogador para ver a página detalhada.
+              {isBR
+                ? 'Perfis completos com ELO próprio por piso, forma recente, head-to-head e histórico. Clique em qualquer jogador para ver a página detalhada.'
+                : 'Perfis completos com ELO próprio por superfície, forma recente, head-to-head e histórico. Clica em qualquer jogador para ver a página detalhada.'}
             </p>
           </div>
 
@@ -113,10 +119,7 @@ export default async function JogadoresPage() {
           <section className="mb-12">
             <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
               <h2 className="text-xl md:text-2xl font-bold">ATP — Masculino</h2>
-              <Link
-                href="/ranking"
-                className="text-xs text-[var(--color-accent)] hover:underline"
-              >
+              <Link href={rankingHref} className="text-xs text-[var(--color-accent)] hover:underline">
                 Ver ranking ELO completo →
               </Link>
             </div>
@@ -124,7 +127,7 @@ export default async function JogadoresPage() {
               <p className="text-sm text-gray-500">Sem dados disponíveis.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                {atp.map(p => <PlayerCard key={p.id} p={p} />)}
+                {atp.map(p => <PlayerCard key={p.id} p={p} locale={locale} />)}
               </div>
             )}
           </section>
@@ -133,10 +136,7 @@ export default async function JogadoresPage() {
           <section>
             <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
               <h2 className="text-xl md:text-2xl font-bold">WTA — Feminino</h2>
-              <Link
-                href="/ranking"
-                className="text-xs text-[var(--color-accent)] hover:underline"
-              >
+              <Link href={rankingHref} className="text-xs text-[var(--color-accent)] hover:underline">
                 Ver ranking ELO completo →
               </Link>
             </div>
@@ -144,14 +144,14 @@ export default async function JogadoresPage() {
               <p className="text-sm text-gray-500">Sem dados disponíveis.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                {wta.map(p => <PlayerCard key={p.id} p={p} />)}
+                {wta.map(p => <PlayerCard key={p.id} p={p} locale={locale} />)}
               </div>
             )}
           </section>
 
         </div>
       </main>
-      <Footer />
+      <Footer locale={locale} />
     </>
   );
 }

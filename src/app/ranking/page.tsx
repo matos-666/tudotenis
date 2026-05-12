@@ -3,12 +3,13 @@ import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import type { Metadata } from 'next';
+import { getLocale, hreflangAlternates, type Locale } from '@/lib/i18n';
 
 export const metadata: Metadata = {
   title: 'Ranking ELO ATP/WTA · 2.557 jogadores',
   description:
     'Ranking ELO próprio para ATP e WTA. Atualizado diariamente com 59k jogos analisados. Veja os top 10 e os movers da semana.',
-  alternates: { canonical: '/ranking' },
+  alternates: hreflangAlternates('/ranking'),
 };
 
 // ISR: re-gera a cada hora (ou on-demand via revalidate)
@@ -30,17 +31,18 @@ interface Player {
   photo_url: string | null;
 }
 
-function PlayerCell({ p }: { p: Player }) {
+function PlayerCell({ p, locale }: { p: Player; locale: Locale }) {
   const initials = p.name
     .split(' ')
     .map(n => n[0])
     .join('')
     .slice(0, 2)
     .toUpperCase();
+  const prefix = locale === 'pt-BR' ? '/br' : '';
 
   return (
     <Link
-      href={`/jogador/${p.slug}`}
+      href={`${prefix}/jogador/${p.slug}`}
       className="flex items-center gap-2 md:gap-3 group min-w-0"
     >
       <div className="relative w-9 h-9 md:w-11 md:h-11 rounded-full bg-[var(--color-card)] border border-[var(--color-border)] overflow-hidden flex-shrink-0 flex items-center justify-center">
@@ -90,6 +92,7 @@ async function fetchTopPlayers(tour: 'atp' | 'wta', limit = 50): Promise<Player[
 }
 
 export default async function RankingPage() {
+  const locale = await getLocale();
   const [atp, wta] = await Promise.all([
     fetchTopPlayers('atp', 10),
     fetchTopPlayers('wta', 10),
@@ -98,7 +101,7 @@ export default async function RankingPage() {
 
   return (
     <>
-      <Header />
+      <Header locale={locale} />
       <main id="main" className="flex-1">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
           <h1 className="text-2xl md:text-3xl font-extrabold mb-2">Ranking ELO</h1>
@@ -144,7 +147,7 @@ export default async function RankingPage() {
                         <tr key={p.id} className="border-t border-[var(--color-border)] hover:bg-[var(--color-card)]">
                           <td className="p-3 md:p-4 font-bold">{idx + 1}</td>
                           <td className="p-2 md:p-4 font-sans">
-                            <PlayerCell p={p} />
+                            <PlayerCell p={p} locale={locale} />
                           </td>
                           <td className="text-right p-3 md:p-4 font-bold">{p.elo_overall ?? '—'}</td>
                           <td className="hidden md:table-cell text-right p-4">{p.elo_hard ?? '—'}</td>
@@ -188,7 +191,7 @@ export default async function RankingPage() {
                         <tr key={p.id} className="border-t border-[var(--color-border)] hover:bg-[var(--color-card)]">
                           <td className="p-3 md:p-4 font-bold">{idx + 1}</td>
                           <td className="p-2 md:p-4 font-sans">
-                            <PlayerCell p={p} />
+                            <PlayerCell p={p} locale={locale} />
                           </td>
                           <td className="text-right p-3 md:p-4 font-bold">{p.elo_overall ?? '—'}</td>
                           <td className="hidden md:table-cell text-right p-4">{p.elo_hard ?? '—'}</td>
@@ -207,7 +210,7 @@ export default async function RankingPage() {
           )}
         </div>
       </main>
-      <Footer />
+      <Footer locale={locale} />
     </>
   );
 }

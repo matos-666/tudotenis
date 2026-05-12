@@ -7,6 +7,7 @@ import { eloProb, fairOdds, parseMatchupSlug } from '@/lib/elo';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { breadcrumbJsonLd } from '@/lib/jsonld';
+import { getLocale, hreflangAlternates } from '@/lib/i18n';
 
 export const revalidate = 3600;
 
@@ -95,7 +96,7 @@ export async function generateMetadata({
   return {
     title: `${p1.name} vs ${p2.name} · H2H · Probabilidade ${probP1}/${100 - probP1}`,
     description: `Confronto direto entre ${p1.name} (ELO ${e1}) e ${p2.name} (ELO ${e2}). Probabilidades por superfície (saibro, hard, grama), comparação de forma, quotas justas. Análise pelo modelo ELO TudoTénis.`,
-    alternates: { canonical: `/h2h/${matchup}` },
+    alternates: hreflangAlternates(`/h2h/${matchup}`),
     openGraph: {
       title: `${p1.name} vs ${p2.name} · H2H`,
       description: `${probP1}% / ${100 - probP1}% · ${p1.tour.toUpperCase()}`,
@@ -110,7 +111,7 @@ const SURFACES = [
   { key: 'indoor', label: 'Indoor', field: 'elo_indoor', ptLabel: 'Indoor',        cls: 'surface-indoor' },
 ] as const;
 
-function PlayerHeadCard({ p, isFav }: { p: Player; isFav: boolean }) {
+function PlayerHeadCard({ p, isFav, prefix = '' }: { p: Player; isFav: boolean; prefix?: string }) {
   const initials = p.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   return (
     <div className="text-center">
@@ -133,7 +134,7 @@ function PlayerHeadCard({ p, isFav }: { p: Player; isFav: boolean }) {
         )}
       </div>
       <Link
-        href={`/jogador/${p.slug}`}
+        href={`${prefix}/jogador/${p.slug}`}
         className="font-bold text-base md:text-lg block hover:text-[var(--color-accent)] transition"
       >
         {p.name}
@@ -155,10 +156,12 @@ export default async function H2HPage({
   params: Promise<{ matchup: string }>;
 }) {
   const { matchup } = await params;
+  const locale = await getLocale();
+  const prefix = locale === 'pt-BR' ? '/br' : '';
 
   // Single-player slug (sem "-vs-" e player existe) → redirect para perfil
   if (!matchup.includes('-vs-') && !matchup.includes('-')) {
-    redirect(`/jogador/${matchup}`);
+    redirect(`${prefix}/jogador/${matchup}`);
   }
 
   const pair = await fetchPair(matchup);
@@ -170,7 +173,7 @@ export default async function H2HPage({
       .select('slug')
       .eq('slug', matchup)
       .maybeSingle();
-    if (data) redirect(`/jogador/${matchup}`);
+    if (data) redirect(`${prefix}/jogador/${matchup}`);
     notFound();
   }
 
@@ -225,20 +228,20 @@ export default async function H2HPage({
   };
 
   const breadcrumb = breadcrumbJsonLd([
-    { name: 'Início',  href: '/' },
-    { name: 'H2H',     href: '/h2h' },
-    { name: `${p1.name} vs ${p2.name}`, href: `/h2h/${matchup}` },
+    { name: 'Início',  href: `${prefix}/` },
+    { name: 'H2H',     href: `${prefix}/h2h` },
+    { name: `${p1.name} vs ${p2.name}`, href: `${prefix}/h2h/${matchup}` },
   ]);
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }} />
-      <Header />
+      <Header locale={locale} />
       <main id="main" className="flex-1">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
           <div className="text-xs text-gray-500 mb-4">
-            <Link href="/" className="hover:text-[var(--color-accent)]">Início</Link>
+            <Link href={`${prefix}/`} className="hover:text-[var(--color-accent)]">Início</Link>
             <span className="mx-2">/</span>
             <span>H2H</span>
             <span className="mx-2">/</span>
@@ -255,7 +258,7 @@ export default async function H2HPage({
           {/* Big H2H card */}
           <div className="stat-card p-5 md:p-8 mb-6">
             <div className="grid grid-cols-3 items-center gap-3 md:gap-6">
-              <PlayerHeadCard p={p1} isFav={overallFav.id === p1.id} />
+              <PlayerHeadCard p={p1} isFav={overallFav.id === p1.id} prefix={prefix} />
               <div className="text-center">
                 <div className="text-xs uppercase tracking-wider text-gray-500 mb-2">
                   Modelo prevê (ELO geral)
@@ -273,7 +276,7 @@ export default async function H2HPage({
                   ELO {eloOverall1} vs {eloOverall2}
                 </div>
               </div>
-              <PlayerHeadCard p={p2} isFav={overallFav.id === p2.id} />
+              <PlayerHeadCard p={p2} isFav={overallFav.id === p2.id} prefix={prefix} />
             </div>
           </div>
 
@@ -356,22 +359,22 @@ export default async function H2HPage({
 
           {/* Quick CTAs */}
           <div className="grid sm:grid-cols-3 gap-3">
-            <Link href={`/jogador/${p1.slug}`} className="stat-card p-4 hover:border-[var(--color-accent)]/50">
+            <Link href={`${prefix}/jogador/${p1.slug}`} className="stat-card p-4 hover:border-[var(--color-accent)]/50">
               <div className="text-xs text-gray-500 mb-1">Perfil</div>
               <div className="font-semibold">{p1.name}</div>
             </Link>
-            <Link href={`/jogador/${p2.slug}`} className="stat-card p-4 hover:border-[var(--color-accent)]/50">
+            <Link href={`${prefix}/jogador/${p2.slug}`} className="stat-card p-4 hover:border-[var(--color-accent)]/50">
               <div className="text-xs text-gray-500 mb-1">Perfil</div>
               <div className="font-semibold">{p2.name}</div>
             </Link>
-            <Link href="/ranking" className="stat-card p-4 hover:border-[var(--color-accent)]/50">
+            <Link href={`${prefix}/ranking`} className="stat-card p-4 hover:border-[var(--color-accent)]/50">
               <div className="text-xs text-gray-500 mb-1">Ranking ELO</div>
               <div className="font-semibold">Ver top 10 →</div>
             </Link>
           </div>
         </div>
       </main>
-      <Footer />
+      <Footer locale={locale} />
     </>
   );
 }

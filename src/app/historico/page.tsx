@@ -3,12 +3,13 @@ import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { supabase } from '@/lib/supabase';
+import { getLocale, hreflangAlternates } from '@/lib/i18n';
 
 export const metadata: Metadata = {
   title: 'Histórico de picks · Performance auditada · TudoTénis',
   description:
     'Histórico completo de picks resolvidos pelo modelo ELO TudoTénis. Yield, win rate, P&L. Transparência total — todos os picks são publicados antes dos jogos começarem.',
-  alternates: { canonical: '/historico' },
+  alternates: hreflangAlternates('/historico'),
 };
 
 export const revalidate = 600;
@@ -65,9 +66,13 @@ export default async function HistoricoPage() {
   // Estes números são calculados acima dinamicamente (totalPL, yieldPct, etc.)
   // quando há dados no DB.
 
+  const locale = await getLocale();
+  const isBR = locale === 'pt-BR';
+  const prefix = isBR ? '/br' : '';
+
   return (
     <>
-      <Header />
+      <Header locale={locale} />
       <main id="main" className="flex-1">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
 
@@ -76,10 +81,15 @@ export default async function HistoricoPage() {
               <span className="w-2 h-2 rounded-full bg-[var(--color-accent)]" />
               Performance auditada
             </div>
-            <h1 className="text-3xl md:text-5xl font-extrabold mb-3">Histórico de picks</h1>
+            <h1 className="text-3xl md:text-5xl font-extrabold mb-3">
+              {isBR ? 'Histórico de palpites' : 'Histórico de picks'}
+            </h1>
             <p className="text-gray-400 text-sm md:text-base max-w-2xl">
-              Todos os picks publicados pelo modelo ELO desde sempre. Cada pick foi publicado{' '}
-              <strong>antes</strong> do jogo começar — sem retroatividade.
+              {isBR ? (
+                <>Todos os palpites publicados pelo modelo ELO desde sempre. Cada palpite foi publicado{' '}<strong>antes</strong> do jogo começar — sem retroatividade.</>
+              ) : (
+                <>Todos os picks publicados pelo modelo ELO desde sempre. Cada pick foi publicado{' '}<strong>antes</strong> do jogo começar — sem retroatividade.</>
+              )}
             </p>
           </div>
 
@@ -127,10 +137,10 @@ export default async function HistoricoPage() {
               </p>
               <div className="mt-6">
                 <Link
-                  href="/picks"
+                  href={`${prefix}/picks`}
                   className="text-sm text-[var(--color-accent)] hover:underline"
                 >
-                  Ver picks de hoje →
+                  {isBR ? 'Ver palpites de hoje →' : 'Ver picks de hoje →'}
                 </Link>
               </div>
             </div>
@@ -189,7 +199,7 @@ export default async function HistoricoPage() {
 
         </div>
       </main>
-      <Footer />
+      <Footer locale={locale} />
     </>
   );
 }

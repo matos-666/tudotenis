@@ -4,12 +4,13 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { AffiliateButtons } from '@/components/AffiliateButtons';
 import { supabase } from '@/lib/supabase';
+import { getLocale, hreflangAlternates, localizedHref, type Locale } from '@/lib/i18n';
 
 export const metadata: Metadata = {
   title: 'Picks do dia · ELO + Edge · TudoTénis',
   description:
     'Picks de ténis publicados pelo modelo ELO TudoTénis. Yield comprovado +27,6% em 439 tips auditadas. Saibro, hard, grama. ATP, WTA e Challengers.',
-  alternates: { canonical: '/picks' },
+  alternates: hreflangAlternates('/picks'),
 };
 
 export const revalidate = 600; // 10 min
@@ -164,7 +165,8 @@ function PlayerAvatar({
 }
 
 // ── Pick Card ─────────────────────────────────────────────────────────────
-function PickCard({ p }: { p: Pick }) {
+function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
+  const isBR = locale === 'pt-BR';
   const live = isLive(p);
   const surf = surfaceKey(p.surface);
   const time = formatTime(p.scheduled_at);
@@ -210,7 +212,7 @@ function PickCard({ p }: { p: Pick }) {
       {/* Stats */}
       <div className="flex items-end justify-between pt-3 border-t border-[var(--color-border)] mb-3">
         <div>
-          <div className="text-xs text-gray-500 mb-1">Aposta</div>
+          <div className="text-xs text-gray-500 mb-1">{isBR ? 'Aposta' : 'Aposta'}</div>
           <div className="font-semibold text-sm">{p.market}</div>
           <div className="text-xs">@ <span className="text-[var(--color-accent)] font-mono font-semibold">{Number(p.odd).toFixed(2)}</span></div>
         </div>
@@ -229,6 +231,9 @@ function PickCard({ p }: { p: Pick }) {
 
 // ── Page ──────────────────────────────────────────────────────────────────
 export default async function PicksPage() {
+  const locale = await getLocale();
+  const isBR = locale === 'pt-BR';
+
   const [today, yesterday] = await Promise.all([
     fetchTodayPicks(),
     fetchYesterdayPicks(),
@@ -243,10 +248,11 @@ export default async function PicksPage() {
   const ydayYield = yesterday.length > 0 ? (ydayPL / (yesterday.length * 10)) * 100 : 0;
 
   const noPicksToday = today.length === 0;
+  const dateLocale = isBR ? 'pt-BR' : 'pt-PT';
 
   return (
     <>
-      <Header />
+      <Header locale={locale} />
       <main id="main" className="flex-1">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
 
@@ -254,11 +260,15 @@ export default async function PicksPage() {
           <div className="mb-8">
             <div className="inline-flex items-center gap-2 bg-[var(--color-card)] border border-[var(--color-border)] rounded-full px-3 py-1 text-xs mb-4 flex-wrap">
               <span className="w-2 h-2 rounded-full bg-[var(--color-accent)] animate-pulse" />
-              {liveCount} ao vivo · {pendingCount} pendentes · modelo ELO
+              {liveCount} {isBR ? 'ao vivo' : 'ao vivo'} · {pendingCount} {isBR ? 'pendentes' : 'pendentes'} · modelo ELO
             </div>
-            <h1 className="text-2xl md:text-4xl font-extrabold mb-2">Picks de hoje</h1>
+            <h1 className="text-2xl md:text-4xl font-extrabold mb-2">
+              {isBR ? 'Palpites de hoje' : 'Picks de hoje'}
+            </h1>
             <p className="text-gray-400 text-sm md:text-base mb-6">
-              Edge ≥ 5% · grades A/B/C · settlement automático após cada jogo
+              {isBR
+                ? 'Edge ≥ 5% · grades A/B/C · liquidação automática após cada jogo'
+                : 'Edge ≥ 5% · grades A/B/C · settlement automático após cada jogo'}
             </p>
 
             {/* Performance KPIs — histórico do modelo */}
@@ -272,11 +282,11 @@ export default async function PicksPage() {
                 <div className="text-xl md:text-2xl font-extrabold text-[var(--color-accent)] font-mono">+€8.189</div>
               </div>
               <div className="stat-card p-4">
-                <div className="text-xs text-gray-500 mb-1">Tips totais</div>
+                <div className="text-xs text-gray-500 mb-1">{isBR ? 'Tips totais' : 'Tips totais'}</div>
                 <div className="text-xl md:text-2xl font-extrabold font-mono">439</div>
               </div>
               <div className="stat-card p-4">
-                <div className="text-xs text-gray-500 mb-1">Win rate</div>
+                <div className="text-xs text-gray-500 mb-1">{isBR ? 'Taxa de acerto' : 'Win rate'}</div>
                 <div className="text-xl md:text-2xl font-extrabold font-mono">48,5%</div>
               </div>
             </div>
@@ -284,21 +294,24 @@ export default async function PicksPage() {
 
           {/* Picks de hoje */}
           <h2 className="text-xl font-bold mb-4">
-            Picks · {new Date().toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' })}
+            {isBR ? 'Palpites' : 'Picks'} · {new Date().toLocaleDateString(dateLocale, { day: 'numeric', month: 'long' })}
           </h2>
 
           {noPicksToday ? (
             <div className="stat-card p-8 text-center mb-12">
               <div className="text-3xl mb-3">⏳</div>
-              <div className="font-semibold mb-1">Sem picks publicados ainda</div>
+              <div className="font-semibold mb-1">
+                {isBR ? 'Sem palpites publicados ainda' : 'Sem picks publicados ainda'}
+              </div>
               <p className="text-xs text-gray-500">
-                O modelo analisa os jogos do dia às 06:30 UTC.<br />
-                Volta mais tarde ou activa notificações.
+                {isBR
+                  ? <>O modelo analisa os jogos do dia às 06:30 UTC.<br />Volte mais tarde ou ative notificações.</>
+                  : <>O modelo analisa os jogos do dia às 06:30 UTC.<br />Volta mais tarde ou ativa notificações.</>}
               </p>
             </div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-12">
-              {today.map(p => <PickCard key={p.id} p={p} />)}
+              {today.map(p => <PickCard key={p.id} p={p} locale={locale} />)}
             </div>
           )}
 
@@ -307,8 +320,10 @@ export default async function PicksPage() {
             <div className="border-t border-[var(--color-border)] pt-10 mb-10">
               <div className="flex items-baseline justify-between mb-6 flex-wrap gap-3">
                 <div>
-                  <h2 className="text-xl font-bold">Resultados · ontem</h2>
-                  <p className="text-xs text-gray-500 mt-1">Settled automaticamente via BetExplorer</p>
+                  <h2 className="text-xl font-bold">{isBR ? 'Resultados · ontem' : 'Resultados · ontem'}</h2>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {isBR ? 'Liquidados automaticamente via BetExplorer' : 'Settled automaticamente via BetExplorer'}
+                  </p>
                 </div>
                 <div className="flex gap-4 text-sm">
                   <div className="text-center">
@@ -338,8 +353,8 @@ export default async function PicksPage() {
                     <tr className="text-gray-500 text-xs uppercase">
                       <th className="text-left p-3 md:p-4 font-medium">Jogador</th>
                       <th className="hidden sm:table-cell text-left p-4 font-medium">Adversário</th>
-                      <th className="text-left p-3 md:p-4 font-medium">Aposta</th>
-                      <th className="text-right p-3 md:p-4 font-medium">Quota</th>
+                      <th className="text-left p-3 md:p-4 font-medium">{isBR ? 'Aposta' : 'Aposta'}</th>
+                      <th className="text-right p-3 md:p-4 font-medium">{isBR ? 'Odd' : 'Quota'}</th>
                       <th className="text-right p-3 md:p-4 font-medium">Resultado</th>
                       <th className="text-right p-3 md:p-4 font-medium">P&amp;L</th>
                     </tr>
@@ -382,28 +397,34 @@ export default async function PicksPage() {
             <div className="border-t border-[var(--color-border)] pt-10 mb-10">
               <h2 className="text-xl font-bold mb-3">Resultados · ontem</h2>
               <p className="text-xs text-gray-500">
-                Sem picks settled de ontem ainda. O settlement corre automaticamente à meia-noite.
+                {isBR
+                  ? 'Sem palpites liquidados de ontem ainda. A liquidação corre automaticamente à meia-noite.'
+                  : 'Sem picks liquidados de ontem ainda. A liquidação corre automaticamente à meia-noite.'}
               </p>
             </div>
           )}
 
           {/* CTA final */}
           <div className="stat-card p-6 md:p-8 border-[var(--color-accent)]/30 text-center">
-            <h3 className="text-xl font-bold mb-2">Pronto para apostar?</h3>
+            <h3 className="text-xl font-bold mb-2">{isBR ? 'Pronto para apostar?' : 'Pronto para apostar?'}</h3>
             <p className="text-sm text-gray-400 mb-5">
-              Os nossos picks são publicados antes do fecho das casas. Aproveita as melhores quotas.
+              {isBR
+                ? 'Nossos palpites são publicados antes do fechamento das casas. Aproveite as melhores odds.'
+                : 'Os nossos picks são publicados antes do fecho das casas. Aproveita as melhores quotas.'}
             </p>
             <div className="flex justify-center">
-              <AffiliateButtons variant="full" prefix="Abrir conta @" />
+              <AffiliateButtons variant="full" prefix={isBR ? 'Abrir conta @' : 'Abrir conta @'} />
             </div>
             <p className="text-xs text-gray-600 mt-5">
-              +18 · Joga responsável · Apostas envolvem risco de perda
+              {isBR
+                ? '+18 · Jogue com responsabilidade · Apostas envolvem risco de perda'
+                : '+18 · Joga responsável · Apostas envolvem risco de perda'}
             </p>
           </div>
 
         </div>
       </main>
-      <Footer />
+      <Footer locale={locale} />
     </>
   );
 }

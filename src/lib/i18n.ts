@@ -181,3 +181,29 @@ export function stripLocalePrefix(pathname: string): string {
   if (pathname.startsWith('/br/')) return pathname.slice(3);
   return pathname;
 }
+
+/**
+ * Server-only: lê locale do header x-locale (injectado pelo middleware).
+ */
+export async function getLocale(): Promise<Locale> {
+  const { headers } = await import('next/headers');
+  const h = await headers();
+  return h.get('x-locale') === 'pt-BR' ? 'pt-BR' : 'pt-PT';
+}
+
+/**
+ * Helper para `generateMetadata`: devolve canonical + alternates correctos.
+ */
+export function hreflangAlternates(canonicalPath: string) {
+  const base = 'https://tudotenis.com';
+  const ptPath = canonicalPath;
+  const brPath = canonicalPath === '/' ? '/br' : `/br${canonicalPath}`;
+  return {
+    canonical: `${base}${ptPath}`,
+    languages: {
+      'pt-PT': `${base}${ptPath}`,
+      'pt-BR': `${base}${brPath}`,
+      'x-default': `${base}${ptPath}`,
+    },
+  };
+}

@@ -7,6 +7,7 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { breadcrumbJsonLd, sportsEventJsonLd } from '@/lib/jsonld';
 import { EloSurfaceScatter } from '@/components/EloSurfaceScatter';
+import { getLocale, hreflangAlternates } from '@/lib/i18n';
 
 export const revalidate = 3600;
 
@@ -79,7 +80,7 @@ export async function generateMetadata({
   return {
     title: `${t.full_name ?? t.name} · ${t.surface_label ?? ''} · TudoTénis`,
     description: desc,
-    alternates: { canonical: `/torneios/${t.slug}` },
+    alternates: hreflangAlternates(`/torneios/${t.slug}`),
     openGraph: {
       title: `${t.full_name ?? t.name}`,
       description: desc,
@@ -107,11 +108,13 @@ function FinalCard({
   winner,
   finalist,
   score,
+  prefix = '',
 }: {
   tour: 'ATP' | 'WTA';
   winner: Player | null;
   finalist: Player | null;
   score: string | null;
+  prefix?: string;
 }) {
   if (!winner) return null;
   const wInitials = winner.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -125,7 +128,7 @@ function FinalCard({
         {/* Winner */}
         <div className="flex items-center gap-2 md:gap-3 min-w-0">
           <Link
-            href={`/jogador/${winner.slug}`}
+            href={`${prefix}/jogador/${winner.slug}`}
             className="w-12 h-12 md:w-20 md:h-20 rounded-xl bg-gradient-to-br from-[var(--color-accent)]/30 to-[var(--color-accent)]/5 border-2 border-[var(--color-accent)] flex items-center justify-center text-sm md:text-2xl font-extrabold overflow-hidden flex-shrink-0"
           >
             {winner.photo_url ? (
@@ -138,7 +141,7 @@ function FinalCard({
             <div className="text-[9px] md:text-[10px] uppercase text-[var(--color-accent)] font-bold tracking-wider mb-0.5">
               🏆 Campeão
             </div>
-            <Link href={`/jogador/${winner.slug}`} className="font-bold truncate text-sm md:text-lg block hover:underline">
+            <Link href={`${prefix}/jogador/${winner.slug}`} className="font-bold truncate text-sm md:text-lg block hover:underline">
               {winner.name}
             </Link>
             <div className="text-[10px] md:text-xs text-gray-500">{winner.flag}</div>
@@ -160,13 +163,13 @@ function FinalCard({
               <div className="text-[9px] md:text-[10px] uppercase text-gray-500 font-bold tracking-wider mb-0.5">
                 Finalista
               </div>
-              <Link href={`/jogador/${finalist.slug}`} className="font-semibold truncate text-sm md:text-base block hover:underline">
+              <Link href={`${prefix}/jogador/${finalist.slug}`} className="font-semibold truncate text-sm md:text-base block hover:underline">
                 {finalist.name}
               </Link>
               <div className="text-[10px] md:text-xs text-gray-500">{finalist.flag}</div>
             </div>
             <Link
-              href={`/jogador/${finalist.slug}`}
+              href={`${prefix}/jogador/${finalist.slug}`}
               className="w-10 h-10 md:w-16 md:h-16 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] flex items-center justify-center text-xs md:text-xl font-bold overflow-hidden flex-shrink-0"
             >
               {finalist.photo_url ? (
@@ -193,6 +196,9 @@ export default async function TournamentDetail({
   const t = await fetchTournament(slug);
   if (!t) notFound();
 
+  const locale = await getLocale();
+  const prefix = locale === 'pt-BR' ? '/br' : '';
+
   const surfClass = t.surface ? SURFACE_CLASS[t.surface as keyof typeof SURFACE_CLASS] : '';
   const catLabel = t.category ? CAT_LABEL[t.category as keyof typeof CAT_LABEL] : '';
   const isLive = t.status === 'live';
@@ -210,23 +216,23 @@ export default async function TournamentDetail({
   });
 
   const breadcrumb = breadcrumbJsonLd([
-    { name: 'Início',    href: '/' },
-    { name: 'Torneios',  href: '/torneios' },
-    { name: t.full_name ?? t.name, href: `/torneios/${t.slug}` },
+    { name: 'Início',    href: `${prefix}/` },
+    { name: 'Torneios',  href: `${prefix}/torneios` },
+    { name: t.full_name ?? t.name, href: `${prefix}/torneios/${t.slug}` },
   ]);
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(sportsEvent) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }} />
-      <Header />
+      <Header locale={locale} />
       <main id="main" className="flex-1">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
           {/* Breadcrumb */}
           <div className="text-xs text-gray-500 mb-4">
-            <Link href="/" className="hover:text-[var(--color-accent)]">Início</Link>
+            <Link href={`${prefix}/`} className="hover:text-[var(--color-accent)]">Início</Link>
             <span className="mx-2">/</span>
-            <Link href="/torneios" className="hover:text-[var(--color-accent)]">Torneios</Link>
+            <Link href={`${prefix}/torneios`} className="hover:text-[var(--color-accent)]">Torneios</Link>
             <span className="mx-2">/</span>
             <span>{t.full_name ?? t.name}</span>
           </div>
@@ -301,12 +307,14 @@ export default async function TournamentDetail({
             winner={t.atp_winner}
             finalist={t.atp_finalist}
             score={t.atp_score}
+            prefix={prefix}
           />
           <FinalCard
             tour="WTA"
             winner={t.wta_winner}
             finalist={t.wta_finalist}
             score={t.wta_score}
+            prefix={prefix}
           />
 
           {/* Scatter ELO Geral vs ELO Surface (insight diferenciador) */}
@@ -324,13 +332,13 @@ export default async function TournamentDetail({
           {/* CTA */}
           <div className="flex flex-wrap gap-3 mt-8">
             <Link
-              href="/torneios"
+              href={`${prefix}/torneios`}
               className="bg-[var(--color-card)] border border-[var(--color-border)] hover:border-[var(--color-accent)] px-4 py-3 rounded-lg text-sm"
             >
               ← Voltar ao calendário
             </Link>
             <Link
-              href="/ranking"
+              href={`${prefix}/ranking`}
               className="bg-[var(--color-accent)] text-[var(--color-surface)] px-4 py-3 rounded-lg text-sm font-semibold"
             >
               🏆 Ver Ranking ELO
@@ -343,7 +351,7 @@ export default async function TournamentDetail({
           </div>
         </div>
       </main>
-      <Footer />
+      <Footer locale={locale} />
     </>
   );
 }

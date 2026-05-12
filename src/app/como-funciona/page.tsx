@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { breadcrumbJsonLd, faqJsonLd } from '@/lib/jsonld';
+import { getLocale, hreflangAlternates } from '@/lib/i18n';
 
 const FAQ_ITEMS = [
   {
@@ -41,15 +42,18 @@ export const metadata: Metadata = {
   title: 'Como funciona o modelo ELO TudoTénis · Metodologia',
   description:
     'Explicação completa do modelo ELO TudoTénis: como calculamos os ratings, como detectamos edge nas quotas, K-factor por superfície, grades A/B/C dos picks. Yield comprovado +27,6% em 439 tips.',
-  alternates: { canonical: '/como-funciona' },
+  alternates: hreflangAlternates('/como-funciona'),
 };
 
 export const revalidate = 86400; // 1 dia
 
-export default function ComoFuncionaPage() {
+export default async function ComoFuncionaPage() {
+  const locale = await getLocale();
+  const prefix = locale === 'pt-BR' ? '/br' : '';
+
   const breadcrumb = breadcrumbJsonLd([
-    { name: 'Início',         href: '/' },
-    { name: 'Como funciona',  href: '/como-funciona' },
+    { name: 'Início',         href: `${prefix}/` },
+    { name: 'Como funciona',  href: `${prefix}/como-funciona` },
   ]);
   const faq = faqJsonLd(FAQ_ITEMS);
 
@@ -57,7 +61,7 @@ export default function ComoFuncionaPage() {
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faq) }} />
-      <Header />
+      <Header locale={locale} />
       <main id="main" className="flex-1">
         <article className="max-w-3xl mx-auto px-4 md:px-6 py-8 md:py-12">
 
@@ -265,13 +269,13 @@ export default function ComoFuncionaPage() {
             </p>
             <div className="flex justify-center gap-3 flex-wrap">
               <Link
-                href="/picks"
+                href={`${prefix}/picks`}
                 className="bg-[var(--color-accent)] text-[var(--color-surface)] px-5 py-3 rounded-lg font-semibold"
               >
-                Picks de hoje
+                {locale === 'pt-BR' ? 'Palpites de hoje' : 'Picks de hoje'}
               </Link>
               <Link
-                href="/ranking"
+                href={`${prefix}/ranking`}
                 className="border border-[var(--color-border)] hover:border-[var(--color-accent)] px-5 py-3 rounded-lg font-semibold"
               >
                 Ranking ELO
@@ -281,7 +285,7 @@ export default function ComoFuncionaPage() {
 
         </article>
       </main>
-      <Footer />
+      <Footer locale={locale} />
     </>
   );
 }
