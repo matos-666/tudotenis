@@ -16,7 +16,6 @@ function navLinks(locale: Locale) {
   return [
     { href: `${prefix}/picks`,         label: labels.picks       },
     { href: `${prefix}/jogadores`,     label: labels.players     },
-    { href: `${prefix}/h2h`,           label: labels.h2h         },
     { href: `${prefix}/ferramentas`,   label: labels.tools       },
     { href: `${prefix}/ranking`,       label: labels.ranking     },
     { href: `${prefix}/torneios`,      label: labels.tournaments },

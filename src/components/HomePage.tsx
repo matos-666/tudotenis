@@ -96,13 +96,13 @@ export function HomePage({ locale }: { locale: Locale }) {
                   : 'Classificação por força real — não por pontos ATP. Top 200 ATP + 200 WTA atualizado diariamente.'}
               </p>
             </Link>
-            <Link href={lh('/h2h')} className="stat-card p-5 hover:border-[var(--color-accent)]/40 transition group">
+            <Link href={lh('/ferramentas/predictor')} className="stat-card p-5 hover:border-[var(--color-accent)]/40 transition group">
               <div className="text-2xl mb-2">⚔️</div>
-              <h3 className="font-semibold mb-1 group-hover:text-[var(--color-accent)] transition">H2H + Predictor</h3>
+              <h3 className="font-semibold mb-1 group-hover:text-[var(--color-accent)] transition">ELO Predictor</h3>
               <p className="text-xs text-gray-500">
                 {isBR
-                  ? 'Probabilidade de vitória, score mais provável e Monte Carlo para qualquer confronto.'
-                  : 'Probabilidade de vitória, score mais provável e Monte Carlo para qualquer confronto.'}
+                  ? 'Probabilidade de vitória, score mais provável e Monte Carlo entre quaisquer 2 jogadores.'
+                  : 'Probabilidade de vitória, score mais provável e Monte Carlo entre quaisquer 2 jogadores.'}
               </p>
             </Link>
             <Link href={lh('/picks')} className="stat-card p-5 hover:border-[var(--color-accent)]/40 transition group">

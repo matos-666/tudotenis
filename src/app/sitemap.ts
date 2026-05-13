@@ -42,7 +42,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ['/picks',                 'hourly',  0.95],
     ['/ranking',               'daily',   0.9],
     ['/jogadores',             'weekly',  0.85],
-    ['/h2h',                   'weekly',  0.8],
+    // /h2h landing removed from nav — só URLs dinâmicos /h2h/[matchup] são indexados
     ['/torneios',              'daily',   0.85],
     ['/ferramentas',           'monthly', 0.75],
     ['/ferramentas/predictor', 'monthly', 0.7],

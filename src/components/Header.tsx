@@ -34,7 +34,6 @@ export function Header({ locale = 'pt-PT' }: { locale?: Locale }) {
           >
             <Link href={localizedHref(locale, '/picks')}      className="hover:text-[var(--color-accent)] transition">{t(locale, 'nav.picks')}</Link>
             <Link href={localizedHref(locale, '/jogadores')}  className="hover:text-[var(--color-accent)] transition">{t(locale, 'nav.players')}</Link>
-            <Link href={localizedHref(locale, '/h2h')}        className="hover:text-[var(--color-accent)] transition">{t(locale, 'nav.h2h')}</Link>
             <Link href={localizedHref(locale, '/ferramentas')}className="hover:text-[var(--color-accent)] transition">{t(locale, 'nav.tools')}</Link>
             <Link href={localizedHref(locale, '/ranking')}    className="hover:text-[var(--color-accent)] transition">{t(locale, 'nav.ranking')}</Link>
             <Link href={localizedHref(locale, '/torneios')}   className="hover:text-[var(--color-accent)] transition">{t(locale, 'nav.tournaments')}</Link>

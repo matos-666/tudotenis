@@ -24,7 +24,6 @@ export function Footer({ locale = 'pt-PT' }: { locale?: Locale }) {
           <ul className="space-y-2 text-gray-500">
             <li><Link href={lh('/ranking')}   className="hover:text-[var(--color-accent)]">Ranking ELO ATP/WTA</Link></li>
             <li><Link href={lh('/jogadores')} className="hover:text-[var(--color-accent)]">{isBR ? 'Perfis dos jogadores' : 'Perfis de jogadores'}</Link></li>
-            <li><Link href={lh('/h2h')}       className="hover:text-[var(--color-accent)]">H2H · 30k+ páginas</Link></li>
             <li><Link href={lh('/historico')} className="hover:text-[var(--color-accent)]">{isBR ? 'Histórico de palpites' : 'Histórico de picks'}</Link></li>
           </ul>
         </div>
