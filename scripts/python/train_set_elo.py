@@ -73,6 +73,16 @@ K_BY_LEVEL = {
 def k_for_level(lvl):
     return K_BY_LEVEL.get(lvl, 18)
 
+# Surface K-boost: cada superfície recebe apenas uma fracção dos matches
+# (hard ≈60%, clay ≈28%, grass ≈10%). Para os ratings por surface terem
+# spread comparável ao overall, multiplicamos K para superfícies menos
+# frequentes. Boost calibrado pelo volume relativo no dataset.
+SURFACE_K_BOOST = {
+    'hard':  1.30,   # ~1/sqrt(0.6)
+    'clay':  1.90,   # ~1/sqrt(0.28)
+    'grass': 3.20,   # ~1/sqrt(0.10) — grass tem ~6k matches em 60k total
+}
+
 SURFACE_MAP = {
     'Hard':   'hard',
     'Clay':   'clay',
@@ -259,7 +269,8 @@ def train(matches):
         K_base = k_for_level(m['level'])
         boost = (k_boost(matches_since_layoff.get(ws))
                + k_boost(matches_since_layoff.get(ls))) / 2
-        K = K_base * boost
+        K_overall = K_base * boost
+        K_surface = K_overall * SURFACE_K_BOOST.get(surf or '', 1.0)
 
         for set_winner_side, _ga, _gb in sets:
             if set_winner_side == 0:
@@ -267,13 +278,23 @@ def train(matches):
             else:
                 wslug, lslug = ls, ws
 
-            for key in ['overall'] + ([surf] if surf else []):
-                ew = elos[wslug][key]
-                el = elos[lslug][key]
+            # Overall update (todos os matches)
+            ew = elos[wslug]['overall']
+            el = elos[lslug]['overall']
+            exp_w = expected(ew, el)
+            delta = K_overall * (1.0 - exp_w)
+            elos[wslug]['overall'] = ew + delta
+            elos[lslug]['overall'] = el - delta
+
+            # Surface update (apenas se conhecido) — com K boost para compensar
+            # menor volume de matches por superfície
+            if surf:
+                ew = elos[wslug][surf]
+                el = elos[lslug][surf]
                 exp_w = expected(ew, el)
-                delta = K * (1.0 - exp_w)
-                elos[wslug][key] = ew + delta
-                elos[lslug][key] = el - delta
+                delta = K_surface * (1.0 - exp_w)
+                elos[wslug][surf] = ew + delta
+                elos[lslug][surf] = el - delta
 
             elos[wslug]['set_count'] += 1
             elos[lslug]['set_count'] += 1
