@@ -87,6 +87,14 @@ body {
 :root[data-theme="light"] .text-gray-700 { color: #cbd5e0; }
 :root[data-theme="light"] .text-white    { color: #1a202c; }
 
+/* Light mode: o logo PNG é optimizado para dark bg (texto claro com
+   accent verde). Invertemos as luminosidades preservando o accent via
+   hue-rotate(180deg) — resultado: texto escuro, accent fica em magenta;
+   por isso aplicamos só a luminância via brightness+invert. */
+:root[data-theme="light"] img[alt="TudoTénis"] {
+  filter: invert(1) hue-rotate(180deg);
+}
+
 /* Surface pills (for clay/hard/grass/indoor labels) */
 .surface-pill {
   display: inline-flex;

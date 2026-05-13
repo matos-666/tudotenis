@@ -7,10 +7,11 @@ type Theme = 'dark' | 'light';
 const STORAGE_KEY = 'tt-theme';
 
 function getInitialTheme(): Theme {
-  if (typeof window === 'undefined') return 'dark';
+  if (typeof window === 'undefined') return 'light';
   const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
   if (stored === 'light' || stored === 'dark') return stored;
-  return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  // Default: light. Apenas usa dark se o user já tem preferência dark no SO.
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
 function applyTheme(theme: Theme) {
@@ -19,7 +20,7 @@ function applyTheme(theme: Theme) {
 }
 
 export function ThemeToggle({ className = '' }: { className?: string }) {
-  const [theme, setTheme] = useState<Theme>('dark');
+  const [theme, setTheme] = useState<Theme>('light');
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -80,7 +81,8 @@ export const themeInitScript = `
 (function() {
   try {
     var stored = localStorage.getItem('${STORAGE_KEY}');
-    var theme = stored || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    // Default: light. Apenas usa dark se SO declara prefers-color-scheme: dark.
+    var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
     document.documentElement.setAttribute('data-theme', theme);
   } catch (e) {}
 })();
