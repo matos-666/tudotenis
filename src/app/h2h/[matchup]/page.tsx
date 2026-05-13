@@ -44,28 +44,47 @@ function eloFor(p: Player, surface: 'overall' | 'hard' | 'clay' | 'grass'): numb
   return p[setKey] ?? p.elo_set_overall ?? p[matchKey] ?? p.elo_overall ?? 1500;
 }
 
-async function fetchAllPlayers(): Promise<Player[]> {
-  const { data } = await supabase
-    .from('players')
-    .select('*')
-    .eq('active', true)
-    .order('elo_overall', { ascending: false });
-  return data ?? [];
+/**
+ * Fetch leve de TODOS os slugs (incluindo inactivos). Necessário para
+ * parseMatchupSlug saber onde dividir o slug composto. Range header
+ * permite ir além do limite default de 1000.
+ */
+async function fetchAllSlugs(): Promise<Set<string>> {
+  const slugs = new Set<string>();
+  let offset = 0;
+  const page = 1000;
+  for (let i = 0; i < 5; i++) {
+    const { data } = await supabase
+      .from('players')
+      .select('slug')
+      .range(offset, offset + page - 1);
+    if (!data || data.length === 0) break;
+    for (const p of data) slugs.add(p.slug);
+    if (data.length < page) break;
+    offset += page;
+  }
+  return slugs;
 }
 
 async function fetchPair(
   matchup: string
 ): Promise<{ p1: Player; p2: Player } | null> {
-  const players = await fetchAllPlayers();
-  const knownSlugs = new Set(players.map(p => p.slug));
+  const knownSlugs = await fetchAllSlugs();
   const parsed = parseMatchupSlug(matchup, knownSlugs);
   if (!parsed) return null;
   const [slugA, slugB] = parsed;
   if (slugA === slugB) return null;
-  const p1 = players.find(p => p.slug === slugA);
-  const p2 = players.find(p => p.slug === slugB);
+
+  // Fetch só os 2 players necessários (mais rápido que carregar todos)
+  const { data } = await supabase
+    .from('players')
+    .select('*')
+    .in('slug', [slugA, slugB]);
+  if (!data || data.length < 2) return null;
+  const p1 = data.find(p => p.slug === slugA) as Player | undefined;
+  const p2 = data.find(p => p.slug === slugB) as Player | undefined;
   if (!p1 || !p2) return null;
-  // Order: higher ELO first (visual preference)
+
   // Ordenar por set-level ELO (preferred) com fallback para match-level
   const e1 = p1.elo_set_overall ?? p1.elo_overall ?? 0;
   const e2 = p2.elo_set_overall ?? p2.elo_overall ?? 0;
@@ -83,11 +102,22 @@ async function fetchPair(
 export const dynamicParams = true;
 
 export async function generateStaticParams() {
-  const all = await fetchAllPlayers();
-  const top = [
-    ...all.filter(p => p.tour === 'atp').slice(0, 50),
-    ...all.filter(p => p.tour === 'wta').slice(0, 50),
-  ];
+  // Top 50 ATP + Top 50 WTA por set-level ELO
+  const { data: atp } = await supabase
+    .from('players')
+    .select('slug, tour')
+    .eq('tour', 'atp')
+    .eq('active', true)
+    .order('elo_set_overall', { ascending: false, nullsFirst: false })
+    .limit(50);
+  const { data: wta } = await supabase
+    .from('players')
+    .select('slug, tour')
+    .eq('tour', 'wta')
+    .eq('active', true)
+    .order('elo_set_overall', { ascending: false, nullsFirst: false })
+    .limit(50);
+  const top = [...(atp ?? []), ...(wta ?? [])];
   const params: { matchup: string }[] = [];
   for (let i = 0; i < top.length; i++) {
     for (let j = i + 1; j < top.length; j++) {

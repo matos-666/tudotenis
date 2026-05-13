@@ -178,6 +178,110 @@ function PlayerAvatar({
   );
 }
 
+// ── Compact Pick Row (live + settled — sem CTAs) ─────────────────────────
+function CompactPickRow({ p, locale }: { p: Pick; locale: Locale }) {
+  const isBR = locale === 'pt-BR';
+  const surf = surfaceKey(p.surface);
+  const settled = p.result != null;
+  const isWin  = p.result === 'win';
+  const isLoss = p.result === 'loss';
+  const isVoid = p.result === 'void';
+  const time = formatTime(p.scheduled_at);
+
+  const border = isWin
+    ? 'border-[var(--color-accent)]/40'
+    : isLoss
+      ? 'border-red-500/40'
+      : isVoid
+        ? 'border-gray-500/40'
+        : 'border-red-500/30';
+
+  const h2hHref = p.p1_slug && p.p2_slug
+    ? localizedHref(locale, `/h2h/${buildMatchupSlug(p.p1_slug, p.p2_slug)}`)
+    : null;
+
+  const content = (
+    <>
+      {/* Mobile: 2 linhas — tournament + status em cima, players e stats abaixo */}
+      <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
+        <div className="flex items-center gap-2 text-xs min-w-0 flex-1">
+          <span className={`surface-pill text-[10px] py-0.5 ${SURFACE_CLASS[surf]}`}>
+            {surf === 'indoor' ? 'Hard' : surfaceLabel(locale, surf)}
+          </span>
+          <span className="text-gray-500 truncate text-[11px]">{p.tournament_name ?? ''}</span>
+        </div>
+        <div className="flex items-center gap-2 text-[10px] shrink-0">
+          {settled ? (
+            <span className={`uppercase font-bold tracking-wider ${
+              isWin ? 'text-[var(--color-accent)]'
+              : isLoss ? 'text-red-400'
+              : 'text-gray-500'
+            }`}>
+              {isWin ? '✓ Green' : isLoss ? '✗ Red' : '⊘ Void'}
+            </span>
+          ) : (
+            <span className="uppercase font-bold tracking-wider text-red-400 flex items-center gap-1">
+              <span className="w-1 h-1 rounded-full bg-red-400 animate-pulse" />
+              LIVE
+            </span>
+          )}
+          {time && !settled && <span className="text-gray-500">{time}</span>}
+        </div>
+      </div>
+
+      {/* Players + stats em linha (mobile-friendly) */}
+      <div className="flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <PlayerAvatar src={p.p1_photo_url} flag={p.p1_flag} name={p.p1_name ?? p.selection} size="xs" />
+          <span className={`truncate font-semibold ${
+            isWin ? 'text-[var(--color-accent)]' : isLoss ? 'text-red-300' : ''
+          }`}>
+            {p.p1_name ?? p.selection}
+          </span>
+        </div>
+        <span className="text-[9px] uppercase text-gray-600 shrink-0">vs</span>
+        <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
+          <span className="truncate text-gray-400 text-right">{p.p2_name ?? '–'}</span>
+          <PlayerAvatar src={p.p2_photo_url} flag={p.p2_flag} name={p.p2_name ?? ''} size="xs" />
+        </div>
+      </div>
+
+      {/* Rodapé: odd + EV/PL + grade — em coluna estreita */}
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--color-border)] text-[11px] gap-2">
+        <span className="text-gray-500 truncate">
+          {p.market} <span className="text-[var(--color-accent)] font-mono">@{Number(p.odd).toFixed(2)}</span>
+        </span>
+        <span className="flex items-center gap-2">
+          {settled ? (
+            <span className={`font-bold font-mono ${
+              (p.pl ?? 0) > 0 ? 'text-[var(--color-accent)]'
+              : (p.pl ?? 0) < 0 ? 'text-red-400'
+              : 'text-gray-500'
+            }`}>
+              {(p.pl ?? 0) > 0 ? '+' : ''}€{Math.abs(p.pl ?? 0).toFixed(0)}
+            </span>
+          ) : (
+            <span className="font-bold text-[var(--color-accent)] font-mono">+{Number(p.edge_pct).toFixed(1)}%</span>
+          )}
+          <span className={`grade-${p.grade} px-1.5 py-0.5 rounded text-[10px] font-bold`}>{p.grade}</span>
+        </span>
+      </div>
+    </>
+  );
+
+  return (
+    <div className={`stat-card p-3 ${border} ${settled ? 'opacity-90' : ''}`}>
+      {h2hHref ? (
+        <Link href={h2hHref} className="block -m-3 p-3 rounded-[inherit] hover:bg-[var(--color-card)]/40 transition">
+          {content}
+        </Link>
+      ) : (
+        content
+      )}
+    </div>
+  );
+}
+
 // ── Pick Card ─────────────────────────────────────────────────────────────
 function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
   const isBR = locale === 'pt-BR';
@@ -453,13 +557,13 @@ export default async function PicksPage() {
                       {isBR ? 'Já não dá para apostar' : 'Já não dá para apostar'}
                     </span>
                   </div>
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {todayLive.map(p => <PickCard key={p.id} p={p} locale={locale} />)}
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3">
+                    {todayLive.map(p => <CompactPickRow key={p.id} p={p} locale={locale} />)}
                   </div>
                 </section>
               )}
 
-              {/* 3. TERMINADOS HOJE — com resultado green/red */}
+              {/* 3. TERMINADOS HOJE — com resultado green/red (compact) */}
               {todaySettled.length > 0 && (
                 <section className="mb-12">
                   <div className="flex items-baseline justify-between mb-4 flex-wrap gap-3">
@@ -476,8 +580,8 @@ export default async function PicksPage() {
                       </span>
                     </div>
                   </div>
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {todaySettled.map(p => <PickCard key={p.id} p={p} locale={locale} />)}
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3">
+                    {todaySettled.map(p => <CompactPickRow key={p.id} p={p} locale={locale} />)}
                   </div>
                 </section>
               )}
