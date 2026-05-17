@@ -254,16 +254,16 @@ export default async function PredictorPage({ params }: { params: Promise<{ slug
 
           {/* Top contenders table */}
           <div className="stat-card overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[560px]">
               <thead className="bg-[var(--color-surface)] text-gray-500 text-xs uppercase">
                 <tr>
-                  <th className="text-left p-3">#</th>
-                  <th className="text-left p-3">Jogador</th>
-                  <th className="hidden md:table-cell text-right p-3">ELO {surfaceLabel(locale, surfForRating)}</th>
-                  <th className="text-right p-3">P(QF)</th>
-                  <th className="text-right p-3">P(SF)</th>
-                  <th className="text-right p-3">P(Final)</th>
-                  <th className="text-right p-3">P(Campeão)</th>
+                  <th className="text-left p-2 md:p-3">#</th>
+                  <th className="text-left p-2 md:p-3">Jogador</th>
+                  <th className="hidden lg:table-cell text-right p-3">ELO {surfaceLabel(locale, surfForRating)}</th>
+                  <th className="hidden sm:table-cell text-right p-2 md:p-3">P(QF)</th>
+                  <th className="hidden sm:table-cell text-right p-2 md:p-3">P(SF)</th>
+                  <th className="text-right p-2 md:p-3">P(Final)</th>
+                  <th className="text-right p-2 md:p-3">P(Campeão)</th>
                 </tr>
               </thead>
               <tbody>
@@ -275,18 +275,18 @@ export default async function PredictorPage({ params }: { params: Promise<{ slug
                   const displayELO = Math.round(displayElo(r.meta[surfField]) ?? 0);
                   return (
                     <tr key={r.slug} className="border-t border-[var(--color-border)] hover:bg-[var(--color-card)]/40">
-                      <td className="p-3 text-xs font-mono text-gray-500">{i + 1}</td>
-                      <td className="p-3">
-                        <Link href={`${prefix}/jogador/${r.slug}`} className="flex items-center gap-2 hover:text-[var(--color-accent)]">
-                          <span className="text-base">{r.meta.flag ?? ''}</span>
+                      <td className="p-2 md:p-3 text-xs font-mono text-gray-500">{i + 1}</td>
+                      <td className="p-2 md:p-3">
+                        <Link href={`${prefix}/jogador/${r.slug}`} className="flex items-center gap-2 hover:text-[var(--color-accent)] min-w-0">
+                          <span className="text-base shrink-0">{r.meta.flag ?? ''}</span>
                           <span className="font-semibold truncate">{r.name}</span>
                         </Link>
                       </td>
-                      <td className="hidden md:table-cell text-right p-3 font-mono text-xs">{displayELO}</td>
-                      <td className="text-right p-3 font-mono text-xs text-gray-400">{(pQf * 100).toFixed(0)}%</td>
-                      <td className="text-right p-3 font-mono text-xs text-gray-400">{(pSemi * 100).toFixed(0)}%</td>
-                      <td className="text-right p-3 font-mono text-xs">{(pFinal * 100).toFixed(1)}%</td>
-                      <td className="text-right p-3 font-mono font-bold text-[var(--color-accent)]">
+                      <td className="hidden lg:table-cell text-right p-3 font-mono text-xs">{displayELO}</td>
+                      <td className="hidden sm:table-cell text-right p-2 md:p-3 font-mono text-xs text-gray-400">{(pQf * 100).toFixed(0)}%</td>
+                      <td className="hidden sm:table-cell text-right p-2 md:p-3 font-mono text-xs text-gray-400">{(pSemi * 100).toFixed(0)}%</td>
+                      <td className="text-right p-2 md:p-3 font-mono text-xs">{(pFinal * 100).toFixed(1)}%</td>
+                      <td className="text-right p-2 md:p-3 font-mono font-bold text-[var(--color-accent)]">
                         {(pChamp * 100).toFixed(1)}%
                       </td>
                     </tr>

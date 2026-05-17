@@ -621,15 +621,15 @@ export default async function PicksPage() {
               </div>
 
               <div className="stat-card overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm min-w-[480px]">
                   <thead className="bg-[var(--color-surface)]">
                     <tr className="text-gray-500 text-xs uppercase">
-                      <th className="text-left p-3 md:p-4 font-medium">Jogador</th>
+                      <th className="text-left p-2 md:p-4 font-medium">Jogador</th>
                       <th className="hidden sm:table-cell text-left p-4 font-medium">Adversário</th>
-                      <th className="text-left p-3 md:p-4 font-medium">{isBR ? 'Aposta' : 'Aposta'}</th>
-                      <th className="text-right p-3 md:p-4 font-medium">{isBR ? 'Odd' : 'Quota'}</th>
-                      <th className="text-right p-3 md:p-4 font-medium">Resultado</th>
-                      <th className="text-right p-3 md:p-4 font-medium">P&amp;L</th>
+                      <th className="hidden xs:table-cell text-left p-2 md:p-4 font-medium">Aposta</th>
+                      <th className="text-right p-2 md:p-4 font-medium">{isBR ? 'Odd' : 'Quota'}</th>
+                      <th className="text-right p-2 md:p-4 font-medium">Resultado</th>
+                      <th className="text-right p-2 md:p-4 font-medium">P&amp;L</th>
                     </tr>
                   </thead>
                   <tbody className="font-mono">

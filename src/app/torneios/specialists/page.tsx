@@ -91,22 +91,22 @@ function SpecialistRow({
   return (
     <Link
       href={`${prefix}/jogador/${p.slug}`}
-      className="flex items-center gap-3 p-3 border-t border-[var(--color-border)] hover:bg-[var(--color-card)]/40 transition"
+      className="flex items-center gap-2 md:gap-3 p-2.5 md:p-3 border-t border-[var(--color-border)] hover:bg-[var(--color-card)]/40 transition"
     >
-      <span className="text-xs text-gray-500 font-mono w-6 text-right">{rank}</span>
+      <span className="text-xs text-gray-500 font-mono w-5 text-right shrink-0">{rank}</span>
       <PlayerAvatar src={p.photo_url} flag={p.flag} name={p.name} />
       <div className="flex-1 min-w-0">
         <div className="font-semibold text-sm truncate">{p.name}</div>
-        <div className="text-[10px] text-gray-500 uppercase">{p.tour}</div>
-      </div>
-      <div className="text-right text-xs whitespace-nowrap">
-        <div className="font-mono">
-          <span className="text-gray-500">{displayOverall}</span>
-          {' → '}
-          <span className="font-bold">{displaySurface}</span>
+        <div className="hidden sm:block text-[10px] text-gray-500 font-mono">
+          {displayOverall} → <span className="text-gray-300">{displaySurface}</span>
         </div>
-        <div className="text-[10px] text-[var(--color-accent)] font-mono font-bold">
-          +{displayDiff} {surfaceLabel(locale, surface)}
+      </div>
+      <div className="text-right whitespace-nowrap shrink-0">
+        <div className="text-sm font-mono font-bold text-[var(--color-accent)]">
+          +{displayDiff}
+        </div>
+        <div className="text-[10px] text-gray-500">
+          {surfaceLabel(locale, surface)}
         </div>
       </div>
     </Link>

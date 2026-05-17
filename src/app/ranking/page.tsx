@@ -132,7 +132,7 @@ export default async function RankingPage() {
             <section className="mb-10">
               <h2 className="text-xl font-bold mb-4">ATP · Top 10</h2>
               <div className="stat-card overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm min-w-[420px]">
                   <thead className="bg-[var(--color-surface)]">
                     <tr className="text-gray-500 text-xs uppercase">
                       <th className="text-left p-3 md:p-4 font-medium">#</th>
@@ -177,7 +177,7 @@ export default async function RankingPage() {
             <section>
               <h2 className="text-xl font-bold mb-4">WTA · Top 10</h2>
               <div className="stat-card overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm min-w-[420px]">
                   <thead className="bg-[var(--color-surface)]">
                     <tr className="text-gray-500 text-xs uppercase">
                       <th className="text-left p-3 md:p-4 font-medium">#</th>

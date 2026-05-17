@@ -197,18 +197,18 @@ export default async function PlayerPage({
           </div>
 
           {/* ELO por superfície (Indoor omitido — pouca actividade no tour) */}
-          <div className="grid grid-cols-3 gap-3 md:gap-4 mb-8">
+          <div className="grid grid-cols-3 gap-2 md:gap-4 mb-8">
             {[
-              { label: `Hard ELO`,                                  value: Math.round(displayElo(player.elo_set_hard)  ?? player.elo_hard  ?? 0) || null, badge: 'Hard',                          cls: 'surface-hard' },
-              { label: `${surfaceLabel(locale, 'clay')} ELO`,       value: Math.round(displayElo(player.elo_set_clay)  ?? player.elo_clay  ?? 0) || null, badge: surfaceLabel(locale, 'clay'),    cls: 'surface-clay' },
-              { label: `${surfaceLabel(locale, 'grass')} ELO`,      value: Math.round(displayElo(player.elo_set_grass) ?? player.elo_grass ?? 0) || null, badge: surfaceLabel(locale, 'grass'),   cls: 'surface-grass' },
+              { label: `Hard`,                            value: Math.round(displayElo(player.elo_set_hard)  ?? player.elo_hard  ?? 0) || null, badge: 'Hard',                          cls: 'surface-hard' },
+              { label: surfaceLabel(locale, 'clay'),      value: Math.round(displayElo(player.elo_set_clay)  ?? player.elo_clay  ?? 0) || null, badge: surfaceLabel(locale, 'clay'),    cls: 'surface-clay' },
+              { label: surfaceLabel(locale, 'grass'),     value: Math.round(displayElo(player.elo_set_grass) ?? player.elo_grass ?? 0) || null, badge: surfaceLabel(locale, 'grass'),   cls: 'surface-grass' },
             ].map(s => (
-              <div key={s.label} className="stat-card p-4 md:p-5">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs uppercase text-gray-500">{s.label}</span>
-                  <span className={`surface-pill ${s.cls}`}>{s.badge}</span>
+              <div key={s.label} className="stat-card p-3 md:p-5">
+                <div className="flex items-center justify-between mb-2 gap-1">
+                  <span className="text-[10px] md:text-xs uppercase text-gray-500 truncate">ELO</span>
+                  <span className={`surface-pill ${s.cls} text-[9px] md:text-xs whitespace-nowrap`}>{s.badge}</span>
                 </div>
-                <div className="text-2xl md:text-3xl font-extrabold font-mono">
+                <div className="text-xl md:text-3xl font-extrabold font-mono">
                   {s.value ?? '—'}
                 </div>
               </div>

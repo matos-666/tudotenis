@@ -146,7 +146,7 @@ export default async function HistoricoPage() {
             </div>
           ) : (
             <div className="stat-card overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm min-w-[520px]">
                 <thead className="bg-[var(--color-surface)]">
                   <tr className="text-gray-500 text-xs uppercase">
                     <th className="text-left p-3 md:p-4 font-medium">Data</th>
