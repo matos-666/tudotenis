@@ -44,6 +44,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ['/jogadores',             'weekly',  0.85],
     // /h2h landing removed from nav — só URLs dinâmicos /h2h/[matchup] são indexados
     ['/torneios',              'daily',   0.85],
+    ['/torneios/specialists',  'daily',   0.8],
     ['/ferramentas',           'monthly', 0.75],
     ['/ferramentas/predictor', 'monthly', 0.7],
     ['/ferramentas/kelly',     'monthly', 0.7],
@@ -99,7 +100,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // ── Tournaments ──
   const { data: tournaments } = await supabase
     .from('tournaments')
-    .select('slug, updated_at')
+    .select('slug, updated_at, category, surface, year')
     .in('category', ['slam', '1000', '500', '250', 'finals'])
     .order('year', { ascending: false });
 
@@ -123,5 +124,38 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ];
   });
 
-  return [...staticPages, ...playerPages, ...tournamentPages];
+  // ── Insight pages (preparacao + predictor) — só slams + 1000s com surface
+  //    suportada (hard/clay/grass/indoor)
+  const insightTournaments = (tournaments ?? []).filter(t =>
+    (t.category === 'slam' || t.category === '1000') &&
+    t.surface && ['hard', 'clay', 'grass', 'indoor'].includes(t.surface)
+  );
+
+  const insightPages: MetadataRoute.Sitemap = insightTournaments.flatMap(t => {
+    const lastModified = t.updated_at ? new Date(t.updated_at) : now;
+    // Recent / future torneios = mais prioritários (changefreq weekly)
+    const isRecent = t.year && t.year >= 2024;
+    const freq: SitemapEntry['changeFrequency'] = isRecent ? 'weekly' : 'monthly';
+    const out: MetadataRoute.Sitemap = [];
+    for (const subpath of ['/preparacao', '/predictor']) {
+      const path = `/torneios/${t.slug}${subpath}`;
+      out.push(withAlternates(path, lastModified, freq, isRecent ? 0.7 : 0.5));
+      out.push({
+        url: `${BASE}/br${path}`,
+        lastModified,
+        changeFrequency: freq,
+        priority: isRecent ? 0.65 : 0.45,
+        alternates: {
+          languages: {
+            'pt-PT': `${BASE}${path}`,
+            'pt-BR': `${BASE}/br${path}`,
+            'x-default': `${BASE}${path}`,
+          },
+        },
+      });
+    }
+    return out;
+  });
+
+  return [...staticPages, ...playerPages, ...tournamentPages, ...insightPages];
 }
