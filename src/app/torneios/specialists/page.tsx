@@ -227,7 +227,22 @@ export default async function SpecialistsPage() {
             </div>
           </section>
 
-          <p className="text-[11px] text-gray-500 mt-8 pt-4 border-t border-[var(--color-border)]">
+          <div className="flex flex-wrap gap-3 mt-8 pt-4 border-t border-[var(--color-border)]">
+            <Link
+              href={`${prefix}/torneios`}
+              className="bg-[var(--color-card)] border border-[var(--color-border)] hover:border-[var(--color-accent)] px-4 py-2 rounded-lg text-sm"
+            >
+              📅 Ver calendário de torneios
+            </Link>
+            <Link
+              href={`${prefix}/ranking`}
+              className="bg-[var(--color-card)] border border-[var(--color-border)] hover:border-[var(--color-accent)] px-4 py-2 rounded-lg text-sm"
+            >
+              🏆 Ranking ELO overall
+            </Link>
+          </div>
+
+          <p className="text-[11px] text-gray-500 mt-4">
             Filtros: jogadores activos com ≥100 sets no nosso histórico. ELO mostrado é match-equivalent (transformação de set-level ELO para escala TA-comparable).
           </p>
         </div>

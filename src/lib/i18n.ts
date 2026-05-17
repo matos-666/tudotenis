@@ -33,6 +33,7 @@ const dict = {
   'nav.tools':               { 'pt-PT': 'Ferramentas',    'pt-BR': 'Ferramentas' },
   'nav.ranking':             { 'pt-PT': 'Ranking ELO',    'pt-BR': 'Ranking ELO' },
   'nav.tournaments':         { 'pt-PT': 'Torneios',       'pt-BR': 'Torneios' },
+  'nav.specialists':         { 'pt-PT': 'Specialists',    'pt-BR': 'Specialists' },
   'nav.how':                 { 'pt-PT': 'Como funciona',  'pt-BR': 'Como funciona' },
 
   // ── Common terms (the words that DIFFER between PT and BR) ──────────────

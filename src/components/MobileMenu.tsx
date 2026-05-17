@@ -10,16 +10,17 @@ import type { Locale } from '@/lib/i18n';
 function navLinks(locale: Locale) {
   // Inline para evitar import de função `t` server-side no client.
   const labels = locale === 'pt-BR'
-    ? { picks: 'Palpites do dia', players: 'Jogadores', h2h: 'H2H', tools: 'Ferramentas', ranking: 'Ranking ELO', tournaments: 'Torneios', how: 'Como funciona' }
-    : { picks: 'Picks do dia',    players: 'Jogadores', h2h: 'H2H', tools: 'Ferramentas', ranking: 'Ranking ELO', tournaments: 'Torneios', how: 'Como funciona' };
+    ? { picks: 'Palpites do dia', players: 'Jogadores', h2h: 'H2H', tools: 'Ferramentas', ranking: 'Ranking ELO', specialists: 'Specialists', tournaments: 'Calendário', how: 'Como funciona' }
+    : { picks: 'Picks do dia',    players: 'Jogadores', h2h: 'H2H', tools: 'Ferramentas', ranking: 'Ranking ELO', specialists: 'Specialists', tournaments: 'Calendário', how: 'Como funciona' };
   const prefix = locale === 'pt-BR' ? '/br' : '';
   return [
-    { href: `${prefix}/picks`,         label: labels.picks       },
-    { href: `${prefix}/jogadores`,     label: labels.players     },
-    { href: `${prefix}/ferramentas`,   label: labels.tools       },
-    { href: `${prefix}/ranking`,       label: labels.ranking     },
-    { href: `${prefix}/torneios`,      label: labels.tournaments },
-    { href: `${prefix}/como-funciona`, label: labels.how         },
+    { href: `${prefix}/picks`,                  label: labels.picks       },
+    { href: `${prefix}/jogadores`,              label: labels.players     },
+    { href: `${prefix}/torneios/specialists`,   label: labels.specialists },
+    { href: `${prefix}/ranking`,                label: labels.ranking     },
+    { href: `${prefix}/ferramentas`,            label: labels.tools       },
+    { href: `${prefix}/torneios`,               label: labels.tournaments },
+    { href: `${prefix}/como-funciona`,          label: labels.how         },
   ];
 }
 
