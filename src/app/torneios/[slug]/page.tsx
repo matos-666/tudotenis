@@ -338,6 +338,37 @@ export default async function TournamentDetail({
             );
           })()}
 
+          {/* CTA insights — só para slams + 1000 em superfícies suportadas */}
+          {t.surface && ['hard', 'clay', 'grass', 'indoor'].includes(t.surface) &&
+           (t.category === 'slam' || t.category === '1000') && (
+            <div className="grid sm:grid-cols-2 gap-3 mt-8 mb-6">
+              <Link
+                href={`${prefix}/torneios/${t.slug}/preparacao`}
+                className="stat-card p-4 hover:border-[var(--color-accent)]/40 transition group"
+              >
+                <div className="text-2xl mb-2">🎯</div>
+                <h3 className="font-bold mb-1 group-hover:text-[var(--color-accent)] transition">
+                  Quem está preparado?
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Top contenders por surface · specialists ocultos · vulneráveis
+                </p>
+              </Link>
+              <Link
+                href={`${prefix}/torneios/${t.slug}/predictor`}
+                className="stat-card p-4 hover:border-[var(--color-accent)]/40 transition group"
+              >
+                <div className="text-2xl mb-2">🎲</div>
+                <h3 className="font-bold mb-1 group-hover:text-[var(--color-accent)] transition">
+                  Predictor Monte Carlo
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Probabilidade de cada player vencer · 5000 simulações
+                </p>
+              </Link>
+            </div>
+          )}
+
           {/* CTA */}
           <div className="flex flex-wrap gap-3 mt-8">
             <Link

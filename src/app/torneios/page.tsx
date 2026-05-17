@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -42,6 +43,8 @@ async function fetchTournaments(): Promise<TournamentLite[]> {
 
 export default async function TournamentsPage() {
   const locale = await getLocale();
+  const isBR = locale === 'pt-BR';
+  const prefix = isBR ? '/br' : '';
   const tournaments = await fetchTournaments();
   return (
     <>
@@ -52,6 +55,34 @@ export default async function TournamentsPage() {
           <p className="text-gray-400 text-sm md:text-base mb-6 md:mb-8">
             ATP + WTA · {tournaments.length} torneios · resultados oficiais e previsões ELO
           </p>
+
+          {/* Quick links — insights ELO-driven */}
+          <div className="grid sm:grid-cols-2 gap-3 mb-8">
+            <Link
+              href={`${prefix}/torneios/specialists`}
+              className="stat-card p-4 hover:border-[var(--color-accent)]/40 transition group"
+            >
+              <div className="text-2xl mb-2">💎</div>
+              <h3 className="font-bold mb-1 group-hover:text-[var(--color-accent)] transition">
+                Specialists por surface
+              </h3>
+              <p className="text-xs text-gray-500">
+                {isBR
+                  ? 'Quem joga acima do nível overall em saibro, grama e hard.'
+                  : 'Quem joga acima do nível overall em terra batida, relvado e hard.'}
+              </p>
+            </Link>
+            <div className="stat-card p-4 opacity-60">
+              <div className="text-2xl mb-2">🎯</div>
+              <h3 className="font-bold mb-1">Próximo Slam: análise ELO</h3>
+              <p className="text-xs text-gray-500">
+                {isBR
+                  ? 'Clica num torneio Slam ou Masters 1000 para ver preparação e predictor.'
+                  : 'Clica num torneio Slam ou Masters 1000 para ver preparação e predictor.'}
+              </p>
+            </div>
+          </div>
+
           <TournamentsExplorer tournaments={tournaments} locale={locale} />
         </div>
       </main>
