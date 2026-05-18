@@ -38,11 +38,17 @@ interface Player {
   elo_set_clay: number | null;
   elo_set_hard: number | null;
   elo_set_grass: number | null;
+  // Sample size — usado como filtro de confiança para picks
+  set_count: number | null;
 }
 
 // ── Config ────────────────────────────────────────────────────────────────
 const TENNISSTATS_URL = 'https://tennisstats.com/';
-const MIN_EV = 5.0;     // EV% mínimo para considerar um pick (5% ROI esperado)
+const MIN_EV = 5.0;            // EV% mínimo para considerar um pick (5% ROI esperado)
+const MAX_EV = 40.0;           // EV% máximo plausível — acima disto, sample insuficiente
+const MIN_SETS_REGULAR = 80;   // ATP/WTA tour, 250+, M1000: mínimo de sets de cada jogador
+const MIN_SETS_SLAM    = 150;  // Slams + Finals: requer ainda mais histórico
+const MIN_SETS_CHALL   = 50;   // Challengers / ITF: threshold mais baixo
 const MIN_ODD = 1.15;
 const MAX_ODD = 8.0;
 
@@ -361,7 +367,7 @@ export async function POST(req: NextRequest) {
       const slug = slugify(name);
       let { data } = await supa
         .from('players')
-        .select('id,name,flag,elo_overall,elo_clay,elo_hard,elo_grass,elo_indoor,elo_set_overall,elo_set_clay,elo_set_hard,elo_set_grass')
+        .select('id,name,flag,elo_overall,elo_clay,elo_hard,elo_grass,elo_indoor,elo_set_overall,elo_set_clay,elo_set_hard,elo_set_grass,set_count')
         .eq('slug', slug)
         .limit(1);
 
@@ -369,7 +375,7 @@ export async function POST(req: NextRequest) {
         // Fuzzy: ilike
         ({ data } = await supa
           .from('players')
-          .select('id,name,flag,elo_overall,elo_clay,elo_hard,elo_grass,elo_indoor,elo_set_overall,elo_set_clay,elo_set_hard,elo_set_grass')
+          .select('id,name,flag,elo_overall,elo_clay,elo_hard,elo_grass,elo_indoor,elo_set_overall,elo_set_clay,elo_set_hard,elo_set_grass,set_count')
           .ilike('name', `%${name.split(' ')[0]}%${name.split(' ').at(-1)}%`)
           .limit(1));
       }
@@ -395,14 +401,28 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
+      // ── Filtro de confidence: ambos os jogadores precisam de histórico
+      //    mínimo de sets na nossa DB. Sem isto, ELO instável produz
+      //    EVs absurdos (200%+) em qualifying / lower-tier.
+      const isWomen   = /WTA|Women|W75|W50|W35|W25|W15/i.test(m.tournamentName);
+      const isAtpSlam = !isWomen && ATP_SLAM_RE.test(m.tournamentName);
+      const isSlam    = /Grand Slam|French Open|Roland Garros|Wimbledon|US Open|Australian Open/i.test(m.tournamentName);
+      const isChall   = /Chall\.|Challenger|ITF/i.test(m.tournamentName);
+
+      const minSets = isSlam ? MIN_SETS_SLAM : isChall ? MIN_SETS_CHALL : MIN_SETS_REGULAR;
+      const sets1 = p1.set_count ?? 0;
+      const sets2 = p2.set_count ?? 0;
+      if (sets1 < minSets || sets2 < minSets) {
+        logs.push(`  ⚠ Amostra insuficiente (${sets1}/${sets2} < ${minSets}): ${p1.name} vs ${p2.name}`);
+        continue;
+      }
+
       const elo1 = surfaceElo(p1, m.surface);
       const elo2 = surfaceElo(p2, m.surface);
 
       // surfaceElo() devolve preferencialmente set-level ELO. Aplicamos
       // eloWinProb → setProb directamente, depois compomos para BO3/BO5.
       const setProb = eloWinProb(elo1, elo2);
-      const isWomen = /WTA|Women|W75|W50|W35|W25|W15/i.test(m.tournamentName);
-      const isAtpSlam = !isWomen && ATP_SLAM_RE.test(m.tournamentName);
       const prob1 = isAtpSlam ? bo5MatchProb(setProb) : bo3MatchProb(setProb);
       const prob2 = 1 - prob1;
 
@@ -415,6 +435,11 @@ export async function POST(req: NextRequest) {
         if (!c.odd || c.odd < MIN_ODD || c.odd > MAX_ODD) continue;
         const ev = calcEV(c.prob, c.odd);
         if (ev < MIN_EV) continue;
+        if (ev > MAX_EV) {
+          // EV implausivelmente alto → quase sempre erro de sample. Skip.
+          logs.push(`  ⚠ EV implausível (${ev.toFixed(1)}%): ${c.player.name} @${c.odd} — skip`);
+          continue;
+        }
 
         const grade = getGrade(ev);
         const market = isWomen ? 'Vencedora' : 'Vencedor';
