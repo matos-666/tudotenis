@@ -1,1 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#d4ff3a"/><text x="16" y="23" font-family="system-ui" font-size="20" font-weight="800" text-anchor="middle" fill="#0a0e0f">T</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Tennis ball: lime green with dark curves -->
+  <!-- Sem rect de fundo — adapta a qualquer cor de search result -->
+  <circle cx="16" cy="16" r="13" fill="#d4ff3a" stroke="#0a0e0f" stroke-width="1.5"/>
+  <path d="M 4 13 Q 16 21 28 13" stroke="#0a0e0f" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M 4 19 Q 16 11 28 19" stroke="#0a0e0f" stroke-width="2" fill="none" stroke-linecap="round"/>
+</svg>

@@ -81,9 +81,12 @@ export const metadata: Metadata = {
     google: 'E3w7dKw7_E1PxJIu_yewucr8cqLAto2KOwF2KWmGFCc',
   },
   icons: {
+    // Ordem importa: navegadores (e Google) preferem o primeiro que entendam.
+    // SVG primeiro = escala perfeita em qualquer tamanho do display.
     icon: [
-      { url: '/favicon.png', type: 'image/png', sizes: '512x512' },
       { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', type: 'image/x-icon', sizes: '16x16 32x32 48x48' },
+      { url: '/favicon.png', type: 'image/png', sizes: '192x192' },
     ],
     apple: '/favicon.png',
   },
