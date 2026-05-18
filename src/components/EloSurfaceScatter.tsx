@@ -12,13 +12,15 @@
  */
 import { supabase } from '@/lib/supabase';
 import { surfaceLabel, type Locale } from '@/lib/i18n';
+import { displayElo } from '@/lib/elo';
 
 // Indoor não tem coluna própria na UI — torneios indoor são tratados como
 // hard pelo caller (ver /torneios/[slug]/page.tsx).
+// Usamos elo_set_* (Phase C) em vez do match-level legacy.
 const SURFACE_COL = {
-  hard: 'elo_hard',
-  clay: 'elo_clay',
-  grass: 'elo_grass',
+  hard: 'elo_set_hard',
+  clay: 'elo_set_clay',
+  grass: 'elo_set_grass',
 } as const;
 
 const SURFACE_ACCENT = {
@@ -66,16 +68,16 @@ export async function EloSurfaceScatter({
   const accent = SURFACE_ACCENT[surfKey];
   const surfLabel = surfaceLabel(locale, surfKey);
 
-  // Top N por ELO geral, com ELO da surface populado
+  // Top N por set-level ELO geral, com ELO de surface populado
   const { data, error } = await supabase
     .from('players')
-    .select(`id, slug, name, flag, atp_rank, elo_overall, elo_surface:${surfCol}`)
+    .select(`id, slug, name, flag, atp_rank, set_count, elo_set_overall, elo_surface:${surfCol}`)
     .eq('tour', tourLower)
     .eq('active', true)
-    .not('elo_overall', 'is', null)
+    .gte('set_count', 100)
+    .not('elo_set_overall', 'is', null)
     .not(surfCol, 'is', null)
-    .gt('elo_overall', 1500)
-    .order('elo_overall', { ascending: false })
+    .order('elo_set_overall', { ascending: false, nullsFirst: false })
     .limit(limit);
 
   if (error) {
@@ -83,8 +85,15 @@ export async function EloSurfaceScatter({
     return null;
   }
 
-  const players = (data ?? []) as Row[];
-  // Filtra outliers: surface ELO ≈ 1500 default = pouca atividade
+  // Converter para display ELO (match-equivalent) para que os eixos
+  // batam certo com Tennis Abstract scale e com o resto do site.
+  const players = (data ?? []).map(p => ({
+    ...p,
+    elo_overall: displayElo(p.elo_set_overall) ?? 1500,
+    elo_surface: displayElo(p.elo_surface as number | null) ?? 1500,
+  })) as unknown as Row[];
+
+  // Filtra outliers: surface display-ELO ≈ 1500 default = pouca atividade
   const valid = players.filter(
     p => p.elo_overall != null && p.elo_surface != null && Math.abs(p.elo_surface - 1500) > 30
   );
