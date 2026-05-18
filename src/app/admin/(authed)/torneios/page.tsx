@@ -17,13 +17,14 @@ interface Tournament {
   start_date: string | null;
   end_date: string | null;
   status: string | null;
+  oddschecker_url: string | null;
 }
 
 async function fetchTournaments(opts: { q?: string; year?: string; tour?: string; page: number }) {
   const sb = getServiceSupabase();
   let query = sb
     .from('tournaments')
-    .select('id,slug,name,year,tour,category,surface,flag,start_date,end_date,status', { count: 'exact' });
+    .select('id,slug,name,year,tour,category,surface,flag,start_date,end_date,status,oddschecker_url', { count: 'exact' });
 
   if (opts.q) query = query.ilike('name', `%${opts.q}%`);
   if (opts.year && opts.year !== 'all') query = query.eq('year', parseInt(opts.year, 10));

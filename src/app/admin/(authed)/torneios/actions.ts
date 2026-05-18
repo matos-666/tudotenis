@@ -12,6 +12,7 @@ export type TournamentPatch = {
   start_date?: string | null;
   end_date?: string | null;
   status?: string | null;
+  oddschecker_url?: string | null;
 };
 
 const ALLOWED_SURFACES = ['hard', 'clay', 'grass', 'indoor', 'carpet'];
@@ -39,6 +40,16 @@ export async function updateTournament(
   if (patch.start_date !== undefined) clean.start_date = patch.start_date || null;
   if (patch.end_date !== undefined) clean.end_date = patch.end_date || null;
   if (patch.status !== undefined) clean.status = patch.status || null;
+  if (patch.oddschecker_url !== undefined) {
+    const u = (patch.oddschecker_url ?? '').trim();
+    if (u === '') {
+      clean.oddschecker_url = null;
+    } else if (!/^https:\/\/(www\.)?oddschecker\.com\//i.test(u)) {
+      return { ok: false, error: 'URL tem de começar por https://www.oddschecker.com/' };
+    } else {
+      clean.oddschecker_url = u;
+    }
+  }
 
   const sb = getServiceSupabase();
   const { data, error } = await sb

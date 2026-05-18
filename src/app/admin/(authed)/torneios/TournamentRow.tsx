@@ -15,6 +15,7 @@ interface Tournament {
   start_date: string | null;
   end_date: string | null;
   status: string | null;
+  oddschecker_url: string | null;
 }
 
 const SURFACES = ['', 'hard', 'clay', 'grass', 'indoor', 'carpet'];
@@ -27,6 +28,7 @@ export function TournamentRow({ t }: { t: Tournament }) {
   const [flag, setFlag] = useState(t.flag ?? '');
   const [start, setStart] = useState(t.start_date ?? '');
   const [end, setEnd] = useState(t.end_date ?? '');
+  const [oddscheckerUrl, setOddscheckerUrl] = useState(t.oddschecker_url ?? '');
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -37,7 +39,8 @@ export function TournamentRow({ t }: { t: Tournament }) {
     category !== (t.category ?? '') ||
     flag !== (t.flag ?? '') ||
     start !== (t.start_date ?? '') ||
-    end !== (t.end_date ?? '');
+    end !== (t.end_date ?? '') ||
+    oddscheckerUrl !== (t.oddschecker_url ?? '');
 
   function save() {
     setStatus('saving');
@@ -45,6 +48,7 @@ export function TournamentRow({ t }: { t: Tournament }) {
     startTransition(async () => {
       const res = await updateTournament(t.id, {
         name, surface, category, flag, start_date: start, end_date: end,
+        oddschecker_url: oddscheckerUrl,
       });
       if (res.ok) {
         setStatus('saved');
@@ -68,6 +72,14 @@ export function TournamentRow({ t }: { t: Tournament }) {
         <a href={`/torneios/${t.slug}`} target="_blank" rel="noopener" className="text-[10px] text-gray-500 hover:text-[var(--color-accent)] block mt-0.5">
           /{t.slug} ↗
         </a>
+        <input
+          type="url"
+          value={oddscheckerUrl}
+          onChange={e => setOddscheckerUrl(e.target.value)}
+          placeholder="https://www.oddschecker.com/tennis/.../winner"
+          className="w-48 md:w-64 mt-1 px-2 py-1 rounded bg-[var(--color-card)] border border-[var(--color-border)] text-[10px] font-mono"
+          title="URL do Oddschecker para outrights (winner). Deixar vazio se não houver."
+        />
       </td>
       <td className="p-2 text-xs uppercase">{t.tour} · {t.year}</td>
       <td className="p-2">

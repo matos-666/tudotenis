@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
-import { EloSurfaceScatter } from '@/components/EloSurfaceScatter';
+import { SurfaceFormGrid } from '@/components/SurfaceFormGrid';
 import { getLocale, hreflangAlternates, surfaceLabel, type Locale } from '@/lib/i18n';
 import { displayElo } from '@/lib/elo';
 
@@ -26,6 +26,7 @@ interface Tournament {
 }
 
 interface PlayerRow {
+  id: number;
   slug: string;
   name: string;
   flag: string | null;
@@ -53,7 +54,7 @@ async function fetchContenders(tour: string, limit = 40): Promise<PlayerRow[]> {
   for (const t of tours) {
     const { data } = await supabase
       .from('players')
-      .select('slug,name,flag,photo_url,atp_rank,elo_set_overall,elo_set_hard,elo_set_clay,elo_set_grass,set_count')
+      .select('id,slug,name,flag,photo_url,atp_rank,elo_set_overall,elo_set_hard,elo_set_clay,elo_set_grass,set_count')
       .eq('tour', t)
       .eq('active', true)
       .gte('set_count', 100)
@@ -177,6 +178,22 @@ export default async function PreparacaoPage({ params }: { params: Promise<{ slu
   const contenders = await fetchContenders(tour, 40);
   const prepared = preparePlayers(contenders, surfForRating as 'hard'|'clay'|'grass');
 
+  // Para o SurfaceFormGrid precisamos do top contenders por tour (slams = 'both')
+  async function fetchContendersByTour(t: 'atp' | 'wta'): Promise<PlayerRow[]> {
+    const { data } = await supabase
+      .from('players')
+      .select('id,slug,name,flag,photo_url,atp_rank,elo_set_overall,elo_set_hard,elo_set_clay,elo_set_grass,set_count')
+      .eq('tour', t)
+      .eq('active', true)
+      .gte('set_count', 100)
+      .not(`elo_set_${surfForRating}`, 'is', null)
+      .order(`elo_set_${surfForRating}`, { ascending: false, nullsFirst: false })
+      .limit(20);
+    return (data ?? []) as PlayerRow[];
+  }
+  const atpTop = (tour === 'atp' || tour === 'both') ? await fetchContendersByTour('atp') : [];
+  const wtaTop = (tour === 'wta' || tour === 'both') ? await fetchContendersByTour('wta') : [];
+
   // Top 20 by surface-ELO
   const topBySurface = [...prepared]
     .sort((a, b) => b.surfaceElo - a.surfaceElo)
@@ -245,12 +262,24 @@ export default async function PreparacaoPage({ params }: { params: Promise<{ slu
             </p>
           </div>
 
-          {/* Scatter ELO Geral vs Surface */}
-          {(tour === 'atp' || tour === 'both') && (
-            <EloSurfaceScatter tour="atp" surface={surfForRating} locale={locale} />
+          {/* Forma recente em surface — substitui o antigo scatter */}
+          {atpTop.length > 0 && (
+            <SurfaceFormGrid
+              tour="atp"
+              surface={surfForRating as 'hard' | 'clay' | 'grass'}
+              players={atpTop}
+              locale={locale}
+              prefix={prefix}
+            />
           )}
-          {(tour === 'wta' || tour === 'both') && (
-            <EloSurfaceScatter tour="wta" surface={surfForRating} locale={locale} />
+          {wtaTop.length > 0 && (
+            <SurfaceFormGrid
+              tour="wta"
+              surface={surfForRating as 'hard' | 'clay' | 'grass'}
+              players={wtaTop}
+              locale={locale}
+              prefix={prefix}
+            />
           )}
 
           {/* Top 20 by surface */}

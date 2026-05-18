@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { breadcrumbJsonLd, sportsEventJsonLd } from '@/lib/jsonld';
-import { EloSurfaceScatter } from '@/components/EloSurfaceScatter';
+import { TournamentTopInsights } from '@/components/TournamentTopInsights';
 import { getLocale, hreflangAlternates } from '@/lib/i18n';
 
 export const revalidate = 3600;
@@ -295,6 +295,29 @@ export default async function TournamentDetail({
             </div>
           </div>
 
+          {/* Insights de pré-torneio — só para edições futuras ou em curso,
+              porque os ratings reflectem o agora, não o momento do torneio. */}
+          {t.surface && (isLive || isUpcoming) && (
+            <>
+              {(t.tour === 'atp' || t.tour === 'both') && (
+                <TournamentTopInsights
+                  tour="atp"
+                  surface={t.surface}
+                  locale={locale}
+                  prefix={prefix}
+                />
+              )}
+              {(t.tour === 'wta' || t.tour === 'both') && (
+                <TournamentTopInsights
+                  tour="wta"
+                  surface={t.surface}
+                  locale={locale}
+                  prefix={prefix}
+                />
+              )}
+            </>
+          )}
+
           {/* Story */}
           {t.story && (
             <div className="stat-card p-5 md:p-6 mb-6 border-[var(--color-accent)]/20">
@@ -320,23 +343,6 @@ export default async function TournamentDetail({
             score={t.wta_score}
             prefix={prefix}
           />
-
-          {/* Scatter ELO Geral vs ELO Surface (insight diferenciador).
-              Indoor é tratado como hard — não temos visualização própria
-              porque há pouquíssima actividade no calendário indoor. */}
-          {t.surface && (() => {
-            const scatterSurface = t.surface === 'indoor' ? 'hard' : t.surface;
-            return (
-              <>
-                {(t.tour === 'atp' || t.tour === 'both') && (
-                  <EloSurfaceScatter tour="atp" surface={scatterSurface} locale={locale} />
-                )}
-                {(t.tour === 'wta' || t.tour === 'both') && (
-                  <EloSurfaceScatter tour="wta" surface={scatterSurface} locale={locale} />
-                )}
-              </>
-            );
-          })()}
 
           {/* CTA insights — só para slams + 1000 em superfícies suportadas */}
           {t.surface && ['hard', 'clay', 'grass', 'indoor'].includes(t.surface) &&

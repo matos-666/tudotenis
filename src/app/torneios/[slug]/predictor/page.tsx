@@ -6,10 +6,12 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { getLocale, hreflangAlternates, surfaceLabel, type Locale } from '@/lib/i18n';
 import { displayElo, eloProb, matchProbFromSetProb } from '@/lib/elo';
+import { ModelVsMarketScatter, type ModelEntry } from '@/components/ModelVsMarketScatter';
 
 export const revalidate = 3600;
 
 interface Tournament {
+  id: number;
   slug: string;
   name: string;
   full_name: string | null;
@@ -22,6 +24,7 @@ interface Tournament {
 }
 
 interface ContenderRow {
+  id: number;
   slug: string;
   name: string;
   flag: string | null;
@@ -36,7 +39,7 @@ interface ContenderRow {
 async function fetchTournament(slug: string): Promise<Tournament | null> {
   const { data } = await supabase
     .from('tournaments')
-    .select('slug,name,full_name,year,tour,category,surface,start_date,end_date')
+    .select('id,slug,name,full_name,year,tour,category,surface,start_date,end_date')
     .eq('slug', slug)
     .single();
   return data;
@@ -48,7 +51,7 @@ async function fetchContenders(tour: string): Promise<ContenderRow[]> {
   for (const tt of tours) {
     const { data } = await supabase
       .from('players')
-      .select('slug,name,flag,photo_url,atp_rank,elo_set_overall,elo_set_hard,elo_set_clay,elo_set_grass')
+      .select('id,slug,name,flag,photo_url,atp_rank,elo_set_overall,elo_set_hard,elo_set_clay,elo_set_grass')
       .eq('tour', tt)
       .eq('active', true)
       .gte('set_count', 100)
@@ -216,6 +219,20 @@ export default async function PredictorPage({ params }: { params: Promise<{ slug
   const results = runMonteCarlo(simPlayers, 5, 5000, bo);
   const SIMS = 5000;
 
+  // Mapa player_id → {P(champion), name, slug} para o scatter Modelo vs Mercado.
+  // O scatter só renderiza se houver outright_odds para este torneio (returna
+  // null se a tabela estiver vazia).
+  const modelByPlayerId = new Map<number, ModelEntry>();
+  for (const r of results) {
+    const meta = r.meta as ContenderRow;
+    if (meta.id == null) continue;
+    modelByPlayerId.set(meta.id, {
+      p: r.champion / SIMS,
+      name: r.name,
+      slug: r.slug,
+    });
+  }
+
   return (
     <>
       <Header locale={locale} />
@@ -251,6 +268,13 @@ export default async function PredictorPage({ params }: { params: Promise<{ slug
                 : 'Esta versão não usa o draw real do torneio — em cada uma das 5.000 iterações, o bracket é re-sorteado aleatoriamente entre os top 32 por ELO de surface. Quando o draw oficial for publicado, esta página passa a usar o pareamento real.'}
             </p>
           </div>
+
+          {/* Modelo vs Mercado — só renderiza se houver outright_odds no DB */}
+          <ModelVsMarketScatter
+            tournamentId={t.id}
+            modelByPlayerId={modelByPlayerId}
+            prefix={prefix}
+          />
 
           {/* Top contenders table */}
           <div className="stat-card overflow-x-auto">
