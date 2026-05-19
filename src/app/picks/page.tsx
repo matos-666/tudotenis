@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { AffiliateButtons } from '@/components/AffiliateButtons';
+import { OddsCompareCTA } from '@/components/OddsCompareCTA';
 import { supabase } from '@/lib/supabase';
 import { getLocale, hreflangAlternates, localizedHref, surfaceLabel, type Locale } from '@/lib/i18n';
 import { buildMatchupSlug } from '@/lib/elo';
@@ -420,7 +421,7 @@ function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
             {isBR ? '⚠ Em curso — modelo só aposta pré-live' : '⚠ Em curso — modelo só aposta pré-live'}
           </div>
         ) : (
-          <AffiliateButtons variant="compact" prefix="Apostar @" />
+          <OddsCompareCTA seed={p.id} isBR={isBR} />
         )}
       </div>
     </div>
