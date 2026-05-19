@@ -421,7 +421,7 @@ function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
             {isBR ? '⚠ Em curso — modelo só aposta pré-live' : '⚠ Em curso — modelo só aposta pré-live'}
           </div>
         ) : (
-          <OddsCompareCTA seed={p.id} isBR={isBR} />
+          <OddsCompareCTA seed={p.id} odd={Number(p.odd)} market={p.market} isBR={isBR} />
         )}
       </div>
     </div>
