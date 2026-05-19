@@ -21,7 +21,7 @@
  *   - body scroll lock quando aberto
  *   - aria-live="polite" no nome em rotação (só atualiza no settle final)
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AFFILIATES } from '@/lib/affiliates';
 
@@ -155,6 +155,19 @@ function OddsCompareModal({
     return () => window.clearInterval(id);
   }, [done]);
 
+  // Auto-redirect 1s após settle: clica programaticamente o anchor real
+  // (preserva user-activation melhor do que window.open + setTimeout).
+  // O user pode fechar o modal antes para cancelar o redirect.
+  const autoLinkRef = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    if (!done) return;
+    const t = window.setTimeout(() => {
+      autoLinkRef.current?.click();
+      window.setTimeout(onClose, 200);
+    }, 1000);
+    return () => window.clearTimeout(t);
+  }, [done, onClose]);
+
   // SSR safety: createPortal precisa de document
   if (typeof document === 'undefined') return null;
 
@@ -216,16 +229,26 @@ function OddsCompareModal({
             </div>
 
             <a
+              ref={autoLinkRef}
               href={winner.trackingUrl}
               target="_blank"
               rel="sponsored noopener"
               onClick={() => {
-                // Pequena pausa para o user ver o feedback antes do close
                 window.setTimeout(onClose, 400);
               }}
-              className="block w-full bg-[var(--color-accent)] text-[var(--color-surface)] hover:opacity-95 active:opacity-90 transition px-4 py-3 md:py-3.5 rounded-lg font-bold text-base"
+              className="relative block w-full bg-[var(--color-accent)] text-[var(--color-surface)] hover:opacity-95 active:opacity-90 transition px-4 py-3 md:py-3.5 rounded-lg font-bold text-base overflow-hidden"
             >
-              <span className="flex items-center justify-center gap-2">
+              {/* Progress bar a encher durante o 1s do auto-redirect */}
+              <span
+                aria-hidden
+                className="absolute inset-y-0 left-0 bg-black/20 origin-left"
+                style={{
+                  animation: 'odds-cmp-fill 1s linear forwards',
+                  width: '100%',
+                  transformOrigin: 'left',
+                }}
+              />
+              <span className="relative z-10 flex items-center justify-center gap-2">
                 <span>{isBR ? 'Apostar' : 'Apostar'} @ {winner.name}</span>
                 <svg
                   width="14"
@@ -243,9 +266,17 @@ function OddsCompareModal({
 
             <p className="text-[10px] text-gray-500 mt-3 leading-snug">
               {isBR
-                ? 'Anúncio sponsorizado · Jogue com responsabilidade · 18+'
-                : 'Anúncio sponsorizado · Joga com responsabilidade · 18+'}
+                ? 'A redirecionar em 1s · Anúncio sponsorizado · 18+'
+                : 'A redirecionar em 1s · Anúncio sponsorizado · 18+'}
             </p>
+
+            {/* CSS local da progress bar */}
+            <style>{`
+              @keyframes odds-cmp-fill {
+                from { transform: scaleX(0); }
+                to   { transform: scaleX(1); }
+              }
+            `}</style>
           </div>
         ) : (
           // ── SPINNING ───────────────────────────────────────────────────
