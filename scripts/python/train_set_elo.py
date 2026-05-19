@@ -205,8 +205,34 @@ def load_matches():
     rows.sort(key=lambda r: r['date'])
     return rows
 
+# ── Snapshot helpers ─────────────────────────────────────────────────────
+def last_day_of_month(yyyymm):
+    """'202503' → '2025-03-31' (ISO date)."""
+    y = int(yyyymm[:4]); m = int(yyyymm[4:6])
+    if m == 12:
+        next_year, next_month = y + 1, 1
+    else:
+        next_year, next_month = y, m + 1
+    from datetime import date, timedelta
+    return (date(next_year, next_month, 1) - timedelta(days=1)).isoformat()
+
+# Só guardamos snapshots dos últimos N meses para não inundar elo_history.
+# 24 meses cobre Roland Garros anterior + último ano de actividade.
+SNAPSHOT_WINDOW_MONTHS = 24
+
+def cutoff_month_for_snapshots():
+    """YYYYMM mínimo a snapshotar (24m antes de hoje)."""
+    from datetime import date
+    today = date.today()
+    m = today.month - SNAPSHOT_WINDOW_MONTHS
+    y = today.year
+    while m <= 0:
+        m += 12
+        y -= 1
+    return f'{y:04d}{m:02d}'
+
 # ── Phase 2: train ───────────────────────────────────────────────────────
-def train(matches):
+def train(matches, capture_snapshots=False):
     # nested dict: slug -> { 'overall', 'hard', 'clay', 'grass', 'set_count' }
     elos = defaultdict(lambda: {
         'overall': INITIAL_ELO, 'hard': INITIAL_ELO,
@@ -218,6 +244,12 @@ def train(matches):
     last_match_date = {}        # slug -> 'YYYYMMDD'
     matches_since_layoff = {}   # slug -> int para K boost (Tennis Abstract style)
 
+    # Snapshots mensais (set-level) para popular elo_history.
+    # Estrutura: list of {slug, date, set_overall, set_hard, set_clay, set_grass}
+    snapshots = []
+    current_month = None
+    snap_cutoff = cutoff_month_for_snapshots() if capture_snapshots else None
+
     skipped_score = 0
     trained_sets = 0
     layoffs_detected = 0
@@ -228,6 +260,26 @@ def train(matches):
         if year != last_year:
             print(f'  ▸ {year}…')
             last_year = year
+
+        # Detecta transição de mês → snapshot do mês que acabou
+        match_month = m['date'][:6] if m['date'] else None
+        if capture_snapshots and current_month and match_month and match_month != current_month:
+            # Snapshot apenas se dentro da janela
+            if current_month >= snap_cutoff:
+                snap_date = last_day_of_month(current_month)
+                for slug, e in elos.items():
+                    if e['set_count'] < 1:
+                        continue
+                    snapshots.append({
+                        'slug': slug,
+                        'date': snap_date,
+                        'set_overall': round(e['overall'], 1),
+                        'set_hard':    round(e['hard'],    1) if e['hard']  != INITIAL_ELO else None,
+                        'set_clay':    round(e['clay'],    1) if e['clay']  != INITIAL_ELO else None,
+                        'set_grass':   round(e['grass'],   1) if e['grass'] != INITIAL_ELO else None,
+                    })
+        if match_month:
+            current_month = match_month
 
         surf = SURFACE_MAP.get(m['surface'])
         winner_name = m['winner']
@@ -307,9 +359,27 @@ def train(matches):
             if player in matches_since_layoff:
                 matches_since_layoff[player] += 1
 
+    # Snapshot final (último mês processado)
+    if capture_snapshots and current_month and current_month >= snap_cutoff:
+        snap_date = last_day_of_month(current_month)
+        for slug, e in elos.items():
+            if e['set_count'] < 1:
+                continue
+            snapshots.append({
+                'slug': slug,
+                'date': snap_date,
+                'set_overall': round(e['overall'], 1),
+                'set_hard':    round(e['hard'],    1) if e['hard']  != INITIAL_ELO else None,
+                'set_clay':    round(e['clay'],    1) if e['clay']  != INITIAL_ELO else None,
+                'set_grass':   round(e['grass'],   1) if e['grass'] != INITIAL_ELO else None,
+            })
+
     print(f'  ✅ {trained_sets:,} sets treinados  ·  {skipped_score} matches sem score válido')
     print(f'     {layoffs_detected:,} layoffs detectados (gap ≥ {INJURY_THRESHOLD_WEEKS} sem após offseason)')
-    return elos
+    if capture_snapshots:
+        months_covered = len(set(s['date'] for s in snapshots))
+        print(f'     {len(snapshots):,} snapshots set-level capturados ({months_covered} meses distintos)')
+    return elos, snapshots
 
 # ── Phase 3: write to Supabase ───────────────────────────────────────────
 def supa_request(method, path, body=None, params=None):
@@ -393,8 +463,62 @@ def write_elos(elos, slug_to_id):
             print(f'    {idx:,}/{len(rows):,}  (ok={ok}, fail={fail})')
     print(f'  ✅ {ok}/{len(rows)} actualizados  ·  {fail} fail')
 
+def write_snapshots(snapshots, slug_to_id):
+    """Upsert mensais de set-level em elo_history. Onconflict: (player_id, date)."""
+    print('  ▸ write monthly snapshots → elo_history…')
+    # Mapear slug → id e filtrar inexistentes
+    rows = []
+    for s in snapshots:
+        pid = slug_to_id.get(s['slug'])
+        if not pid:
+            continue
+        rows.append({
+            'player_id':       pid,
+            'date':            s['date'],
+            'elo_set_overall': s['set_overall'],
+            'elo_set_hard':    s['set_hard'],
+            'elo_set_clay':    s['set_clay'],
+            'elo_set_grass':   s['set_grass'],
+        })
+    if not rows:
+        print('    (sem snapshots para escrever)')
+        return
+    print(f'    {len(rows):,} rows a escrever')
+
+    # Batch upsert via PostgREST — Prefer: resolution=merge-duplicates
+    BATCH = 500
+    ok = 0; fail = 0
+    for i in range(0, len(rows), BATCH):
+        slice_ = rows[i:i+BATCH]
+        url = f'{URL}/rest/v1/elo_history?on_conflict=player_id,date'
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(slice_).encode(),
+            headers={**H, 'Prefer': 'resolution=merge-duplicates,return=minimal'},
+            method='POST',
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                if 200 <= resp.status < 300:
+                    ok += len(slice_)
+                else:
+                    fail += len(slice_)
+        except urllib.error.HTTPError as e:
+            fail += len(slice_)
+            if fail <= len(slice_) * 2:
+                print(f'    batch err: {e.code} {e.read().decode()[:200]}')
+        if (i // BATCH) % 5 == 0:
+            print(f'    {i + len(slice_):,}/{len(rows):,}  (ok={ok}, fail={fail})')
+    print(f'  ✅ {ok}/{len(rows)} snapshots escritos  ·  {fail} fail')
+
 # ── Main ─────────────────────────────────────────────────────────────────
 def main():
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--snapshots', action='store_true',
+                    help='Capturar snapshots mensais set-level (últimos 24m) → elo_history')
+    args = ap.parse_args()
+
     print('[1/3] Carregar matches…')
     matches = load_matches()
     print(f'  {len(matches):,} matches lidos de {DATA_DIR}')
@@ -402,7 +526,7 @@ def main():
         sys.exit('Sem dados — corre primeiro o import_full.py ou descarrega CSVs.')
 
     print('\n[2/3] Treinar set-level ELO…')
-    elos = train(matches)
+    elos, snapshots = train(matches, capture_snapshots=args.snapshots)
     print(f'  {len(elos):,} jogadores únicos com ELO calculado')
 
     # Distribution summary (top10)
@@ -417,6 +541,10 @@ def main():
     print('\n[3/3] Escrever para Supabase…')
     slug_to_id = fetch_all_players()
     write_elos(elos, slug_to_id)
+
+    if args.snapshots:
+        print('\n[bonus] Escrever snapshots mensais set-level…')
+        write_snapshots(snapshots, slug_to_id)
 
     print('\nDONE.')
 

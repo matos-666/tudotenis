@@ -27,7 +27,14 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { surfaceLabel, type Locale } from '@/lib/i18n';
 
-const SURF_COL = {
+// Set-level (Phase C) é a fonte de verdade actual; legacy match-level só
+// serve de fallback para snapshots antigos onde ainda não havia set-level.
+const SURF_COL_SET = {
+  hard: 'elo_set_hard',
+  clay: 'elo_set_clay',
+  grass: 'elo_set_grass',
+} as const;
+const SURF_COL_LEGACY = {
   hard: 'elo_hard',
   clay: 'elo_clay',
   grass: 'elo_grass',
@@ -48,6 +55,9 @@ interface HistoryRow {
   elo_hard: number | null;
   elo_clay: number | null;
   elo_grass: number | null;
+  elo_set_hard: number | null;
+  elo_set_clay: number | null;
+  elo_set_grass: number | null;
 }
 
 // Sparkline geometry (mobile-friendly width)
@@ -75,7 +85,8 @@ export async function SurfaceFormGrid({
   prefix: string;
 }) {
   if (players.length === 0) return null;
-  const col = SURF_COL[surface];
+  const setCol = SURF_COL_SET[surface];
+  const legacyCol = SURF_COL_LEGACY[surface];
   const surfLbl = surfaceLabel(locale, surface).toLowerCase();
 
   const top = players.slice(0, 16);
@@ -88,7 +99,7 @@ export async function SurfaceFormGrid({
 
   const { data, error } = await supabase
     .from('elo_history')
-    .select(`player_id, date, ${col}`)
+    .select(`player_id, date, ${setCol}, ${legacyCol}`)
     .in('player_id', ids)
     .gte('date', sinceStr)
     .order('date', { ascending: true });
@@ -100,12 +111,32 @@ export async function SurfaceFormGrid({
 
   const rows = (data ?? []) as unknown as HistoryRow[];
 
+  // Para cada player, agrupar os pontos usando set-level se disponível,
+  // senão legacy. NÃO mistura escalas — escolhe a melhor série disponível.
   const byPlayer = new Map<number, { date: string; value: number }[]>();
+  const setBuckets = new Map<number, { date: string; value: number }[]>();
+  const legacyBuckets = new Map<number, { date: string; value: number }[]>();
   for (const r of rows) {
-    const v = (r as unknown as Record<string, number | null>)[col];
-    if (v == null || v < 800 || v > 3000) continue;
-    if (!byPlayer.has(r.player_id)) byPlayer.set(r.player_id, []);
-    byPlayer.get(r.player_id)!.push({ date: r.date, value: v });
+    const setV = (r as unknown as Record<string, number | null>)[setCol];
+    const legV = (r as unknown as Record<string, number | null>)[legacyCol];
+    if (setV != null && setV > 800 && setV < 3000) {
+      if (!setBuckets.has(r.player_id)) setBuckets.set(r.player_id, []);
+      setBuckets.get(r.player_id)!.push({ date: r.date, value: Number(setV) });
+    }
+    if (legV != null && legV > 800 && legV < 3000) {
+      if (!legacyBuckets.has(r.player_id)) legacyBuckets.set(r.player_id, []);
+      legacyBuckets.get(r.player_id)!.push({ date: r.date, value: Number(legV) });
+    }
+  }
+  // Prefere série set-level se tem ≥2 pontos; senão usa legacy.
+  for (const id of ids) {
+    const setPts = setBuckets.get(id);
+    if (setPts && setPts.length >= 2) {
+      byPlayer.set(id, setPts);
+    } else {
+      const legPts = legacyBuckets.get(id);
+      if (legPts && legPts.length >= 2) byPlayer.set(id, legPts);
+    }
   }
 
   type Entry = {

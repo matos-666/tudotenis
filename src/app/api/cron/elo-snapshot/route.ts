@@ -28,6 +28,11 @@ interface PlayerSnap {
   elo_clay: number | null;
   elo_grass: number | null;
   elo_indoor: number | null;
+  // Phase C — set-level (fonte de verdade actual)
+  elo_set_overall: number | null;
+  elo_set_hard: number | null;
+  elo_set_clay: number | null;
+  elo_set_grass: number | null;
 }
 
 function isAuthorized(req: NextRequest): boolean {
@@ -46,7 +51,9 @@ async function handle(req: NextRequest) {
   // Só snapshots de players com sample relevante.
   const { data, error } = await sb
     .from('players')
-    .select('id, elo_overall, elo_hard, elo_clay, elo_grass, elo_indoor')
+    .select(
+      'id, elo_overall, elo_hard, elo_clay, elo_grass, elo_indoor, elo_set_overall, elo_set_hard, elo_set_clay, elo_set_grass',
+    )
     .eq('active', true)
     .gte('set_count', 100);
 
@@ -58,7 +65,7 @@ async function handle(req: NextRequest) {
   const today = new Date().toISOString().slice(0, 10);
 
   const rows = players
-    .filter(p => p.elo_overall != null)
+    .filter(p => p.elo_overall != null || p.elo_set_overall != null)
     .map(p => ({
       player_id: p.id,
       date: today,
@@ -67,6 +74,11 @@ async function handle(req: NextRequest) {
       elo_clay: p.elo_clay,
       elo_grass: p.elo_grass,
       elo_indoor: p.elo_indoor,
+      // Phase C — set-level (frescos)
+      elo_set_overall: p.elo_set_overall,
+      elo_set_hard: p.elo_set_hard,
+      elo_set_clay: p.elo_set_clay,
+      elo_set_grass: p.elo_set_grass,
     }));
 
   if (rows.length === 0) {
