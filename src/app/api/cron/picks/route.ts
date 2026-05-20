@@ -21,6 +21,9 @@ interface ParsedMatch {
   p2Odd: number | null;
   status: string;
   scheduledAt: string | null;
+  /** Slug TennisStats h2h (e.g. "sinner-vs-zverev-576276") — chave única
+   *  por match para deduplicar entre cron runs. */
+  tennisstatsSlug: string | null;
 }
 
 interface Player {
@@ -47,7 +50,9 @@ const TENNISSTATS_URL = 'https://tennisstats.com/';
 const MIN_EV = 5.0;            // EV% mínimo para considerar um pick (5% ROI esperado)
 const MAX_EV = 40.0;           // EV% máximo plausível — acima disto, sample insuficiente
 const MIN_SETS_REGULAR = 80;   // ATP/WTA tour, 250+, M1000: mínimo de sets de cada jogador
-const MIN_SETS_SLAM    = 150;  // Slams + Finals: requer ainda mais histórico
+const MIN_SETS_SLAM    = 100;  // Slams: era 150 mas muitos qualificados têm
+                               // só 100-130 sets em nossa training data. Baixado
+                               // para apanhar Roland Garros quali (32+32 jogos)
 const MIN_SETS_CHALL   = 50;   // Challengers / ITF: threshold mais baixo
 const MIN_ODD = 1.15;
 const MAX_ODD = 8.0;
@@ -97,8 +102,14 @@ function parseMatches(html: string): ParsedMatch[] {
   const blocks = html.split("<div class='match-list row cf");
 
   for (const block of blocks.slice(1)) {
-    if (block.includes('format-doubles')) continue;
-    if (block.includes('dnone-important')) continue;
+    // Bug-fix: checar APENAS a outer class (até ao primeiro `'`) — antes
+    // checava-se o bloco todo, mas o HTML do TennisStats agora tem strings
+    // "format-doubles" e "dnone-important" embedded como toggles internos
+    // em blocos de singles (vimos isto matar a Strasbourg WTA p.ex.).
+    const closeQ = block.indexOf("'");
+    const outerClass = closeQ > 0 ? block.substring(0, closeQ) : block;
+    if (outerClass.includes('format-doubles')) continue;
+    if (outerClass.includes('dnone-important')) continue;
 
     // Tournament name
     const tnM = block.match(/<span class='semi-bold'>([^<]+)<\/span>/);
@@ -118,6 +129,8 @@ function parseMatches(html: string): ParsedMatch[] {
     let mMatch: RegExpExecArray | null;
 
     while ((mMatch = matchRE.exec(block)) !== null) {
+      const h2hHref = mMatch[1]; // e.g. "/h2h/sinner-vs-zverev-576276"
+      const tennisstatsSlug = h2hHref.replace(/^\/h2h\//, '');
       const inner = mMatch[2];
 
       // Player rows: both share same structure
@@ -139,7 +152,7 @@ function parseMatches(html: string): ParsedMatch[] {
 
       results.push({
         tournamentName, surface, p1Name, p2Name, p1Odd, p2Odd,
-        status, scheduledAt: parseTime(status),
+        status, scheduledAt: parseTime(status), tennisstatsSlug,
       });
     }
   }
@@ -351,11 +364,18 @@ export async function POST(req: NextRequest) {
     const todayStr = new Date().toISOString().split('T')[0];
     const { data: existing } = await supa
       .from('picks')
-      .select('p1_name, p2_name, tournament_name')
+      .select('p1_name, p2_name, tournament_name, tennisstats_slug')
       .gte('posted_at', `${todayStr}T00:00:00`);
 
+    // Dedup por slug (preferido — chave única do TennisStats) + por nomes
+    // (fallback para picks legacy sem slug)
     const existingSet = new Set(
       (existing ?? []).map(r => `${r.p1_name}|${r.p2_name}|${r.tournament_name}`)
+    );
+    const existingSlugSet = new Set(
+      (existing ?? [])
+        .map(r => r.tennisstats_slug as string | null)
+        .filter((s): s is string => !!s)
     );
 
     // 4. Player ELO cache
@@ -387,6 +407,9 @@ export async function POST(req: NextRequest) {
 
     // 5. Evaluate each match
     for (const m of upcoming) {
+      // Dedup primary: slug TennisStats (estável entre cron runs)
+      if (m.tennisstatsSlug && existingSlugSet.has(m.tennisstatsSlug)) continue;
+      // Fallback: nomes (apanha picks legacy sem slug)
       const key1 = `${m.p1Name}|${m.p2Name}|${m.tournamentName}`;
       const key2 = `${m.p2Name}|${m.p1Name}|${m.tournamentName}`;
       if (existingSet.has(key1) || existingSet.has(key2)) continue;
@@ -460,6 +483,7 @@ export async function POST(req: NextRequest) {
           tournament_name: m.tournamentName,
           surface:         m.surface,
           scheduled_at:    m.scheduledAt,
+          tennisstats_slug: m.tennisstatsSlug,
         };
 
         const { error } = await supa.from('picks').insert(row);
@@ -467,6 +491,7 @@ export async function POST(req: NextRequest) {
           inserted++;
           logs.push(`  ✅ ${grade}  ${c.player.name} vs ${c.opp.name}  @${c.odd.toFixed(2)}  EV=${ev.toFixed(1)}%`);
           existingSet.add(`${c.player.name}|${c.opp.name}|${m.tournamentName}`);
+          if (m.tennisstatsSlug) existingSlugSet.add(m.tennisstatsSlug);
         } else {
           logs.push(`  ❌ Insert error: ${error.message}`);
         }
