@@ -9,15 +9,16 @@
 -- Quando o cron Vercel (06:30) e o GitHub Action (depois) correm em
 -- janelas muito próximas, ambos leem o existingSet antes do outro
 -- inserir → ambos criam o pick. Constraint a nível DB resolve.
+--
+-- Nota técnica: `posted_at::date` não é IMMUTABLE (depende do timezone
+-- da sessão Postgres). Para o índice funcional, forçamos UTC com
+-- `timezone('UTC', posted_at)::date` que É immutable.
 
 alter table picks
   add column if not exists tennisstats_slug text;
 
--- Backfill (best-effort) — para os picks legacy que não tem slug,
--- não conseguimos calcular retroactivamente. Ficam com NULL.
+drop index if exists picks_tennisstats_dedup_idx;
 
--- Unique parcial: só obriga unicidade onde temos o slug. Picks antigos
--- com NULL slug não conflituam entre si.
-create unique index if not exists picks_tennisstats_dedup_idx
-  on picks ((posted_at::date), tennisstats_slug)
+create unique index picks_tennisstats_dedup_idx
+  on picks ((timezone('UTC', posted_at)::date), tennisstats_slug)
   where tennisstats_slug is not null;
