@@ -30,6 +30,10 @@ interface PickRow {
   odd: number;
   stake: number;
   market: string;
+  surface: string | null;
+  tournament_name: string | null;
+  tennisstats_slug: string | null;
+  elo_applied: boolean | null;
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────
@@ -178,7 +182,7 @@ export async function POST(req: NextRequest) {
     const since = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
     const { data: picks, error } = await supa
       .from('picks')
-      .select('id, selection, p1_name, p2_name, odd, stake, market')
+      .select('id, selection, p1_name, p2_name, odd, stake, market, surface, tournament_name, tennisstats_slug, elo_applied')
       .is('result', null)
       .gte('posted_at', since);
 
@@ -197,6 +201,18 @@ export async function POST(req: NextRequest) {
     const html = await fetchTennisStatsHtml();
     const finished = parseFinished(html);
     logs.push(`   ${finished.length} jogos singles terminados`);
+
+    // ── Imports lazy do singles-elo updater ─────────────────────────────
+    const { applySinglesEloUpdate } = await import('@/lib/singles-elo');
+
+    // Track quais slugs já tiveram ELO aplicado neste run + slugs já
+    // aplicados em runs anteriores (para dedup quando 2 picks no mesmo match)
+    const appliedSlugs = new Set<string>(
+      pickList.filter(p => p.elo_applied && p.tennisstats_slug).map(p => p.tennisstats_slug!)
+    );
+    let eloApplied = 0;
+    let eloSkipped = 0;
+    let eloErrors = 0;
 
     // 3. Match results to picks (singles)
     for (const pick of pickList) {
@@ -228,6 +244,52 @@ export async function POST(req: NextRequest) {
         `  ${emoji} ${pick.selection} (${r.match.p1Sets}-${r.match.p2Sets} ${r.match.status})  ` +
         `→ ${r.result.toUpperCase()}  P&L=€${pl.toFixed(2)}`
       );
+
+      // ── Aplica delta-ELO singles incremental ─────────────────────────
+      // Skip para voids (sem informação útil), sem oponente conhecido,
+      // ou para slugs já processados.
+      if (r.result === 'void' || !pick.p1_name || !pick.p2_name) continue;
+      const slug = pick.tennisstats_slug;
+      if (slug && appliedSlugs.has(slug)) { eloSkipped++; continue; }
+
+      // selection é o player escolhido; o oponente é o outro nome
+      const selIsP1 = pick.selection.trim() === (pick.p1_name?.trim() ?? '');
+      const oppName = selIsP1 ? pick.p2_name : pick.p1_name;
+      const eloRes = await applySinglesEloUpdate(supa, {
+        selectionName: pick.selection,
+        oppName: oppName ?? '',
+        selectionWon: r.result === 'win',
+        // Map sets do scrape (p1Sets/p2Sets em referência ao scrape p1/p2)
+        // para selection/opp. r.match.p1Name pode estar invertido vs pick.
+        setsWonBySelection: pick.selection.trim().toLowerCase() === r.match.p1Name.trim().toLowerCase()
+          ? r.match.p1Sets
+          : r.match.p2Sets,
+        setsWonByOpp: pick.selection.trim().toLowerCase() === r.match.p1Name.trim().toLowerCase()
+          ? r.match.p2Sets
+          : r.match.p1Sets,
+        surface: pick.surface,
+        tournamentName: pick.tournament_name,
+      });
+
+      if (eloRes.ok) {
+        eloApplied++;
+        if (slug) appliedSlugs.add(slug);
+        // Marca todos os picks com este slug como elo_applied
+        if (slug) {
+          await supa
+            .from('picks')
+            .update({ elo_applied: true })
+            .eq('tennisstats_slug', slug);
+        } else {
+          await supa.from('picks').update({ elo_applied: true }).eq('id', pick.id);
+        }
+      } else {
+        eloErrors++;
+        logs.push(`    ⚠ ELO update falhou: ${eloRes.error}`);
+      }
+    }
+    if (eloApplied || eloErrors || eloSkipped) {
+      logs.push(`   📈 singles ELO: ${eloApplied} applied · ${eloSkipped} dup-skip · ${eloErrors} errors`);
     }
 
     // 4. Settle DOUBLES (matches sem winner em doubles_matches)
