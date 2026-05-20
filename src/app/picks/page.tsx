@@ -77,7 +77,7 @@ async function fetchTodayPicks(): Promise<Pick[]> {
   const today = new Date().toISOString().split('T')[0];
   const { data, error } = await supabase
     .from('picks')
-    .select('*')
+    .select('id, player_id, market, selection, odd, edge_pct, grade, stake, result, pl, posted_at, settled_at, p1_name, p2_name, p1_flag, p2_flag, tournament_name, surface, scheduled_at')
     .gte('posted_at', `${today}T00:00:00`)
     .order('grade', { ascending: true })
     .order('edge_pct', { ascending: false });
@@ -93,7 +93,7 @@ async function fetchYesterdayPicks(): Promise<Pick[]> {
   const yesterday = new Date(Date.now() - 86_400_000).toISOString().split('T')[0];
   const { data, error } = await supabase
     .from('picks')
-    .select('*')
+    .select('id, player_id, market, selection, odd, edge_pct, grade, stake, result, pl, posted_at, settled_at, p1_name, p2_name, p1_flag, p2_flag, tournament_name, surface, scheduled_at')
     .gte('posted_at', `${yesterday}T00:00:00`)
     .lt('posted_at', `${yesterday}T23:59:59`)
     .not('result', 'is', null)

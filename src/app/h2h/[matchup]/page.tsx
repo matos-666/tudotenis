@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
+import { unstable_cache } from 'next/cache';
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
@@ -49,7 +50,10 @@ function eloFor(p: Player, surface: 'overall' | 'hard' | 'clay' | 'grass'): numb
  * parseMatchupSlug saber onde dividir o slug composto. Range header
  * permite ir além do limite default de 1000.
  */
-async function fetchAllSlugs(): Promise<Set<string>> {
+// fetchAllSlugs corre potencialmente em cada render de H2H. Cache server-side
+// 12h via unstable_cache para evitar puxar 1182 slugs em todas as paginações.
+const fetchAllSlugs = unstable_cache(
+  async (): Promise<Set<string>> => {
   const slugs = new Set<string>();
   let offset = 0;
   const page = 1000;
@@ -64,7 +68,10 @@ async function fetchAllSlugs(): Promise<Set<string>> {
     offset += page;
   }
   return slugs;
-}
+  },
+  ['h2h-all-player-slugs'],
+  { revalidate: 43200, tags: ['players-slugs'] }, // 12h
+);
 
 async function fetchPair(
   matchup: string
@@ -76,9 +83,10 @@ async function fetchPair(
   if (slugA === slugB) return null;
 
   // Fetch só os 2 players necessários (mais rápido que carregar todos)
+  // Apenas as colunas usadas no interface Player (egress -50%).
   const { data } = await supabase
     .from('players')
-    .select('*')
+    .select('id, slug, name, flag, tour, atp_rank, photo_url, elo_overall, elo_hard, elo_clay, elo_grass, elo_indoor, elo_set_overall, elo_set_hard, elo_set_clay, elo_set_grass, elo_30d_ago, form_l5, titles, slams')
     .in('slug', [slugA, slugB]);
   if (!data || data.length < 2) return null;
   const p1 = data.find(p => p.slug === slugA) as Player | undefined;

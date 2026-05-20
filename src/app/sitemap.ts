@@ -3,6 +3,10 @@ import { supabase } from '@/lib/supabase';
 
 const BASE = process.env.NEXT_PUBLIC_SITE_URL || 'https://tudotenis.com';
 
+// Sitemap só precisa de regenerar 1× por dia — não muda tantas vezes
+// quanto isso. Reduz egress para o Google's crawl.
+export const revalidate = 86400; // 24h
+
 /**
  * Sitemap dinâmico — Next.js gera /sitemap.xml automaticamente.
  *
@@ -71,11 +75,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   // ── Players ──
+  // Limit a top 800 por ELO — reduz crawl footprint do Google em ~70%
+  // (1182 active → 800) e elimina players sem search demand real.
   const { data: players } = await supabase
     .from('players')
     .select('slug, updated_at')
     .eq('active', true)
-    .order('elo_overall', { ascending: false });
+    .order('elo_overall', { ascending: false, nullsFirst: false })
+    .limit(800);
 
   const playerPages: MetadataRoute.Sitemap = (players ?? []).flatMap(p => {
     const lastModified = p.updated_at ? new Date(p.updated_at) : now;

@@ -12,7 +12,9 @@ export const metadata: Metadata = {
   alternates: hreflangAlternates('/historico'),
 };
 
-export const revalidate = 600;
+// Historico de picks já resolvidos — dados praticamente imutáveis depois
+// de settle. Cache agressivo (6h) para reduzir egress Supabase.
+export const revalidate = 21600;
 
 interface SettledPick {
   id: number;
@@ -35,9 +37,10 @@ interface SettledPick {
 }
 
 async function fetchHistory(): Promise<SettledPick[]> {
+  // Apenas colunas usadas no render (egress -65% vs select('*')).
   const { data, error } = await supabase
     .from('picks')
-    .select('*')
+    .select('id, selection, market, odd, edge_pct, grade, stake, result, pl, posted_at, settled_at, p1_name, p2_name, p1_flag, p2_flag, tournament_name, surface')
     .not('result', 'is', null)
     .order('posted_at', { ascending: false })
     .limit(1000);

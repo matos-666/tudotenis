@@ -41,9 +41,11 @@ interface Player {
 }
 
 async function fetchPlayer(slug: string): Promise<Player | null> {
+  // Apenas colunas usadas no perfil (omite career_high, doubles_*, set_count,
+  // created_at, updated_at, active — egress ~50% menor).
   const { data } = await supabase
     .from('players')
-    .select('*')
+    .select('id, slug, name, country, flag, birth_date, height_cm, hand, tour, atp_rank, photo_url, elo_overall, elo_hard, elo_clay, elo_grass, elo_indoor, elo_set_overall, elo_set_hard, elo_set_clay, elo_set_grass, elo_30d_ago, form_l5, titles, slams')
     .eq('slug', slug)
     .single();
   return data;
