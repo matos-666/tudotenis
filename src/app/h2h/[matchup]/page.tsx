@@ -9,6 +9,8 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { breadcrumbJsonLd } from '@/lib/jsonld';
 import { H2HSparklineCompare } from '@/components/H2HSparklineCompare';
+import { H2HSurfaceMiniSparkline } from '@/components/H2HSurfaceMiniSparkline';
+import { fetchH2HSurfaceHistory } from '@/lib/h2h-surface-history';
 import { getLocale, hreflangAlternates, surfaceLabel } from '@/lib/i18n';
 
 export const revalidate = 3600;
@@ -267,6 +269,9 @@ export default async function H2HPage({
     };
   });
 
+  // Fetch surface history (1 query devolve hard/clay/grass para os 2 players)
+  const surfaceHistory = await fetchH2HSurfaceHistory(p1.id, p2.id);
+
   // Generate insight
   const surfaceFavP1 = surfaceData.filter(s => s.favIsP1).length;
   const surfaceFavP2 = surfaceData.length - surfaceFavP1;
@@ -394,6 +399,12 @@ export default async function H2HPage({
                     <div className="font-mono font-semibold">{s.fairP2.toFixed(2)}</div>
                   </div>
                 </div>
+                {/* Mini sparkline 12m do ELO desta surface — P1 vs P2 overlay */}
+                {surfaceHistory && (
+                  <div className="pt-3 mt-3 border-t border-[var(--color-border)]">
+                    <H2HSurfaceMiniSparkline series={surfaceHistory[s.key as 'hard'|'clay'|'grass']} />
+                  </div>
+                )}
               </div>
             ))}
           </div>
