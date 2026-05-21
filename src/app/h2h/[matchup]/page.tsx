@@ -402,7 +402,11 @@ export default async function H2HPage({
                 {/* Mini sparkline 12m do ELO desta surface — P1 vs P2 overlay */}
                 {surfaceHistory && (
                   <div className="pt-3 mt-3 border-t border-[var(--color-border)]">
-                    <H2HSurfaceMiniSparkline series={surfaceHistory[s.key as 'hard'|'clay'|'grass']} />
+                    <H2HSurfaceMiniSparkline
+                      series={surfaceHistory[s.key as 'hard'|'clay'|'grass']}
+                      p1Name={p1.name}
+                      p2Name={p2.name}
+                    />
                   </div>
                 )}
               </div>
