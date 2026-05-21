@@ -8,6 +8,7 @@ import { eloProb, fairOdds, parseMatchupSlug, displayElo } from '@/lib/elo';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { breadcrumbJsonLd } from '@/lib/jsonld';
+import { H2HSparklineCompare } from '@/components/H2HSparklineCompare';
 import { getLocale, hreflangAlternates, surfaceLabel } from '@/lib/i18n';
 
 export const revalidate = 3600;
@@ -352,6 +353,12 @@ export default async function H2HPage({
               <PlayerHeadCard p={p2} isFav={overallFav.id === p2.id} prefix={prefix} />
             </div>
           </div>
+
+          {/* Trajectória ELO 12m — overlay dos 2 jogadores */}
+          <H2HSparklineCompare
+            p1={{ id: p1.id, name: p1.name, flag: p1.flag, photo_url: p1.photo_url }}
+            p2={{ id: p2.id, name: p2.name, flag: p2.flag, photo_url: p2.photo_url }}
+          />
 
           {/* Per-surface analysis */}
           <h2 className="text-xl font-bold mb-1">Probabilidade por superfície</h2>
