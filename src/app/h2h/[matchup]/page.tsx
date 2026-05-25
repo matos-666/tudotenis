@@ -55,26 +55,34 @@ function eloFor(p: Player, surface: 'overall' | 'hard' | 'clay' | 'grass'): numb
  */
 // fetchAllSlugs corre potencialmente em cada render de H2H. Cache server-side
 // 12h via unstable_cache para evitar puxar 1182 slugs em todas as paginações.
-const fetchAllSlugs = unstable_cache(
-  async (): Promise<Set<string>> => {
-  const slugs = new Set<string>();
-  let offset = 0;
-  const page = 1000;
-  for (let i = 0; i < 5; i++) {
-    const { data } = await supabase
-      .from('players')
-      .select('slug')
-      .range(offset, offset + page - 1);
-    if (!data || data.length === 0) break;
-    for (const p of data) slugs.add(p.slug);
-    if (data.length < page) break;
-    offset += page;
-  }
-  return slugs;
+//
+// IMPORTANTE: unstable_cache serializa o resultado em JSON. Sets NÃO são
+// serializáveis (deserializam como {} sem método .has). Logo, a inner
+// function devolve string[] e convertemos para Set após.
+const fetchAllSlugsArr = unstable_cache(
+  async (): Promise<string[]> => {
+    const slugs: string[] = [];
+    let offset = 0;
+    const page = 1000;
+    for (let i = 0; i < 5; i++) {
+      const { data } = await supabase
+        .from('players')
+        .select('slug')
+        .range(offset, offset + page - 1);
+      if (!data || data.length === 0) break;
+      for (const p of data) slugs.push(p.slug);
+      if (data.length < page) break;
+      offset += page;
+    }
+    return slugs;
   },
-  ['h2h-all-player-slugs'],
+  ['h2h-all-player-slugs-v2'],
   { revalidate: 43200, tags: ['players-slugs'] }, // 12h
 );
+
+async function fetchAllSlugs(): Promise<Set<string>> {
+  return new Set(await fetchAllSlugsArr());
+}
 
 async function fetchPair(
   matchup: string
