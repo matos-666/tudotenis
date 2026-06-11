@@ -595,9 +595,6 @@ export default async function PicksPage() {
               <div className="flex items-baseline justify-between mb-6 flex-wrap gap-3">
                 <div>
                   <h2 className="text-xl font-bold">{isBR ? 'Resultados · ontem' : 'Resultados · ontem'}</h2>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {isBR ? 'Liquidados automaticamente via BetExplorer' : 'Settled automaticamente via BetExplorer'}
-                  </p>
                 </div>
                 <div className="flex gap-4 text-sm">
                   <div className="text-center">
