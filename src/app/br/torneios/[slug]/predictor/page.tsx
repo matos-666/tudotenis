@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { supabase } from '@/lib/supabase';
-import { hreflangAlternates } from '@/lib/i18n';
+import { hreflangAlternatesBR } from '@/lib/i18n';
 
 export { default, generateStaticParams } from '../../../../torneios/[slug]/predictor/page';
 
@@ -19,6 +19,6 @@ export async function generateMetadata({
   return {
     title: `Predictor ${t.full_name ?? t.name} · Probabilidade de vencer · TudoTênis`,
     description: `Simulação Monte Carlo para ${t.full_name ?? t.name} ${t.year}. Probabilidade de cada top contender vencer o título.`,
-    alternates: hreflangAlternates(`/torneios/${slug}/predictor`),
+    alternates: hreflangAlternatesBR(`/torneios/${slug}/predictor`),
   };
 }

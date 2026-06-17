@@ -99,28 +99,39 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  // Lê locale do header propagado pelo middleware (pt-PT ou pt-BR)
-  const { headers } = await import('next/headers');
-  const h = await headers();
-  const locale = (h.get('x-locale') ?? 'pt-PT') as 'pt-PT' | 'pt-BR';
-  const skipText = locale === 'pt-BR' ? 'Pular para o conteúdo principal' : 'Saltar para o conteúdo principal';
-
+  // IMPORTANTE: este layout é INTENCIONALMENTE síncrono e NÃO chama
+  // headers(). Chamar headers() ou cookies() aqui obrigava TODAS as
+  // rotas (incluindo SSG/ISR) a renderem como dynamic → Vercel emitia
+  // `Cache-Control: no-store` em tudo, matando edge cache (~135 KB
+  // descacheados em /picks por exemplo).
+  //
+  // Trade-off: o `<html lang>` fica fixo em pt-PT mesmo para /br/*.
+  // Mitigação: um pequeno script inline corrige o lang no cliente
+  // assim que o documento carrega. Para Google, o sinal definitivo
+  // de idioma vem do `hreflang` no <head> + content language nas
+  // metas das páginas /br/* — perfeitamente suficiente.
   return (
-    <html lang={locale} className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang="pt-PT" className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
         {/* Theme init: aplica antes de pintar para evitar flash */}
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        {/* Ajusta lang client-side em /br/* — preserva a11y/screen readers */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{if(location.pathname==='/br'||location.pathname.indexOf('/br/')===0){document.documentElement.lang='pt-BR'}}catch(e){}})()`,
+          }}
+        />
       </head>
       <body className="min-h-full flex flex-col">
-        {/* Skip-to-content (a11y) */}
+        {/* Skip-to-content (a11y) — texto neutro funciona em ambos os locales */}
         <a
           href="#main"
           className="absolute -top-10 left-0 bg-[var(--color-accent)] text-[var(--color-surface)] px-4 py-2 font-semibold z-[1000] focus:top-0 transition-all"
         >
-          {skipText}
+          Saltar para o conteúdo principal
         </a>
 
         {/* JSON-LD: Organization */}

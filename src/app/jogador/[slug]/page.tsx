@@ -163,7 +163,6 @@ export default async function PlayerPage({
                   width={120}
                   height={120}
                   className="w-full h-full object-cover object-top"
-                  unoptimized
                 />
               ) : (
                 <span>{initials}</span>

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { supabase } from '@/lib/supabase';
-import { hreflangAlternates } from '@/lib/i18n';
+import { hreflangAlternatesBR } from '@/lib/i18n';
 
 export { default, generateStaticParams } from '../../../torneios/[slug]/page';
 
@@ -19,6 +19,6 @@ export async function generateMetadata({
   return {
     title: `${t.full_name ?? t.name} · ${t.surface_label ?? ''} · TudoTênis`,
     description: `${t.full_name ?? t.name} · resultados, ELO e previsões.`,
-    alternates: hreflangAlternates(`/torneios/${t.slug}`),
+    alternates: hreflangAlternatesBR(`/torneios/${t.slug}`),
   };
 }

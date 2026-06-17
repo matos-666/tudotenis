@@ -209,18 +209,41 @@ export function surfaceLabel(locale: Locale, surface: string | null | undefined)
 }
 
 /**
- * Helper para `generateMetadata`: devolve canonical + alternates correctos.
+ * Helpers para `generateMetadata`: canonical + alternates com hreflang.
+ *
+ * IMPORTANTE: cada locale canonicaliza para SI MESMO (self-referencing
+ * canonical). Antes o canonical era sempre PT-PT, o que fazia /br/*
+ * auto-deindexar nos resultados Brasil.
+ *
+ * Duas variantes (síncronas, para suportar `export const metadata` estático):
+ *
+ *   hreflangAlternates('/picks')      → canonical pt-PT, usado pelas
+ *                                       páginas em /
+ *   hreflangAlternatesBR('/picks')    → canonical pt-BR (/br/picks),
+ *                                       usado pelas páginas em /br/
+ *
+ * Passa o caminho SEM o prefixo /br. As 2 helpers montam o canonical
+ * para o lado correcto + ambas geram os mesmos `languages` (hreflang).
  */
-export function hreflangAlternates(canonicalPath: string) {
+function buildAlternates(canonicalPath: string, locale: Locale) {
   const base = 'https://tudotenis.com';
   const ptPath = canonicalPath;
   const brPath = canonicalPath === '/' ? '/br' : `/br${canonicalPath}`;
+  const selfPath = locale === 'pt-BR' ? brPath : ptPath;
   return {
-    canonical: `${base}${ptPath}`,
+    canonical: `${base}${selfPath}`,
     languages: {
       'pt-PT': `${base}${ptPath}`,
       'pt-BR': `${base}${brPath}`,
       'x-default': `${base}${ptPath}`,
     },
   };
+}
+
+export function hreflangAlternates(canonicalPath: string) {
+  return buildAlternates(canonicalPath, 'pt-PT');
+}
+
+export function hreflangAlternatesBR(canonicalPath: string) {
+  return buildAlternates(canonicalPath, 'pt-BR');
 }

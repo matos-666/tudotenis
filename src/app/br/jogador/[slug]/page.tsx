@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { supabase } from '@/lib/supabase';
-import { hreflangAlternates } from '@/lib/i18n';
+import { hreflangAlternatesBR } from '@/lib/i18n';
 
 export { default, generateStaticParams } from '../../../jogador/[slug]/page';
 
@@ -19,7 +19,7 @@ export async function generateMetadata({
   return {
     title: `${p.name} · ELO ${p.elo_overall} · Stats e Perfil`,
     description: `Perfil de ${p.name} (${(p.tour as string).toUpperCase()} #${p.atp_rank ?? '?'}). ELO próprio: ${p.elo_overall} geral · ${p.elo_hard} hard · ${p.elo_clay} saibro · ${p.elo_grass} grama. Histórico, splits por piso, próximos jogos.`, // pt-BR keeps saibro/grama
-    alternates: hreflangAlternates(`/jogador/${p.slug}`),
+    alternates: hreflangAlternatesBR(`/jogador/${p.slug}`),
     openGraph: {
       title: `${p.name} · TudoTênis`,
       description: `ELO ${p.elo_overall} · ${(p.tour as string).toUpperCase()} #${p.atp_rank ?? '?'}`,

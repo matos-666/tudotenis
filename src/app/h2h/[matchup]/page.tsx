@@ -198,7 +198,6 @@ function PlayerHeadCard({ p, isFav, prefix = '' }: { p: Player; isFav: boolean; 
             width={120}
             height={120}
             className="w-full h-full object-cover object-top"
-            unoptimized
           />
         ) : (
           <span>{initials}</span>

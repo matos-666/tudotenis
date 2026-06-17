@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { supabase } from '@/lib/supabase';
-import { hreflangAlternates, surfaceLabel } from '@/lib/i18n';
+import { hreflangAlternatesBR, surfaceLabel } from '@/lib/i18n';
 
 export { default, generateStaticParams } from '../../../../torneios/[slug]/preparacao/page';
 
@@ -20,6 +20,6 @@ export async function generateMetadata({
   return {
     title: `Quem está preparado para ${t.full_name ?? t.name}? · ELO ${surfStr} · TudoTênis`,
     description: `Análise ELO pré-torneio para ${t.full_name ?? t.name} ${t.year}. Top contenders por ${surfStr}, specialists ocultos, jogadores vulneráveis.`,
-    alternates: hreflangAlternates(`/torneios/${slug}/preparacao`),
+    alternates: hreflangAlternatesBR(`/torneios/${slug}/preparacao`),
   };
 }

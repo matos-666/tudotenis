@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { hreflangAlternates } from '@/lib/i18n';
+import { hreflangAlternatesBR } from '@/lib/i18n';
 
 export { default } from '../../../ferramentas/kelly/page';
 
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
   title: 'Calculadora Kelly · Stake ótima por bankroll · TudoTênis',
   description:
     'Calcula o stake ideal para cada aposta usando o critério de Kelly. Bankroll, odd da casa, probabilidade do modelo, fração Kelly (cauteloso → agressivo).',
-  alternates: hreflangAlternates('/ferramentas/kelly'),
+  alternates: hreflangAlternatesBR('/ferramentas/kelly'),
 };
