@@ -275,8 +275,18 @@ export async function POST(req: NextRequest) {
     const allMatches = parseMatches(html);
     logs.push(`   ${allMatches.length} jogos singles encontrados`);
 
-    // 1b. Captura de duplas (registo paralelo, sem gerar picks)
+    // 1b. Captura de duplas + geração de picks doubles
+    //
+    // Pipeline: parse → captura no doubles_matches → para upcoming com odds,
+    // calcula team ELO + EV → insere em doubles_picks.
+    //
+    // Threshold de confidence: cada jogador precisa ≥10 doubles_matches na
+    // DB (set_count equivalente para duplas). Auto-created players (ainda
+    // com elo=1500) ficam fora — evita EVs absurdos.
+    const TERMINAL_DBL = new Set(['Fin.', 'Ret.', 'Canc.', 'Walko.', 'W.O.', 'Serving', 'Susp.', '']);
+    const MIN_DBL_MATCHES = 10;        // por jogador
     let doublesCaptured = 0;
+    let doublesPicksInserted = 0;
     try {
       const { parseDoublesMatches, findOrCreatePlayer, findTournamentId, buildDoublesKey } =
         await import('@/lib/doubles-scrape');
@@ -296,13 +306,14 @@ export async function POST(req: NextRequest) {
             t2p1: dm.t2p1Name, t2p2: dm.t2p2Name,
           });
 
-          // Skip if já existe
-          const { data: existing } = await supa
+          // Skip if já existe doubles_match
+          const { data: existingMatch } = await supa
             .from('doubles_matches')
             .select('id')
             .eq('external_key', externalKey)
             .limit(1);
-          if (existing?.length) continue;
+
+          let doublesMatchId: number | null = existingMatch?.[0]?.id ?? null;
 
           // Lookup / create os 4 jogadores
           const [p1, p2, p3, p4] = await Promise.all([
@@ -316,36 +327,131 @@ export async function POST(req: NextRequest) {
             continue;
           }
 
-          // Tournament id (best-effort)
-          const tid = await findTournamentId(supa, dm.tournamentName, parseInt(dateStr.slice(0, 4)));
+          if (!doublesMatchId) {
+            // Tournament id (best-effort)
+            const tid = await findTournamentId(supa, dm.tournamentName, parseInt(dateStr.slice(0, 4)));
 
-          const { error: insErr } = await supa.from('doubles_matches').insert({
-            source: 'tennisstats',
-            external_key: externalKey,
-            tournament_id: tid,
-            tournament_name: dm.tournamentName,
-            date: dateStr,
-            scheduled_at: dm.scheduledAt,
-            surface: dm.surface,
-            t1_p1_id: p1.id,
-            t1_p2_id: p2.id,
-            t2_p1_id: p3.id,
-            t2_p2_id: p4.id,
-            t1_p1_name: dm.t1p1Name,
-            t1_p2_name: dm.t1p2Name,
-            t2_p1_name: dm.t2p1Name,
-            t2_p2_name: dm.t2p2Name,
-          });
-          if (insErr) {
-            logs.push(`  ❌ duplas insert: ${insErr.message}`);
+            const { data: newMatch, error: insErr } = await supa.from('doubles_matches').insert({
+              source: 'tennisstats',
+              external_key: externalKey,
+              tournament_id: tid,
+              tournament_name: dm.tournamentName,
+              date: dateStr,
+              scheduled_at: dm.scheduledAt,
+              surface: dm.surface,
+              t1_p1_id: p1.id,
+              t1_p2_id: p2.id,
+              t2_p1_id: p3.id,
+              t2_p2_id: p4.id,
+              t1_p1_name: dm.t1p1Name,
+              t1_p2_name: dm.t1p2Name,
+              t2_p1_name: dm.t2p1Name,
+              t2_p2_name: dm.t2p2Name,
+            }).select('id').single();
+            if (insErr) {
+              logs.push(`  ❌ duplas insert: ${insErr.message}`);
+              continue;
+            }
+            doublesMatchId = newMatch.id as number;
+            doublesCaptured++;
+          }
+
+          // ── Geração de pick doubles ──────────────────────────────────
+          // Só gera se: match upcoming + odds presentes + sample suficiente
+          if (TERMINAL_DBL.has(dm.status)) continue;
+          if (!dm.t1Odd || !dm.t2Odd) continue;
+          if (dm.t1Odd > MAX_ODD && dm.t2Odd > MAX_ODD) continue;
+
+          // Fetch ELOs doubles dos 4 jogadores
+          const { data: doublesPlayers } = await supa
+            .from('players')
+            .select('id, name, flag, elo_doubles_overall, elo_doubles_hard, elo_doubles_clay, elo_doubles_grass, doubles_matches')
+            .in('id', [p1.id, p2.id, p3.id, p4.id]);
+
+          if (!doublesPlayers || doublesPlayers.length !== 4) {
+            logs.push(`  ⚠ duplas: ELO lookup falhou para ${dm.tournamentName}`);
             continue;
           }
-          doublesCaptured++;
+          const byId = new Map(doublesPlayers.map(d => [d.id as number, d]));
+          const dp1 = byId.get(p1.id)!;
+          const dp2 = byId.get(p2.id)!;
+          const dp3 = byId.get(p3.id)!;
+          const dp4 = byId.get(p4.id)!;
+
+          // Filtro de confidence — todos ≥10 matches doubles
+          const minMatches = Math.min(
+            dp1.doubles_matches ?? 0,
+            dp2.doubles_matches ?? 0,
+            dp3.doubles_matches ?? 0,
+            dp4.doubles_matches ?? 0,
+          );
+          if (minMatches < MIN_DBL_MATCHES) continue;
+
+          // Team ELO: prefer surface se disponível, fallback overall
+          const surfKey = dm.surface === 'clay' ? 'elo_doubles_clay'
+                        : dm.surface === 'grass' ? 'elo_doubles_grass'
+                        : 'elo_doubles_hard';
+          const eloFor = (p: typeof dp1) => {
+            const surfVal = p[surfKey as keyof typeof p] as number | null;
+            return surfVal ?? p.elo_doubles_overall ?? 1500;
+          };
+          const t1Elo = (eloFor(dp1) + eloFor(dp2)) / 2;
+          const t2Elo = (eloFor(dp3) + eloFor(dp4)) / 2;
+
+          // Set prob via ELO, depois BO3 (doubles sempre BO3 com super tiebreak)
+          const setProb = eloWinProb(t1Elo, t2Elo);
+          const probT1 = bo3MatchProb(setProb);
+          const probT2 = 1 - probT1;
+
+          // Avalia ambos os lados — pega o melhor EV
+          const teamCandidates = [
+            { team: 1 as const, prob: probT1, odd: dm.t1Odd },
+            { team: 2 as const, prob: probT2, odd: dm.t2Odd },
+          ];
+          for (const tc of teamCandidates) {
+            if (tc.odd < MIN_ODD || tc.odd > MAX_ODD) continue;
+            const ev = calcEV(tc.prob, tc.odd);
+            if (ev < MIN_EV || ev > MAX_EV) continue;
+            const grade = getGrade(ev);
+            const market = isWomen ? 'Vencedora dupla' : 'Vencedora dupla';
+
+            const pickRow = {
+              doubles_match_id: doublesMatchId,
+              external_key: externalKey,
+              source: 'tennisstats',
+              team_selected: tc.team,
+              t1_p1_id: p1.id, t1_p2_id: p2.id,
+              t2_p1_id: p3.id, t2_p2_id: p4.id,
+              t1_p1_name: dm.t1p1Name, t1_p2_name: dm.t1p2Name,
+              t2_p1_name: dm.t2p1Name, t2_p2_name: dm.t2p2Name,
+              t1_p1_flag: dp1.flag ?? '🎾', t1_p2_flag: dp2.flag ?? '🎾',
+              t2_p1_flag: dp3.flag ?? '🎾', t2_p2_flag: dp4.flag ?? '🎾',
+              market,
+              odd: tc.odd,
+              edge_pct: Math.round(ev * 100) / 100,
+              grade,
+              stake: 10,
+              tournament_name: dm.tournamentName,
+              surface: dm.surface,
+              scheduled_at: dm.scheduledAt,
+            };
+            const { error: pickErr } = await supa.from('doubles_picks').insert(pickRow);
+            if (!pickErr) {
+              doublesPicksInserted++;
+              const teamNames = tc.team === 1
+                ? `${dm.t1p1Name}/${dm.t1p2Name}`
+                : `${dm.t2p1Name}/${dm.t2p2Name}`;
+              logs.push(`  ✅ DBL ${grade}  ${teamNames}  @${tc.odd.toFixed(2)}  EV=${ev.toFixed(1)}%`);
+            } else if (!/duplicate|unique/i.test(pickErr.message)) {
+              logs.push(`  ❌ doubles_picks insert: ${pickErr.message}`);
+            }
+          }
         } catch (e) {
           logs.push(`  ⚠ duplas: ${e instanceof Error ? e.message : String(e)}`);
         }
       }
       if (doublesCaptured > 0) logs.push(`   ${doublesCaptured} novos jogos duplas capturados`);
+      if (doublesPicksInserted > 0) logs.push(`   ${doublesPicksInserted} picks duplas inseridos`);
     } catch (e) {
       logs.push(`  ⚠ duplas pipeline error: ${e instanceof Error ? e.message : String(e)}`);
     }

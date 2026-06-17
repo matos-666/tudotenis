@@ -106,6 +106,53 @@ async function fetchYesterdayPicks(): Promise<Pick[]> {
   return enrichWithPlayers((data ?? []) as Pick[]);
 }
 
+// ── Doubles picks ─────────────────────────────────────────────────────────
+interface DoublesPick {
+  id: number;
+  doubles_match_id: number;
+  team_selected: 1 | 2;
+  market: string;
+  odd: number;
+  edge_pct: number;
+  grade: 'A' | 'B' | 'C';
+  stake: number;
+  result: 'win' | 'loss' | 'void' | null;
+  pl: number | null;
+  posted_at: string;
+  settled_at: string | null;
+  scheduled_at: string | null;
+  tournament_name: string | null;
+  surface: string | null;
+  t1_p1_name: string | null;
+  t1_p2_name: string | null;
+  t2_p1_name: string | null;
+  t2_p2_name: string | null;
+  t1_p1_flag: string | null;
+  t1_p2_flag: string | null;
+  t2_p1_flag: string | null;
+  t2_p2_flag: string | null;
+}
+
+async function fetchTodayDoublesPicks(): Promise<DoublesPick[]> {
+  const today = new Date().toISOString().split('T')[0];
+  const { data, error } = await supabase
+    .from('doubles_picks')
+    .select('id, doubles_match_id, team_selected, market, odd, edge_pct, grade, stake, result, pl, posted_at, settled_at, scheduled_at, tournament_name, surface, t1_p1_name, t1_p2_name, t2_p1_name, t2_p2_name, t1_p1_flag, t1_p2_flag, t2_p1_flag, t2_p2_flag')
+    .gte('posted_at', `${today}T00:00:00`)
+    .order('grade', { ascending: true })
+    .order('edge_pct', { ascending: false });
+  if (error) {
+    console.error('[picks] doubles today error:', error.message);
+    return [];
+  }
+  return (data ?? []) as DoublesPick[];
+}
+
+function hasStartedDoubles(p: DoublesPick): boolean {
+  if (!p.scheduled_at) return false;
+  return new Date(p.scheduled_at).getTime() <= Date.now();
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────
 // Indoor → hard styling (não temos UI dedicada a indoor).
 const SURFACE_CLASS  = { clay: 'surface-clay', hard: 'surface-hard', grass: 'surface-grass', indoor: 'surface-hard' } as const;
@@ -283,6 +330,126 @@ function CompactPickRow({ p, locale }: { p: Pick; locale: Locale }) {
   );
 }
 
+// ── Doubles Pick Card ─────────────────────────────────────────────────────
+function DoublesPickCard({ p, locale }: { p: DoublesPick; locale: Locale }) {
+  const isBR = locale === 'pt-BR';
+  const surf = surfaceKey(p.surface);
+  const settled = p.result != null;
+  const isWin  = p.result === 'win';
+  const isLoss = p.result === 'loss';
+  const isVoid = p.result === 'void';
+  const live = !settled && hasStartedDoubles(p);
+  const time = formatTime(p.scheduled_at);
+
+  // Equipa escolhida + adversária
+  const selT1 = p.team_selected === 1;
+  const selName1 = selT1 ? p.t1_p1_name : p.t2_p1_name;
+  const selName2 = selT1 ? p.t1_p2_name : p.t2_p2_name;
+  const selFlag1 = selT1 ? p.t1_p1_flag : p.t2_p1_flag;
+  const selFlag2 = selT1 ? p.t1_p2_flag : p.t2_p2_flag;
+  const oppName1 = selT1 ? p.t2_p1_name : p.t1_p1_name;
+  const oppName2 = selT1 ? p.t2_p2_name : p.t1_p2_name;
+  const oppFlag1 = selT1 ? p.t2_p1_flag : p.t1_p1_flag;
+  const oppFlag2 = selT1 ? p.t2_p2_flag : p.t1_p2_flag;
+
+  const cardBorder = isWin
+    ? 'border-[var(--color-accent)]/45 shadow-lg shadow-[var(--color-accent)]/10'
+    : isLoss
+      ? 'border-red-500/45 shadow-lg shadow-red-500/10'
+      : isVoid
+        ? 'border-gray-500/40'
+        : live
+          ? 'border-red-500/40 shadow-lg shadow-red-500/5'
+          : '';
+
+  return (
+    <div className={`stat-card p-4 md:p-5 relative ${cardBorder} ${settled ? 'opacity-90' : ''}`}>
+      {settled && (
+        <div className={`absolute -top-2 -right-2 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider z-10 ${
+          isWin ? 'bg-[var(--color-accent)] text-[var(--color-surface)]'
+                : isLoss ? 'bg-red-500 text-white'
+                : 'bg-gray-500 text-white'
+        }`}>
+          {isWin ? '✓ Green' : isLoss ? '✗ Red' : '⊘ Void'}
+        </div>
+      )}
+
+      {/* Header: torneio + surface + time/status */}
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <span className="text-xs text-gray-500 truncate flex items-center gap-1.5">
+          <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--color-card)] border border-[var(--color-border)] font-bold">
+            DUPLAS
+          </span>
+          {p.tournament_name ?? 'ATP/WTA'}
+        </span>
+        <div className="flex gap-2 items-center">
+          <span className={`surface-pill ${SURFACE_CLASS[surf]}`}>
+            {surf === 'indoor' ? 'Hard' : surfaceLabel(locale, surf)}
+          </span>
+          {settled ? (
+            <span className="text-[10px] uppercase font-bold tracking-wider text-gray-500">
+              {isBR ? 'Terminado' : 'Terminado'}
+            </span>
+          ) : live ? (
+            <span className="text-[10px] uppercase font-bold tracking-wider text-red-400 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+              LIVE
+            </span>
+          ) : (
+            time && <span className="text-[10px] uppercase font-bold text-blue-400">⏱ {time}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Equipa escolhida (destaque) vs adversária (cinza) */}
+      <div className="mb-3">
+        <div className="text-[10px] uppercase tracking-wider text-[var(--color-accent)] font-bold mb-1">
+          ⭐ {isBR ? 'Nossa dupla' : 'Nossa dupla'}
+        </div>
+        <div className="flex items-center gap-2 mb-2">
+          <PlayerAvatar src={null} flag={selFlag1} name={selName1 ?? ''} size="xs" />
+          <span className={`font-semibold text-sm truncate ${isWin ? 'text-[var(--color-accent)]' : isLoss ? 'text-red-300' : ''}`}>
+            {selName1}
+          </span>
+          <span className="text-gray-600">/</span>
+          <PlayerAvatar src={null} flag={selFlag2} name={selName2 ?? ''} size="xs" />
+          <span className={`font-semibold text-sm truncate ${isWin ? 'text-[var(--color-accent)]' : isLoss ? 'text-red-300' : ''}`}>
+            {selName2}
+          </span>
+        </div>
+        <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">vs</div>
+        <div className="flex items-center gap-2">
+          <PlayerAvatar src={null} flag={oppFlag1} name={oppName1 ?? ''} size="xs" />
+          <span className="text-gray-400 text-xs truncate">{oppName1}</span>
+          <span className="text-gray-600">/</span>
+          <PlayerAvatar src={null} flag={oppFlag2} name={oppName2 ?? ''} size="xs" />
+          <span className="text-gray-400 text-xs truncate">{oppName2}</span>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="flex items-end justify-between pt-3 border-t border-[var(--color-border)]">
+        <div>
+          <div className="text-xs text-gray-500 mb-1">Aposta</div>
+          <div className="font-semibold text-sm">{p.market}</div>
+          <div className="text-xs">@ <span className="text-[var(--color-accent)] font-mono font-semibold">{Number(p.odd).toFixed(2)}</span></div>
+        </div>
+        <div className="text-center">
+          <div className="text-xs text-gray-500 mb-1">{settled ? 'P&L' : 'EV'}</div>
+          {settled ? (
+            <div className={`font-bold font-mono ${(p.pl ?? 0) > 0 ? 'text-[var(--color-accent)]' : (p.pl ?? 0) < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+              {(p.pl ?? 0) > 0 ? '+' : ''}€{Math.abs(p.pl ?? 0).toFixed(0)}
+            </div>
+          ) : (
+            <div className="font-bold text-[var(--color-accent)]">+{Number(p.edge_pct).toFixed(1)}%</div>
+          )}
+        </div>
+        <span className={`grade-${p.grade} px-2 py-1 rounded text-xs font-bold`}>{p.grade}</span>
+      </div>
+    </div>
+  );
+}
+
 // ── Pick Card ─────────────────────────────────────────────────────────────
 function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
   const isBR = locale === 'pt-BR';
@@ -433,15 +600,21 @@ export default async function PicksPage() {
   const locale = await getLocale();
   const isBR = locale === 'pt-BR';
 
-  const [today, yesterday] = await Promise.all([
+  const [today, yesterday, todayDoubles] = await Promise.all([
     fetchTodayPicks(),
     fetchYesterdayPicks(),
+    fetchTodayDoublesPicks(),
   ]);
 
-  // Partição: settled (já tem result) > live (em curso) > upcoming (pré-jogo)
+  // Partição singles: settled > live > upcoming
   const todaySettled = today.filter(p => p.result != null);
   const todayLive    = today.filter(p => p.result == null && isLive(p));
   const todayUpcoming = today.filter(p => p.result == null && !isLive(p));
+
+  // Partição doubles (mesma estrutura)
+  const doublesSettled  = todayDoubles.filter(p => p.result != null);
+  const doublesLive     = todayDoubles.filter(p => p.result == null && hasStartedDoubles(p));
+  const doublesUpcoming = todayDoubles.filter(p => p.result == null && !hasStartedDoubles(p));
 
   const liveCount    = todayLive.length;
   const upcomingCount = todayUpcoming.length;
@@ -561,6 +734,65 @@ export default async function PicksPage() {
                   <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3">
                     {todayLive.map(p => <CompactPickRow key={p.id} p={p} locale={locale} />)}
                   </div>
+                </section>
+              )}
+
+              {/* ── DOUBLES PICKS — secção separada ───────────────────────── */}
+              {todayDoubles.length > 0 && (
+                <section className="border-t border-[var(--color-border)] pt-10 mt-2 mb-10">
+                  <div className="mb-6">
+                    <div className="inline-flex items-center gap-2 bg-[var(--color-card)] border border-[var(--color-accent)]/30 rounded-full px-3 py-1 text-xs mb-3">
+                      <span className="text-[var(--color-accent)] font-bold">NOVO</span>
+                      <span className="text-gray-400">Doubles ELO em produção</span>
+                    </div>
+                    <h2 className="text-xl font-bold mb-1">
+                      {isBR ? 'Palpites de duplas' : 'Picks de duplas'}
+                    </h2>
+                    <p className="text-xs text-gray-500">
+                      {isBR
+                        ? 'ATP + WTA · ELO próprio team-level · 116K matches treinados'
+                        : 'ATP + WTA · ELO próprio team-level · 116K matches treinados'}
+                    </p>
+                  </div>
+
+                  {doublesUpcoming.length > 0 && (
+                    <div className="mb-8">
+                      <h3 className="text-base font-bold flex items-center gap-2 mb-4">
+                        <span className="w-2 h-2 rounded-full bg-blue-400" />
+                        {isBR ? 'Por jogar' : 'Por jogar'}
+                        <span className="text-xs text-gray-500 font-normal">({doublesUpcoming.length})</span>
+                      </h3>
+                      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {doublesUpcoming.map(p => <DoublesPickCard key={p.id} p={p} locale={locale} />)}
+                      </div>
+                    </div>
+                  )}
+
+                  {doublesLive.length > 0 && (
+                    <div className="mb-8">
+                      <h3 className="text-base font-bold flex items-center gap-2 mb-4">
+                        <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
+                        {isBR ? 'Em andamento' : 'Em curso'}
+                        <span className="text-xs text-gray-500 font-normal">({doublesLive.length})</span>
+                      </h3>
+                      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {doublesLive.map(p => <DoublesPickCard key={p.id} p={p} locale={locale} />)}
+                      </div>
+                    </div>
+                  )}
+
+                  {doublesSettled.length > 0 && (
+                    <div>
+                      <h3 className="text-base font-bold flex items-center gap-2 mb-4">
+                        <span className="w-2 h-2 rounded-full bg-gray-500" />
+                        {isBR ? 'Terminados hoje' : 'Terminados hoje'}
+                        <span className="text-xs text-gray-500 font-normal">({doublesSettled.length})</span>
+                      </h3>
+                      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {doublesSettled.map(p => <DoublesPickCard key={p.id} p={p} locale={locale} />)}
+                      </div>
+                    </div>
+                  )}
                 </section>
               )}
 

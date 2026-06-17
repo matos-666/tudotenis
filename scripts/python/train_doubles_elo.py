@@ -184,8 +184,10 @@ def inactivity_decay(elo: float, days_gap: int) -> float:
 
 
 # ── Supabase API ─────────────────────────────────────────────────────────
-def supa(method: str, path: str, body=None, params=None, max_retries=4):
-    """Call Supabase REST com retry para erros transientes (network reset, 5xx)."""
+def supa(method: str, path: str, body=None, params=None, max_retries=8):
+    """Call Supabase REST com retry agressivo para erros transientes
+    (DNS, network reset, 5xx). max_retries=8 com base 3s = até ~30s de
+    espera total, suficiente para outages de DNS curtos."""
     import time as _time
     url = f'{URL}/rest/v1{path}'
     if params:
@@ -201,18 +203,19 @@ def supa(method: str, path: str, body=None, params=None, max_retries=4):
             with urllib.request.urlopen(req, timeout=60) as resp:
                 return resp.status, resp.read().decode()
         except urllib.error.HTTPError as e:
-            # 5xx → retry; outras → devolve já
+            # 5xx → retry; outras (4xx) → devolve já
             if e.code >= 500 and attempt < max_retries - 1:
-                _time.sleep(1.5 ** attempt)
+                _time.sleep(3 + attempt)
                 continue
             return e.code, e.read().decode()
-        except (urllib.error.URLError, ConnectionResetError, TimeoutError) as e:
+        except (urllib.error.URLError, ConnectionResetError, TimeoutError, OSError) as e:
             last_err = e
             if attempt < max_retries - 1:
-                _time.sleep(1.5 ** attempt)
+                wait = 3 + attempt * 2  # 3, 5, 7, 9, 11, 13, 15s = ~63s total
+                print(f'    ⚠ {type(e).__name__}: {e!s} — retry {attempt+1}/{max_retries} em {wait}s')
+                _time.sleep(wait)
                 continue
             raise
-    # unreachable
     raise last_err if last_err else RuntimeError('supa exhausted retries')
 
 
@@ -315,40 +318,126 @@ def resolve_player(te_name: str, te_slug: str, tour: str, idx: dict) -> dict | N
 
 
 def insert_new_player(te_name: str, te_slug: str, tour_short: str) -> dict | None:
-    """
-    Cria um novo player na DB para um jogador de doubles que não existe.
-    tour_short = 'atp-double' ou 'wta-double' → 'atp' ou 'wta' na DB.
-    Devolve {id, slug, name, tour} ou None se falhar.
-    """
+    """Insere 1 player. Mantido para compatibilidade. Para batch usar
+    `prepare_missing_players` que é muito mais rápido + resilente."""
+    return _insert_batch([{
+        'te_name': te_name, 'te_slug': te_slug, 'tour': tour_short
+    }]).get(te_slug)
+
+
+def _make_row(te_name: str, te_slug: str, tour_short: str) -> dict:
+    """Body para POST /players a partir de TE data."""
     tour = 'atp' if tour_short == 'atp-double' else 'wta'
-    # Slug: derived from TE slug (já normalizado e único)
-    # te_slug é tipo "bhambri-d97e5" — usamos tal como está
-    db_slug = f'te-{te_slug}'  # prefix para não colidir com nossa convenção
-    # Nome: usar TE name limpinho
-    name = te_name.strip()
-    body = {
+    db_slug = f'te-{te_slug}'
+    return {
         'slug': db_slug,
-        'name': name,
+        'name': te_name.strip(),
         'tour': tour,
-        'active': False,  # marca como inactivo (não aparece em listings)
+        'active': False,
         'elo_overall': 1500,
         'elo_doubles_overall': 1500,
     }
-    status, resp = supa('POST', '/players', body=body,
-                         params={})
-    if 200 <= status < 300:
-        data = json.loads(resp) if resp else []
-        if data:
-            return data[0]
-        # fallback: query back para apanhar id
-        st, body2 = supa('GET', '/players', params={
-            'select': 'id,slug,name,tour', 'slug': f'eq.{db_slug}', 'limit': 1
-        })
-        if st == 200:
-            arr = json.loads(body2)
-            if arr:
-                return arr[0]
-    return None
+
+
+def _insert_batch(items: list[dict]) -> dict:
+    """
+    Insere players em batch (1 POST por batch). Devolve dict
+    te_slug → {id, slug, name, tour}.
+
+    PostgREST aceita array body para bulk insert. Conflictos por slug
+    são tratados com Prefer: resolution=merge-duplicates,return=representation.
+    """
+    if not items:
+        return {}
+    rows = [_make_row(it['te_name'], it['te_slug'], it['tour']) for it in items]
+    # Usa Prefer return=representation + resolution=merge-duplicates para
+    # idempotência: se já existir, devolve a linha existente em vez de erro.
+    url = f'{URL}/rest/v1/players?on_conflict=slug'
+    req = urllib.request.Request(
+        url, data=json.dumps(rows).encode(),
+        headers={**H, 'Prefer': 'resolution=merge-duplicates,return=representation'},
+        method='POST',
+    )
+    import time as _time
+    for attempt in range(8):
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                data = json.loads(resp.read().decode())
+                # Map back to te_slug
+                out = {}
+                for it, row in zip(items, data):
+                    out[it['te_slug']] = row
+                return out
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode()[:300]
+            print(f'    ⚠ HTTP {e.code} on batch insert: {err_body}')
+            if e.code >= 500 and attempt < 7:
+                _time.sleep(3 + attempt * 2)
+                continue
+            return {}
+        except (urllib.error.URLError, ConnectionResetError, TimeoutError, OSError) as e:
+            wait = 3 + attempt * 2
+            print(f'    ⚠ {type(e).__name__} on batch insert: {e!s} — retry em {wait}s')
+            _time.sleep(wait)
+    return {}
+
+
+def prepare_missing_players(matches: list[dict], idx: dict) -> int:
+    """
+    Pre-pass: itera todos os matches, identifica players que precisam de
+    auto-create, e faz bulk insert em batches de 200.
+
+    Reduz drasticamente o nº de POSTs (de N por match → ~50-100 total).
+    Imune a falhas DNS transientes durante o training loop.
+
+    Devolve nº de players criados.
+    """
+    print('\n[pre-pass] Identifying missing players…')
+
+    # Mapa te_slug → (te_name, tour) — uma entrada por unique slug
+    missing: dict[str, tuple[str, str]] = {}
+    for m in matches:
+        tour = m['tour']
+        for slot in ('t1_p1', 't1_p2', 't2_p1', 't2_p2'):
+            te_slug = m[f'{slot}_slug']
+            te_name = m[f'{slot}_name']
+            if not te_slug:
+                continue
+            # Já sabemos quem é?
+            if te_slug in idx['by_te_slug']:
+                continue
+            # Tenta resolver via DB
+            p = resolve_player(te_name, te_slug, tour, idx)
+            if p:
+                continue
+            missing[te_slug] = (te_name, tour)
+
+    print(f'  {len(missing)} unique players novos a inserir')
+    if not missing:
+        return 0
+
+    # Bulk insert em batches de 200 (PostgREST suporta payloads grandes
+    # mas batches menores recuperam melhor de falhas)
+    items = [{'te_name': nm, 'te_slug': sl, 'tour': tr}
+             for sl, (nm, tr) in missing.items()]
+    BATCH = 200
+    created = 0
+    for i in range(0, len(items), BATCH):
+        chunk = items[i:i + BATCH]
+        out = _insert_batch(chunk)
+        # Update idx
+        for te_slug, row in out.items():
+            te_name = next((it['te_name'] for it in chunk if it['te_slug'] == te_slug), '')
+            tour = next((it['tour'] for it in chunk if it['te_slug'] == te_slug), '')
+            idx['by_te_slug'][te_slug] = row
+            last_norm, _ = parse_te_name(te_name)
+            if last_norm:
+                idx['by_last'][(last_norm, tour)].append(row)
+            idx['by_full'][(norm_name(te_name), tour)].append(row)
+        created += len(out)
+        print(f'  inserted {created:,}/{len(items):,}')
+    print(f'  ✅ {created} players criados via batch')
+    return created
 
 
 # ── Main train loop ──────────────────────────────────────────────────────
@@ -401,7 +490,8 @@ def train(matches: list[dict], idx: dict, dry_run: bool = False,
             continue
 
         tour = m['tour']  # 'atp-double' | 'wta-double'
-        # Resolve 4 jogadores (com cache + auto-create se permitido)
+        # Resolve 4 jogadores via cache (pre-pass já inseriu todos os
+        # missing). Em dry-run, simula com fake IDs sem DB.
         def get_or_create(te_name, te_slug):
             if not te_slug:
                 return None
@@ -411,8 +501,7 @@ def train(matches: list[dict], idx: dict, dry_run: bool = False,
             if not auto_create:
                 return None
             if dry_run:
-                # Simula a criação para validar o impacto sem inserir na DB.
-                # ID negativo para distinguir de IDs reais (Postgres é positivo).
+                # Simula com fake ID negativo (Postgres é positivo)
                 fake_id = -(abs(hash(te_slug)) % 10_000_000)
                 fake_p = {'id': fake_id, 'slug': f'te-{te_slug}',
                           'name': te_name.strip(),
@@ -423,15 +512,10 @@ def train(matches: list[dict], idx: dict, dry_run: bool = False,
                     idx['by_last'][(last_norm, tour)].append(fake_p)
                 idx['by_full'][(norm_name(te_name), tour)].append(fake_p)
                 return fake_p
-            # Real INSERT
-            new = insert_new_player(te_name, te_slug, tour)
-            if new:
-                idx['by_te_slug'][te_slug] = new
-                last_norm, _ = parse_te_name(te_name)
-                if last_norm:
-                    idx['by_last'][(last_norm, tour)].append(new)
-                idx['by_full'][(norm_name(te_name), tour)].append(new)
-            return new
+            # Real run: pre-pass devia ter coberto, mas se algo escapar
+            # (race de TE slugs entre passes) cai aqui — falha mas log
+            print(f'    ⚠ Player não pre-created: {te_name} ({te_slug})')
+            return None
 
         p1a = get_or_create(m['t1_p1_name'], m['t1_p1_slug'])
         p1b = get_or_create(m['t1_p2_name'], m['t1_p2_slug'])
@@ -547,26 +631,24 @@ def write_elos(elos: dict, idx: dict):
         })
     print(f'    {len(rows):,} players to PATCH')
 
+    # Usa supa() com retry agressivo (8 tentativas, base 3s) — resilente
+    # a falhas de DNS/network durante o batch enorme.
     ok = fail = 0
     for i, row in enumerate(rows, 1):
         pid = row.pop('id')
-        url = f'{URL}/rest/v1/players?id=eq.{pid}'
-        req = urllib.request.Request(
-            url, data=json.dumps(row).encode(),
-            headers={**H, 'Prefer': 'return=minimal'},
-            method='PATCH',
-        )
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                if 200 <= resp.status < 300:
-                    ok += 1
-                else:
-                    fail += 1
-        except urllib.error.HTTPError as e:
+            status, _ = supa('PATCH', f'/players?id=eq.{pid}', body=row)
+            if 200 <= status < 300:
+                ok += 1
+            else:
+                fail += 1
+                if fail <= 5:
+                    print(f'    id={pid}: HTTP {status}')
+        except Exception as e:
             fail += 1
-            if fail <= 3:
-                print(f'    id={pid}: {e.code}')
-        if i % 200 == 0:
+            if fail <= 5:
+                print(f'    id={pid}: {type(e).__name__}: {e!s}')
+        if i % 500 == 0:
             print(f'    {i:,}/{len(rows):,}  (ok={ok}, fail={fail})')
     print(f'  ✅ {ok}/{len(rows)} updated  ·  {fail} fail')
 
@@ -583,8 +665,15 @@ def main():
     if not matches:
         sys.exit('No matches — corre primeiro o scrape_tennisexplorer_doubles.py')
 
-    print('\n[2/3] Loading players from DB + training…')
+    print('\n[2/4] Loading players from DB…')
     idx = fetch_all_players()
+
+    # Pre-pass: insere todos os players novos em batches antes do training
+    # (apenas no real run; dry-run usa fake IDs em memória)
+    if not args.dry_run:
+        prepare_missing_players(matches, idx)
+
+    print('\n[3/4] Training…')
     elos = train(matches, idx, dry_run=args.dry_run)
 
     # Top 10 sample
@@ -598,10 +687,10 @@ def main():
         print(f'    {name:32s}  {elo:7.1f}   ({cnt:,} matches)')
 
     if args.dry_run:
-        print('\n[3/3] DRY-RUN — não escreve.')
+        print('\n[4/4] DRY-RUN — não escreve.')
         return
 
-    print('\n[3/3] Writing ELOs to Supabase…')
+    print('\n[4/4] Writing ELOs to Supabase…')
     write_elos(elos, idx)
     print('\nDONE.')
 

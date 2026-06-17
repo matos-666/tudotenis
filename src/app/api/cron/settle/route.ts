@@ -366,6 +366,43 @@ export async function POST(req: NextRequest) {
           }
         }
         logs.push(`  ✅ duplas ${dm.t1_p1_name}/${dm.t1_p2_name} vs ${dm.t2_p1_name}/${dm.t2_p2_name} ${score} → team${winnerTeam ?? 'void'}`);
+
+        // ── Settle de doubles_picks que referenciam este match ─────────
+        // Busca picks pendentes e marca win/loss/void + P&L com base no
+        // team_selected vs winner_team.
+        const { data: dblPicks } = await supa
+          .from('doubles_picks')
+          .select('id, team_selected, odd, stake')
+          .eq('doubles_match_id', dm.id)
+          .is('result', null);
+        for (const dp of dblPicks ?? []) {
+          let result: 'win' | 'loss' | 'void';
+          let pl = 0;
+          if (winnerTeam === null) {
+            result = 'void';
+            pl = 0;
+          } else if (dp.team_selected === winnerTeam) {
+            result = 'win';
+            pl = Math.round((Number(dp.stake) * (Number(dp.odd) - 1)) * 100) / 100;
+          } else {
+            result = 'loss';
+            pl = -Number(dp.stake);
+          }
+          const { error: pickUpdErr } = await supa
+            .from('doubles_picks')
+            .update({
+              result,
+              pl,
+              settled_at: new Date().toISOString(),
+            })
+            .eq('id', dp.id);
+          if (pickUpdErr) {
+            logs.push(`    ⚠ doubles pick ${dp.id}: ${pickUpdErr.message}`);
+          } else {
+            const emoji = result === 'win' ? '✅' : result === 'loss' ? '❌' : '⊘';
+            logs.push(`    ${emoji} pick #${dp.id} → ${result.toUpperCase()}  P&L=€${pl.toFixed(2)}`);
+          }
+        }
       }
     } catch (e) {
       logs.push(`  ⚠ duplas settle: ${e instanceof Error ? e.message : String(e)}`);
