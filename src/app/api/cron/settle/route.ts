@@ -196,9 +196,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, settled: 0, pending: 0, logs });
     }
 
-    // 2. Scrape page (uma vez para ambos singles + doubles)
-    logs.push('📡 Scraping resultados…');
-    const html = await fetchTennisStatsHtml();
+    // 2. Scrape page — usa body do request se for text/html (cenário
+    //    GitHub Actions a fazer fetch local + POST do HTML), senão fetcha
+    //    directamente. Workaround para TennisStats bloquear IPs Vercel.
+    let html: string;
+    const ctSettle = req.headers.get('content-type') ?? '';
+    if (ctSettle.includes('text/html')) {
+      html = await req.text();
+      logs.push(`📡 HTML pré-scraped recebido (${html.length} bytes)`);
+    } else {
+      logs.push('📡 Scraping resultados…');
+      html = await fetchTennisStatsHtml();
+    }
     const finished = parseFinished(html);
     logs.push(`   ${finished.length} jogos singles terminados`);
 

@@ -16,12 +16,32 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: Call /api/cron/picks
+      # TennisStats bloqueia IPs Vercel desde 21 Jun 2026 → fazemos o
+      # scrape aqui (GitHub Actions, IPs diferentes) e enviamos o HTML
+      # como body para o endpoint do Vercel processar.
+      - name: Scrape TennisStats HTML
+        id: scrape
         run: |
-          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
-            -X POST "https://tudotenis.vercel.app/api/cron/picks" \
+          curl -sS \
+            -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
+            -H "Accept: text/html,application/xhtml+xml" \
+            -H "Accept-Language: pt-PT,pt;q=0.9,en;q=0.8" \
+            -o /tmp/ts.html -w "HTTP=%{http_code} SIZE=%{size_download}\n" \
+            "https://tennisstats.com/"
+          ls -la /tmp/ts.html
+          if [ ! -s /tmp/ts.html ]; then
+            echo "❌ Scrape vazio"
+            exit 1
+          fi
+
+      - name: POST HTML to /api/cron/picks
+        run: |
+          RESPONSE=$(curl -sS -w "\nHTTP_STATUS:%{http_code}" \
+            -X POST "https://tudotenis.com/api/cron/picks" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            -H "Content-Type: application/json")
+            -H "Content-Type: text/html" \
+            --data-binary @/tmp/ts.html \
+            --max-time 90)
 
           HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
           BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS:")
