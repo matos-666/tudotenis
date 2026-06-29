@@ -1,0 +1,48 @@
+name: Live Odds Poller
+
+# Stub: corre em paralelo ao live_state_poller para capturar odds das
+# casas em sincronia com snapshots de live_state.
+#
+# Status: o endpoint /api/cron/live-odds é no-op até pluggar o adapter
+# real (1xBet betlbl tennis / OddsAPI live). Manter desligado da agenda
+# (workflow_dispatch only) para não gastar runner-minutes em vão.
+
+on:
+  workflow_dispatch:
+  # Quando o adapter estiver pronto, descomentar a próxima linha:
+  # schedule:
+  #   - cron: "*/5 * * * *"
+
+jobs:
+  poll:
+    name: Poll live-odds
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+
+    steps:
+      - name: Loop 10× 30s = 5min
+        run: |
+          ENDPOINT="https://tudotenis.com/api/cron/live-odds"
+          ITERATIONS=10
+          INTERVAL_S=30
+          OK=0
+          FAIL=0
+
+          for i in $(seq 1 $ITERATIONS); do
+            ts=$(date +%H:%M:%S)
+            response=$(curl -sS -w "\nHTTP:%{http_code}" \
+              -X POST "$ENDPOINT" \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              --max-time 15)
+            code=$(echo "$response" | grep "HTTP:" | cut -d: -f2)
+            body=$(echo "$response" | grep -v "HTTP:")
+            echo "[$ts] iter=$i HTTP=$code → $body"
+            if [ "$code" = "200" ]; then OK=$((OK+1)); else FAIL=$((FAIL+1)); fi
+            if [ $i -lt $ITERATIONS ]; then sleep $INTERVAL_S; fi
+          done
+
+          echo ""
+          echo "═══ Summary ═══"
+          echo "OK:   $OK / $ITERATIONS"
+          echo "FAIL: $FAIL / $ITERATIONS"
+          if [ $OK -eq 0 ]; then exit 1; fi

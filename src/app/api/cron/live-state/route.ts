@@ -142,43 +142,154 @@ async function fetchPlayerEloTour(playerId: number): Promise<{
   };
 }
 
+function buildFinalScore(periods: Record<string, { home: number; away: number }> | undefined): string | null {
+  if (!periods) return null;
+  const keys = Object.keys(periods).sort();
+  const parts: string[] = [];
+  for (const k of keys) {
+    const p = periods[k];
+    if (p.home === 0 && p.away === 0) continue;
+    parts.push(`${p.home}-${p.away}`);
+  }
+  return parts.length > 0 ? parts.join(', ') : null;
+}
+
+async function settleMatch(srMatchId: number, finalWinner: 'A' | 'B', finalScore: string | null): Promise<{ snapshots: number; picks: number }> {
+  const settledAt = new Date().toISOString();
+  // Backfill outcome em todas as snapshots deste match
+  const { count: snapshotsUpdated } = await supabase
+    .from('live_state')
+    .update({ final_winner: finalWinner, final_score: finalScore, settled_at: settledAt }, { count: 'exact' })
+    .eq('sr_match_id', srMatchId)
+    .is('final_winner', null);
+
+  // Settle live_picks abertos deste match
+  const { data: openPicks } = await supabase
+    .from('live_picks')
+    .select('id, selection, live_odd, stake')
+    .eq('sr_match_id', srMatchId)
+    .is('result', null);
+
+  let picksSettled = 0;
+  for (const pick of openPicks ?? []) {
+    const sel = pick.selection as 'A' | 'B' | string;
+    const won = sel === finalWinner;
+    const odd = pick.live_odd != null ? Number(pick.live_odd) : null;
+    const stake = Number(pick.stake ?? 1);
+    const pl = odd != null ? (won ? +(stake * (odd - 1)).toFixed(2) : -stake) : null;
+    const { error } = await supabase
+      .from('live_picks')
+      .update({ result: won ? 'win' : 'loss', pl, settled_at: settledAt })
+      .eq('id', pick.id);
+    if (!error) picksSettled++;
+  }
+
+  return { snapshots: snapshotsUpdated ?? 0, picks: picksSettled };
+}
+
+async function maybeEmitPick(opts: {
+  srMatchId: number;
+  snapshotId: number | null;
+  state: { sA: number; sB: number; gA: number; gB: number; ptA: number; ptB: number; server: 'A' | 'B'; tiebreak: boolean };
+  matchProb: number;
+  importance: number;
+  playerAId: number;
+  playerBId: number;
+  nameA: string;
+  nameB: string;
+  tournamentSlug: string;
+}): Promise<boolean> {
+  const { matchProb, importance, state } = opts;
+
+  // Anti-volatility guard: nunca emite em estados de alta importância (BP críticos,
+  // set points apertados). Captura sinais quando o modelo está confortável.
+  if (importance > 0.18) return false;
+
+  // Convicção mínima: só emite quando o modelo divergiu meaningfully de 50/50
+  let selection: 'A' | 'B';
+  let conviction: number;
+  if (matchProb >= 0.62) {
+    selection = 'A';
+    conviction = matchProb;
+  } else if (matchProb <= 0.38) {
+    selection = 'B';
+    conviction = 1 - matchProb;
+  } else {
+    return false;
+  }
+
+  const grade = conviction >= 0.75 ? 'A' : conviction >= 0.65 ? 'B' : 'C';
+  const scoreDesc = `${state.sA}-${state.sB} sets · ${state.tiebreak ? 'TB' : `${state.gA}-${state.gB}`} game`;
+
+  const { error } = await supabase
+    .from('live_picks')
+    .upsert({
+      sr_match_id: opts.srMatchId,
+      state_snapshot_id: opts.snapshotId,
+      set_a: state.sA, set_b: state.sB,
+      game_a: state.gA, game_b: state.gB,
+      point_a: state.ptA, point_b: state.ptB,
+      server: state.server,
+      tiebreak: state.tiebreak,
+      score_description: scoreDesc,
+      player_a_id: opts.playerAId,
+      player_b_id: opts.playerBId,
+      name_a: opts.nameA,
+      name_b: opts.nameB,
+      tournament_slug: opts.tournamentSlug,
+      selection,
+      market: 'match_winner',
+      model_prob: +conviction.toFixed(4),
+      point_importance: +importance.toFixed(4),
+      grade,
+      stake: 1,
+    }, { onConflict: 'sr_match_id,selection,set_a,set_b,game_a,game_b', ignoreDuplicates: true });
+
+  return !error;
+}
+
 async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[number]): Promise<{
-  ok: boolean; reason?: string;
+  ok: boolean; reason?: string; settled?: boolean; pickEmitted?: boolean;
 }> {
+  // Skip se já settled (evita re-processar e poupa Sportradar calls)
+  const { data: existingSettled } = await supabase
+    .from('live_state')
+    .select('id')
+    .eq('sr_match_id', m._id)
+    .not('final_winner', 'is', null)
+    .limit(1)
+    .maybeSingle();
+  if (existingSettled) return { ok: false, reason: 'already_settled' };
+
   const get = await sr<{ doc: Array<{ data: SrMatchGet }> }>(`match_get/${m._id}`);
   const data = get?.doc?.[0]?.data;
   if (!data) return { ok: false, reason: 'no_match_get' };
 
   const running = data.timeinfo?.running === true;
-  if (!running && !data.ended_uts) {
+  const winnerCode = data.result?.winner;
+  const justEnded = !running && Boolean(data.ended_uts) && (winnerCode === 'home' || winnerCode === 'away');
+
+  if (!running && !justEnded) {
     return { ok: false, reason: 'not_running' };
   }
 
   const state = buildState(data);
   if (!state) return { ok: false, reason: 'state_unparseable' };
 
-  // Force BO5 for men's slams (covers Wimbledon ATP)
   if (season.tour === 'atp' && season.tournamentSlug.includes('wimbledon')) {
     state.bestOf = 5;
   } else {
     state.bestOf = 3;
   }
 
-  // Stats
   const det = await sr<{ doc: Array<{ data: SrDetailsExtended }> }>(`match_detailsextended/${m._id}`);
   const stats = det?.doc?.[0]?.data ?? null;
   const aces = pickStat(stats, '130');
   const df = pickStat(stats, '132');
   const bpWon = pickStat(stats, '139');
-  const ptsTotal = pickStat(stats, '136');     // Points won (we use as proxy)
-  const servePts = pickStat(stats, '141');      // Service Points Won
-  const fsWon = pickStat(stats, '1410');         // 1st serve points won
-  // For Bayesian update we need (s, n) — serve pts won, serve pts total
-  // Sportradar exposes "Service Points Won" but total served = serve pts won + serve pts lost.
-  // Without "service points played" we approximate via aces + DFs + 1st/2nd serve splits.
-  // Iteration v1: skip Bayes if we can't get clean (s, n). Use prior only.
+  const servePts = pickStat(stats, '141');
+  const fsWon = pickStat(stats, '1410');
 
-  // Player resolution
   const playerMap = await resolveSrPlayers([
     { sr_team_id: data.teams.home._id, name: data.teams.home.name },
     { sr_team_id: data.teams.away._id, name: data.teams.away.name },
@@ -186,11 +297,9 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
   const playerAId = playerMap.get(data.teams.home._id) ?? null;
   const playerBId = playerMap.get(data.teams.away._id) ?? null;
 
-  // ELO priors
   let pAprior: number | null = null;
   let pBprior: number | null = null;
   let matchProb: number | null = null;
-  let setProb: number | null = null;
   let importance: number | null = null;
   let pAlive: number | null = null;
   let pBlive: number | null = null;
@@ -213,44 +322,83 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
     }
   }
 
-  await supabase.from('live_state').insert({
-    sr_match_id: data._id,
-    sr_season_id: data._seasonid,
-    sr_tournament_id: data._utid,
-    tournament_slug: season.tournamentSlug,
-    set_a: state.sA, set_b: state.sB,
-    game_a: state.gA, game_b: state.gB,
-    point_a: state.ptA, point_b: state.ptB,
-    server: state.server,
-    tiebreak: state.tiebreak,
-    best_of: state.bestOf,
-    match_finished: !running && data.ended_uts ? true : false,
-    player_a_id: playerAId,
-    player_b_id: playerBId,
-    sr_team_a_id: data.teams.home._id,
-    sr_team_b_id: data.teams.away._id,
-    name_a: data.teams.home.name,
-    name_b: data.teams.away.name,
-    aces_a: aces.a, aces_b: aces.b,
-    df_a: df.a, df_b: df.b,
-    bp_won_a: bpWon.a, bp_won_b: bpWon.b,
-    serve_pts_won_a: servePts.a, serve_pts_won_b: servePts.b,
-    first_serve_won_a: fsWon.a, first_serve_won_b: fsWon.b,
-    p_a_serve_prior: pAprior,
-    p_b_serve_prior: pBprior,
-    p_a_serve_live: pAlive,
-    p_b_serve_live: pBlive,
-    match_win_prob_a: matchProb,
-    set_win_prob_a: setProb,
-    point_importance: importance,
-    running,
-  });
+  const finalWinner = justEnded ? (winnerCode === 'home' ? 'A' : 'B') as 'A' | 'B' : null;
+  const finalScore = justEnded ? buildFinalScore(data.periods) : null;
 
-  return { ok: true };
+  const { data: inserted } = await supabase
+    .from('live_state')
+    .insert({
+      sr_match_id: data._id,
+      sr_season_id: data._seasonid,
+      sr_tournament_id: data._utid,
+      tournament_slug: season.tournamentSlug,
+      set_a: state.sA, set_b: state.sB,
+      game_a: state.gA, game_b: state.gB,
+      point_a: state.ptA, point_b: state.ptB,
+      server: state.server,
+      tiebreak: state.tiebreak,
+      best_of: state.bestOf,
+      match_finished: justEnded,
+      final_winner: finalWinner,
+      final_score: finalScore,
+      settled_at: justEnded ? new Date().toISOString() : null,
+      player_a_id: playerAId,
+      player_b_id: playerBId,
+      sr_team_a_id: data.teams.home._id,
+      sr_team_b_id: data.teams.away._id,
+      name_a: data.teams.home.name,
+      name_b: data.teams.away.name,
+      aces_a: aces.a, aces_b: aces.b,
+      df_a: df.a, df_b: df.b,
+      bp_won_a: bpWon.a, bp_won_b: bpWon.b,
+      serve_pts_won_a: servePts.a, serve_pts_won_b: servePts.b,
+      first_serve_won_a: fsWon.a, first_serve_won_b: fsWon.b,
+      p_a_serve_prior: pAprior,
+      p_b_serve_prior: pBprior,
+      p_a_serve_live: pAlive,
+      p_b_serve_live: pBlive,
+      match_win_prob_a: matchProb,
+      point_importance: importance,
+      running,
+    })
+    .select('id')
+    .single();
+
+  // ── #1 Settlement: backfill outcome em todas as snapshots + close picks ────
+  if (justEnded && finalWinner) {
+    await settleMatch(data._id, finalWinner, finalScore);
+    return { ok: true, settled: true };
+  }
+
+  // ── #2 Pseudo-pick: emite quando modelo divergiu e estado é estável ───────
+  let pickEmitted = false;
+  if (
+    running &&
+    matchProb != null &&
+    importance != null &&
+    playerAId != null &&
+    playerBId != null &&
+    inserted?.id != null
+  ) {
+    pickEmitted = await maybeEmitPick({
+      srMatchId: data._id,
+      snapshotId: inserted.id,
+      state: { sA: state.sA, sB: state.sB, gA: state.gA, gB: state.gB, ptA: state.ptA, ptB: state.ptB, server: state.server, tiebreak: state.tiebreak },
+      matchProb,
+      importance,
+      playerAId,
+      playerBId,
+      nameA: data.teams.home.name,
+      nameB: data.teams.away.name,
+      tournamentSlug: season.tournamentSlug,
+    });
+  }
+
+  return { ok: true, pickEmitted };
 }
 
-async function pollOnce(): Promise<{ checked: number; running: number; errors: number }> {
-  let checked = 0, running = 0, errors = 0;
+async function pollOnce(): Promise<{ checked: number; running: number; settled: number; picks: number; errors: number }> {
+  let checked = 0, running = 0, settled = 0, picks = 0, errors = 0;
   const nowUts = Math.floor(Date.now() / 1000);
 
   for (const season of ACTIVE_SEASONS) {
@@ -258,7 +406,6 @@ async function pollOnce(): Promise<{ checked: number; running: number; errors: n
       `stats_season_fixtures2/${season.id}/1`,
     );
     const matches = fixtures?.doc?.[0]?.data?.matches ?? [];
-    // Candidatos: matches cuja hora de início é nas últimas 6h ou nas próximas 1h
     const candidates = matches.filter(m => {
       const uts = m._dt?.uts ?? 0;
       return uts > nowUts - 6 * 3600 && uts < nowUts + 3600;
@@ -268,6 +415,8 @@ async function pollOnce(): Promise<{ checked: number; running: number; errors: n
       try {
         const r = await processMatch(m, season);
         if (r.ok) running++;
+        if (r.settled) settled++;
+        if (r.pickEmitted) picks++;
       } catch (e) {
         errors++;
         console.error(`[live-state] match ${m._id}:`, e);
@@ -275,7 +424,7 @@ async function pollOnce(): Promise<{ checked: number; running: number; errors: n
     }
   }
 
-  return { checked, running, errors };
+  return { checked, running, settled, picks, errors };
 }
 
 export async function POST(req: NextRequest) {
