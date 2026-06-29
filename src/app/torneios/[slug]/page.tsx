@@ -74,18 +74,38 @@ export async function generateMetadata({
   const t = await fetchTournament(slug);
   if (!t) return { title: 'Torneio não encontrado' };
   const winner = t.atp_winner?.name || t.wta_winner?.name;
+  const fullName = t.full_name ?? t.name;
+  const surf = t.surface_label ?? '';
+  const loc = t.location ? ` em ${t.location}` : '';
+  const dates = formatDateRangePT(t.start_date, t.end_date);
   const desc = t.status === 'finished'
-    ? `Resultado completo: ${winner ? `vencido por ${winner}` : 'detalhes oficiais'}. Final, finalistas, prize money, calendário.`
-    : `${t.status === 'live' ? 'Em curso · ' : 'Próximo torneio · '}${t.story?.slice(0, 100) ?? ''}`;
+    ? `${fullName}${loc} · ${surf} · ${winner ? `vencido por ${winner}` : 'resultado oficial'}. Final, finalistas, draw, prize money.`
+    : t.status === 'live'
+    ? `${fullName} em curso${loc} · ${surf}${dates ? ` · ${dates}` : ''}. Predictor, draw ao vivo, palpites por ronda e probabilidades pelo modelo ELO TudoTénis.`
+    : `Predictor e análise ELO para ${fullName}${loc} · ${surf}${dates ? ` · ${dates}` : ''}. Top favoritos, probabilidades, palpites e estatísticas avançadas.`;
   return {
-    title: `${t.full_name ?? t.name} · ${t.surface_label ?? ''} · TudoTénis`,
+    title: `${fullName} · ${surf}`,
     description: desc,
     alternates: hreflangAlternates(`/torneios/${t.slug}`),
     openGraph: {
-      title: `${t.full_name ?? t.name}`,
+      title: fullName,
       description: desc,
     },
   };
+}
+
+function formatDateRangePT(start: string | null, end: string | null): string {
+  if (!start) return '';
+  const s = new Date(start);
+  const e = end ? new Date(end) : null;
+  const mNames = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const sm = mNames[s.getUTCMonth()];
+  if (!e) return `${s.getUTCDate()} ${sm}`;
+  const em = mNames[e.getUTCMonth()];
+  if (sm === em && s.getUTCFullYear() === e.getUTCFullYear()) {
+    return `${s.getUTCDate()}-${e.getUTCDate()} ${sm}`;
+  }
+  return `${s.getUTCDate()} ${sm}-${e.getUTCDate()} ${em}`;
 }
 
 // Indoor não tem styling próprio na UI — torneios indoor são quase sempre

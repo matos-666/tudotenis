@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { hreflangAlternates, localizedHref, type Locale } from '@/lib/i18n';
 
 export const metadata: Metadata = {
-  title: 'Jogadores · ATP, WTA, Challengers · TudoTénis',
+  title: 'Jogadores · ATP, WTA, Challengers',
   description:
     'Diretório completo de jogadores de ténis. ELO próprio, head-to-head, estatísticas por superfície. ATP, WTA, Challengers e ITF — em português.',
   alternates: hreflangAlternates('/jogadores'),

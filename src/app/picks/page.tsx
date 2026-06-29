@@ -9,7 +9,7 @@ import { hreflangAlternates, localizedHref, surfaceLabel, type Locale } from '@/
 import { buildMatchupSlug } from '@/lib/elo';
 
 export const metadata: Metadata = {
-  title: 'Picks do dia · ELO + Edge · TudoTénis',
+  title: 'Picks do dia · ELO + Edge',
   description:
     'Picks de ténis publicados pelo modelo ELO TudoTénis. Yield comprovado +27,6% em 439 tips auditadas. Terra batida, hard, relvado. ATP, WTA e Challengers.',
   alternates: hreflangAlternates('/picks'),

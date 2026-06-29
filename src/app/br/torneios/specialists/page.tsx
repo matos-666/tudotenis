@@ -3,7 +3,7 @@ import { hreflangAlternatesBR } from '@/lib/i18n';
 import SpecialistsPage from '../../../torneios/specialists/page';
 
 export const metadata: Metadata = {
-  title: 'Specialists por piso · ELO saibro, grama, hard · TudoTênis',
+  title: 'Specialists por piso · ELO saibro, grama, hard',
   description:
     'Quem joga acima do seu nível em cada piso. Top 15 saibro specialists, grama specialists, hard specialists segundo o nosso modelo ELO próprio.',
   alternates: hreflangAlternatesBR('/torneios/specialists'),

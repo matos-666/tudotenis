@@ -17,7 +17,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { matchup } = await params;
   return {
-    title: `H2H · ${matchup.replace(/-vs-/g, ' vs ').replace(/-/g, ' ')} · TudoTênis`,
+    title: `H2H · ${matchup.replace(/-vs-/g, ' vs ').replace(/-/g, ' ')}`,
     description: 'Probabilidade ELO de vitória, comparação por piso e odds justas.',
     alternates: hreflangAlternatesBR(`/h2h/${matchup}`),
   };

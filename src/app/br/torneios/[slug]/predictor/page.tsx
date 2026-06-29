@@ -24,7 +24,7 @@ export async function generateMetadata({
     .single();
   if (!t) return { title: 'Torneio não encontrado' };
   return {
-    title: `Predictor ${t.full_name ?? t.name} · Probabilidade de vencer · TudoTênis`,
+    title: `Predictor ${t.full_name ?? t.name} · Probabilidade de vencer`,
     description: `Simulação Monte Carlo para ${t.full_name ?? t.name} ${t.year}. Probabilidade de cada top contender vencer o título.`,
     alternates: hreflangAlternatesBR(`/torneios/${slug}/predictor`),
   };

@@ -3,7 +3,7 @@ import { hreflangAlternatesBR } from '@/lib/i18n';
 import PicksPage from '../../picks/page';
 
 export const metadata: Metadata = {
-  title: 'Palpites de hoje · ELO + Edge · TudoTênis',
+  title: 'Palpites de hoje · ELO + Edge',
   description:
     'Palpites de tênis publicados pelo modelo ELO TudoTênis. Yield comprovado +27,6% em 439 tips auditados. Saibro, hard, grama. ATP, WTA e Challengers.',
   alternates: hreflangAlternatesBR('/picks'),

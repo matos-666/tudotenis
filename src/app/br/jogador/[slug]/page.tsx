@@ -28,7 +28,7 @@ export async function generateMetadata({
     description: `Perfil de ${p.name} (${(p.tour as string).toUpperCase()} #${p.atp_rank ?? '?'}). ELO próprio: ${p.elo_overall} geral · ${p.elo_hard} hard · ${p.elo_clay} saibro · ${p.elo_grass} grama. Histórico, splits por piso, próximos jogos.`, // pt-BR keeps saibro/grama
     alternates: hreflangAlternatesBR(`/jogador/${p.slug}`),
     openGraph: {
-      title: `${p.name} · TudoTênis`,
+      title: `${p.name}`,
       description: `ELO ${p.elo_overall} · ${(p.tour as string).toUpperCase()} #${p.atp_rank ?? '?'}`,
       images: p.photo_url ? [{ url: p.photo_url as string, alt: p.name as string }] : undefined,
     },

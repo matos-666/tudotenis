@@ -24,7 +24,7 @@ export async function generateMetadata({
     .single();
   if (!t) return { title: 'Torneio não encontrado' };
   return {
-    title: `${t.full_name ?? t.name} · ${t.surface_label ?? ''} · TudoTênis`,
+    title: `${t.full_name ?? t.name} · ${t.surface_label ?? ''}`,
     description: `${t.full_name ?? t.name} · resultados, ELO e previsões.`,
     alternates: hreflangAlternatesBR(`/torneios/${t.slug}`),
   };

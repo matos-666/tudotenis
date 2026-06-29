@@ -3,7 +3,7 @@ import { hreflangAlternatesBR } from '@/lib/i18n';
 import JogadoresPage from '../../jogadores/page';
 
 export const metadata: Metadata = {
-  title: 'Jogadores · ATP, WTA, Challengers · TudoTênis',
+  title: 'Jogadores · ATP, WTA, Challengers',
   description:
     'Diretório completo de jogadores de tênis. ELO próprio, head-to-head, estatísticas por piso. ATP, WTA, Challengers e ITF — em português.',
   alternates: hreflangAlternatesBR('/jogadores'),

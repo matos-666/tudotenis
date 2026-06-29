@@ -4,7 +4,7 @@ import { isAdminAuthed } from '@/lib/admin-auth';
 import { logoutAction } from '../login/actions';
 
 export const metadata = {
-  title: 'Admin · TudoTénis',
+  title: 'Admin',
   robots: { index: false, follow: false },
 };
 

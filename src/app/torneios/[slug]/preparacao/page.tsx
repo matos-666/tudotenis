@@ -87,7 +87,7 @@ export async function generateMetadata({
   if (!t) return { title: 'Torneio não encontrado' };
   const surfStr = t.surface ? surfaceLabel('pt-PT', t.surface).toLowerCase() : 'superfície';
   return {
-    title: `Quem está preparado para ${t.full_name ?? t.name}? · ELO ${surfStr} · TudoTénis`,
+    title: `Quem está preparado para ${t.full_name ?? t.name}? · ELO ${surfStr}`,
     description: `Análise ELO pré-torneio para ${t.full_name ?? t.name} ${t.year}. Top contenders por ${surfStr}, specialists ocultos, jogadores vulneráveis. Modelo ELO próprio.`,
     alternates: hreflangAlternates(`/torneios/${slug}/preparacao`),
   };

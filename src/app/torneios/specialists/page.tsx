@@ -9,7 +9,7 @@ import { displayElo } from '@/lib/elo';
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: 'Specialists por superfície · ELO clay, grass, hard · TudoTénis',
+  title: 'Specialists por superfície · ELO clay, grass, hard',
   description:
     'Quem joga acima do seu nível em cada superfície. Top 30 clay specialists, grass specialists, hard specialists segundo o nosso modelo ELO próprio.',
   alternates: hreflangAlternates('/torneios/specialists'),

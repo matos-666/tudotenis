@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { supabase } from '@/lib/supabase';
-import { eloProb, fairOdds, parseMatchupSlug, displayElo } from '@/lib/elo';
+import { eloProb, fairOdds, parseMatchupSlug, displayElo, buildMatchupSlug } from '@/lib/elo';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { breadcrumbJsonLd } from '@/lib/jsonld';
@@ -489,6 +489,16 @@ export default async function H2HPage({
 
   // Se não conseguiu parsear como par mas é um slug válido de player → redirect
   if (!pair) {
+    // Short last-name fallback: /h2h/alcaraz-vs-sinner → 301 canonical
+    if (matchup.includes('-vs-')) {
+      const [shortA, shortB] = matchup.split('-vs-');
+      const allSlugs = await fetchAllSlugs();
+      const matchA = [...allSlugs].filter(s => s === shortA || s.endsWith(`-${shortA}`));
+      const matchB = [...allSlugs].filter(s => s === shortB || s.endsWith(`-${shortB}`));
+      if (matchA.length === 1 && matchB.length === 1 && matchA[0] !== matchB[0]) {
+        redirect(`${prefix}/h2h/${buildMatchupSlug(matchA[0], matchB[0])}`);
+      }
+    }
     const { data } = await supabase
       .from('players')
       .select('slug')

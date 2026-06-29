@@ -82,7 +82,7 @@ export async function generateMetadata({
   const t = await fetchTournament(slug);
   if (!t) return { title: 'Torneio não encontrado' };
   return {
-    title: `Predictor ${t.full_name ?? t.name} · Probabilidade de vencer · TudoTénis`,
+    title: `Predictor ${t.full_name ?? t.name} · Probabilidade de vencer`,
     description: `Simulação Monte Carlo para ${t.full_name ?? t.name} ${t.year}. Probabilidade de cada top contender vencer o título segundo o nosso modelo ELO.`,
     alternates: hreflangAlternates(`/torneios/${slug}/predictor`),
   };

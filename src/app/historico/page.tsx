@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { hreflangAlternates, type Locale } from '@/lib/i18n';
 
 export const metadata: Metadata = {
-  title: 'Histórico de picks · Performance auditada · TudoTénis',
+  title: 'Histórico de picks · Performance auditada',
   description:
     'Histórico completo de picks resolvidos pelo modelo ELO TudoTénis. Yield, win rate, P&L. Transparência total — todos os picks são publicados antes dos jogos começarem.',
   alternates: hreflangAlternates('/historico'),
