@@ -20,10 +20,9 @@ import {
 import { resolveSrPlayers } from '@/lib/sr-player-match';
 
 export const dynamic = 'force-dynamic';
-// Hobby plan: max 10s. Endpoint faz UM poll cycle por invocação.
-// Loop de polling fica no GitHub Action que chama este endpoint
-// em ciclo a cada 5min.
-export const maxDuration = 10;
+// Vercel Hobby plan permite 60s para funções (atualizado 2024).
+// Endpoint faz UM poll cycle por invocação com processamento paralelo.
+export const maxDuration = 60;
 
 // Hardcoded Wimbledon 2026 season IDs descobertos via gismo
 // stats_season_fixtures2. ATP = 132572. WTA TBD (adicionar quando
@@ -401,6 +400,7 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
 async function pollOnce(): Promise<{ checked: number; running: number; settled: number; picks: number; errors: number }> {
   let checked = 0, running = 0, settled = 0, picks = 0, errors = 0;
   const nowUts = Math.floor(Date.now() / 1000);
+  const CONCURRENCY = 8;
 
   for (const season of ACTIVE_SEASONS) {
     const fixtures = await sr<{ doc: Array<{ data: { matches: SrSeasonMatch[] } }> }>(
@@ -411,16 +411,17 @@ async function pollOnce(): Promise<{ checked: number; running: number; settled: 
       const uts = m.time?.uts ?? 0;
       return uts > nowUts - 6 * 3600 && uts < nowUts + 3600;
     });
-    for (const m of candidates) {
-      checked++;
-      try {
-        const r = await processMatch(m, season);
-        if (r.ok) running++;
-        if (r.settled) settled++;
-        if (r.pickEmitted) picks++;
-      } catch (e) {
-        errors++;
-        console.error(`[live-state] match ${m._id}:`, e);
+
+    // Processa em batches paralelas para caber em 60s mesmo com 22+ matches.
+    for (let i = 0; i < candidates.length; i += CONCURRENCY) {
+      const batch = candidates.slice(i, i + CONCURRENCY);
+      const results = await Promise.allSettled(batch.map(m => processMatch(m, season)));
+      for (const r of results) {
+        checked++;
+        if (r.status === 'rejected') { errors++; continue; }
+        if (r.value.ok) running++;
+        if (r.value.settled) settled++;
+        if (r.value.pickEmitted) picks++;
       }
     }
   }

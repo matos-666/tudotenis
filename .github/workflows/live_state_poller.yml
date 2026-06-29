@@ -20,10 +20,10 @@ jobs:
     timeout-minutes: 6
 
     steps:
-      - name: Loop 12× 25s = 5min
+      - name: Loop 10× 25s = ~4.5min (fica dentro de 6m timeout)
         run: |
           ENDPOINT="https://tudotenis.com/api/cron/live-state"
-          ITERATIONS=12
+          ITERATIONS=10
           INTERVAL_S=25
           OK=0
           FAIL=0
