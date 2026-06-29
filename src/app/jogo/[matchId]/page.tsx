@@ -1,0 +1,299 @@
+import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+import Link from 'next/link';
+import { Header } from '@/components/Header';
+import { Footer } from '@/components/Footer';
+import { SportradarWidget } from '@/components/SportradarWidget';
+import { supabase } from '@/lib/supabase';
+import { type Locale } from '@/lib/i18n';
+
+export const revalidate = 30;
+
+interface LiveState {
+  id: number;
+  sr_match_id: number;
+  tournament_slug: string | null;
+  set_a: number; set_b: number;
+  game_a: number; game_b: number;
+  point_a: number; point_b: number;
+  server: 'A' | 'B' | null;
+  tiebreak: boolean;
+  best_of: number;
+  match_finished: boolean;
+  player_a_id: number | null;
+  player_b_id: number | null;
+  name_a: string | null;
+  name_b: string | null;
+  aces_a: number | null; aces_b: number | null;
+  df_a: number | null; df_b: number | null;
+  bp_won_a: number | null; bp_won_b: number | null;
+  serve_pts_won_a: number | null; serve_pts_won_b: number | null;
+  first_serve_won_a: number | null; first_serve_won_b: number | null;
+  match_win_prob_a: number | null;
+  set_win_prob_a: number | null;
+  point_importance: number | null;
+  p_a_serve_prior: number | null;
+  p_b_serve_prior: number | null;
+  p_a_serve_live: number | null;
+  p_b_serve_live: number | null;
+  running: boolean;
+  captured_at: string;
+}
+
+interface PlayerInfo {
+  id: number;
+  slug: string;
+  name: string;
+  flag: string | null;
+  photo_url: string | null;
+  atp_rank: number | null;
+  elo_overall: number | null;
+}
+
+async function fetchLatest(matchId: number): Promise<LiveState | null> {
+  const { data } = await supabase
+    .from('live_state')
+    .select('*')
+    .eq('sr_match_id', matchId)
+    .order('captured_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data as LiveState | null;
+}
+
+async function fetchPlayers(ids: number[]): Promise<Record<number, PlayerInfo>> {
+  if (ids.length === 0) return {};
+  const { data } = await supabase
+    .from('players')
+    .select('id, slug, name, flag, photo_url, atp_rank, elo_overall')
+    .in('id', ids);
+  const out: Record<number, PlayerInfo> = {};
+  for (const p of (data ?? []) as PlayerInfo[]) out[p.id] = p;
+  return out;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ matchId: string }>;
+}): Promise<Metadata> {
+  const { matchId } = await params;
+  const id = Number(matchId);
+  if (!Number.isFinite(id)) return { title: 'Jogo não encontrado' };
+  const s = await fetchLatest(id);
+  if (!s) return { title: 'Jogo · ao vivo' };
+  const title = `${s.name_a ?? 'Player A'} vs ${s.name_b ?? 'Player B'} · Ao vivo`;
+  return {
+    title,
+    description: `Probabilidade ao vivo, score, stats e tracker oficial. ${s.set_a}-${s.set_b} sets, ${s.game_a}-${s.game_b} no set atual.`,
+    robots: { index: false, follow: true },
+  };
+}
+
+const SURFACE_CLASS: Record<string, string> = {
+  hard: 'surface-hard',
+  clay: 'surface-clay',
+  grass: 'surface-grass',
+  indoor: 'surface-hard',
+};
+
+function pct(x: number | null | undefined): string {
+  if (x == null) return '—';
+  return `${(x * 100).toFixed(1)}%`;
+}
+
+function ServeStatRow({ label, a, b, fmt }: { label: string; a: number | null; b: number | null; fmt?: (x: number | null) => string }) {
+  const f = fmt ?? ((x) => x == null ? '—' : String(x));
+  return (
+    <div className="flex items-center justify-between border-b border-[var(--color-border)]/40 py-2 last:border-b-0">
+      <span className="text-sm font-mono text-right w-16">{f(a)}</span>
+      <span className="text-xs text-gray-500 uppercase tracking-wide">{label}</span>
+      <span className="text-sm font-mono text-left w-16">{f(b)}</span>
+    </div>
+  );
+}
+
+function ProbBar({ probA, nameA, nameB }: { probA: number; nameA: string; nameB: string }) {
+  const a = Math.round(probA * 100);
+  const b = 100 - a;
+  return (
+    <div>
+      <div className="flex justify-between mb-1 text-xs text-gray-400">
+        <span className="font-semibold text-[var(--color-accent)]">{nameA}</span>
+        <span className="font-semibold">{nameB}</span>
+      </div>
+      <div className="relative h-7 bg-[var(--color-surface)] rounded overflow-hidden">
+        <div
+          className="absolute inset-y-0 left-0 bg-[var(--color-accent)] flex items-center justify-center text-xs font-bold text-[var(--color-surface)]"
+          style={{ width: `${a}%` }}
+        >
+          {a}%
+        </div>
+        <div className="absolute inset-y-0 right-0 flex items-center justify-end pr-2 text-xs font-bold">
+          {b}%
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default async function LiveMatchPage({
+  params,
+  locale = 'pt-PT',
+}: {
+  params: Promise<{ matchId: string }>;
+  locale?: Locale;
+}) {
+  const { matchId } = await params;
+  const id = Number(matchId);
+  if (!Number.isFinite(id)) notFound();
+
+  const state = await fetchLatest(id);
+  if (!state) {
+    return (
+      <>
+        <Header locale={locale} />
+        <main id="main" className="flex-1">
+          <div className="max-w-5xl mx-auto px-4 md:px-6 py-10 md:py-14">
+            <h1 className="text-2xl md:text-3xl font-bold mb-3">Sem dados deste jogo</h1>
+            <p className="text-gray-400 text-sm mb-6">
+              Match ID {id} ainda não foi capturado pelo cron live. Aguarda 1-2 minutos ou volta ao{' '}
+              <Link href="/ao-vivo" className="text-[var(--color-accent)] hover:underline">listing ao vivo</Link>.
+            </p>
+            <SportradarWidget widget="match.lmtPlus" matchId={id} />
+          </div>
+        </main>
+        <Footer locale={locale} />
+      </>
+    );
+  }
+
+  const playerIds = [state.player_a_id, state.player_b_id].filter((x): x is number => x != null);
+  const players = await fetchPlayers(playerIds);
+  const pA = state.player_a_id ? players[state.player_a_id] : null;
+  const pB = state.player_b_id ? players[state.player_b_id] : null;
+  const nameA = pA?.name ?? state.name_a ?? 'Player A';
+  const nameB = pB?.name ?? state.name_b ?? 'Player B';
+
+  const matchProb = state.match_win_prob_a;
+  const imp = state.point_importance;
+  const impHigh = imp != null && imp > 0.20;
+
+  const scoreSets = `${state.set_a}-${state.set_b}`;
+  const scoreCur = state.tiebreak ? 'Tiebreak' : `${state.game_a}-${state.game_b}`;
+
+  // age da snapshot em segundos
+  const ageSec = Math.round((Date.now() - new Date(state.captured_at).getTime()) / 1000);
+  const fresh = ageSec < 90;
+
+  return (
+    <>
+      <Header locale={locale} />
+      <main id="main" className="flex-1">
+        <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-8 space-y-6">
+
+          {/* HEADER */}
+          <div>
+            <div className="flex items-center gap-2 flex-wrap mb-3">
+              {state.running && (
+                <span className="inline-flex items-center gap-1.5 bg-red-500/15 border border-red-500/40 text-red-400 rounded-full px-2.5 py-0.5 text-xs font-semibold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+                  AO VIVO
+                </span>
+              )}
+              {state.match_finished && (
+                <span className="text-xs bg-[var(--color-card)] border border-[var(--color-border)] rounded-full px-2.5 py-0.5 text-gray-400">
+                  Terminado
+                </span>
+              )}
+              {state.tournament_slug && (
+                <Link
+                  href={`/torneios/${state.tournament_slug}`}
+                  className="text-xs text-gray-400 hover:text-[var(--color-accent)] transition"
+                >
+                  {state.tournament_slug.replace(/-/g, ' ')}
+                </Link>
+              )}
+              <span className="text-xs text-gray-500 ml-auto">
+                {fresh ? `atualizado há ${ageSec}s` : `desactualizado · ${ageSec}s`}
+              </span>
+            </div>
+            <h1 className="text-2xl md:text-3xl font-extrabold">
+              {nameA} <span className="text-gray-500 font-normal">vs</span> {nameB}
+            </h1>
+          </div>
+
+          {/* SCORE BOARD */}
+          <div className="stat-card p-4 md:p-6">
+            <div className="grid grid-cols-3 items-center gap-4">
+              <div className="text-right">
+                <div className="text-base md:text-lg font-bold truncate">{nameA}</div>
+                {pA?.atp_rank && <div className="text-xs text-gray-500">#{pA.atp_rank} · ELO {pA.elo_overall ?? '–'}</div>}
+              </div>
+              <div className="text-center font-mono">
+                <div className="text-3xl md:text-4xl font-extrabold tracking-wider">{scoreSets}</div>
+                <div className="text-xs text-gray-500 mt-1">{scoreCur} {state.server && <span className="text-[var(--color-accent)]">· {state.server} serve</span>}</div>
+              </div>
+              <div className="text-left">
+                <div className="text-base md:text-lg font-bold truncate">{nameB}</div>
+                {pB?.atp_rank && <div className="text-xs text-gray-500">#{pB.atp_rank} · ELO {pB.elo_overall ?? '–'}</div>}
+              </div>
+            </div>
+          </div>
+
+          {/* OUR MODEL PROB */}
+          {matchProb != null && (
+            <div className="stat-card p-4 md:p-6">
+              <div className="flex items-baseline justify-between flex-wrap gap-2 mb-3">
+                <h2 className="text-sm uppercase tracking-wider text-gray-400">Modelo ELO · prob. vencer match</h2>
+                {impHigh && (
+                  <span className="text-xs bg-yellow-500/15 border border-yellow-500/40 text-yellow-400 rounded-full px-2.5 py-0.5">
+                    ⚠ Volatilidade elevada (I={imp!.toFixed(2)})
+                  </span>
+                )}
+              </div>
+              <ProbBar probA={matchProb} nameA={nameA} nameB={nameB} />
+              <p className="text-[11px] text-gray-500 mt-3 leading-snug">
+                Probabilidade computada com Markov bottom-up sobre o estado actual.{' '}
+                Priors: p<sub>A</sub>={pct(state.p_a_serve_prior)} / p<sub>B</sub>={pct(state.p_b_serve_prior)}.
+              </p>
+            </div>
+          )}
+
+          {/* SPORTRADAR LMT+ */}
+          <div className="stat-card p-2 md:p-4">
+            <div className="text-xs uppercase tracking-wider text-gray-500 mb-2 px-2">Live Match Tracker</div>
+            <SportradarWidget widget="match.lmtPlus" matchId={id} />
+          </div>
+
+          {/* STATS */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="stat-card p-4 md:p-6">
+              <h2 className="text-sm uppercase tracking-wider text-gray-400 mb-3">Stats live</h2>
+              <ServeStatRow label="Aces" a={state.aces_a} b={state.aces_b} />
+              <ServeStatRow label="Double Faults" a={state.df_a} b={state.df_b} />
+              <ServeStatRow label="BPs ganhos" a={state.bp_won_a} b={state.bp_won_b} />
+              <ServeStatRow label="Pts serviço ganhos" a={state.serve_pts_won_a} b={state.serve_pts_won_b} />
+              <ServeStatRow label="1ª serviço won %" a={state.first_serve_won_a} b={state.first_serve_won_b} fmt={(x) => x == null ? '—' : `${x}%`} />
+            </div>
+            <div className="stat-card p-4 md:p-6">
+              <h2 className="text-sm uppercase tracking-wider text-gray-400 mb-3">Win Probability (Sportradar)</h2>
+              <SportradarWidget widget="match.winProbability" matchId={id} />
+              <p className="text-[11px] text-gray-500 mt-3">
+                Cálculo independente da Sportradar para comparar com o nosso.
+              </p>
+            </div>
+          </div>
+
+          {/* MOMENTUM */}
+          <div className="stat-card p-2 md:p-4">
+            <div className="text-xs uppercase tracking-wider text-gray-500 mb-2 px-2">Momentum</div>
+            <SportradarWidget widget="match.momentum" matchId={id} />
+          </div>
+
+        </div>
+      </main>
+      <Footer locale={locale} />
+    </>
+  );
+}
