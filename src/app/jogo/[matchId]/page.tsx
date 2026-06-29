@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { SportradarWidget } from '@/components/SportradarWidget';
+import { LiveWinProbChart } from '@/components/LiveWinProbChart';
 import { supabase } from '@/lib/supabase';
 import { type Locale } from '@/lib/i18n';
 
@@ -259,6 +260,9 @@ export default async function LiveMatchPage({
               </p>
             </div>
           )}
+
+          {/* P EVOLUTION CHART */}
+          <LiveWinProbChart srMatchId={id} nameA={nameA} nameB={nameB} />
 
           {/* SPORTRADAR LMT+ */}
           <div className="stat-card p-2 md:p-4">
