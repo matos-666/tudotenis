@@ -20,6 +20,7 @@ interface Player {
   slug: string;
   name: string;
   flag: string | null;
+  country: string | null;
   tour: string;
   atp_rank: number | null;
   photo_url: string | null;
@@ -36,6 +37,256 @@ interface Player {
   form_l5: string | null;
   titles: number;
   slams: number;
+  birth_date: string | null;
+  height_cm: number | null;
+  hand: string | null;
+  career_high_atp: number | null;
+}
+
+// ── Helpers visuais para a comparação ────────────────────────────────────
+
+function ageFromBirthDate(b: string | null): number | null {
+  if (!b) return null;
+  const bd = new Date(b);
+  const now = new Date();
+  let a = now.getFullYear() - bd.getFullYear();
+  const m = now.getMonth() - bd.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < bd.getDate())) a--;
+  return a > 5 && a < 60 ? a : null;
+}
+
+function handLabel(h: string | null): string {
+  if (!h) return '—';
+  const x = h.toLowerCase();
+  if (x.startsWith('r')) return 'Direita';
+  if (x.startsWith('l')) return 'Esquerda';
+  return h;
+}
+
+/**
+ * Linha de comparação 1-vs-1 com barra visual:
+ *  - Label central
+ *  - Valor p1 à esquerda, p2 à direita
+ *  - Barra horizontal com fill proporcional para cada lado
+ *  - O lado com vantagem fica destacado
+ *
+ * mode='higher-better' (default): valor maior = melhor
+ * mode='lower-better': valor menor = melhor (ranking)
+ */
+function VsRow({
+  label,
+  v1,
+  v2,
+  display1,
+  display2,
+  mode = 'higher-better',
+  showBar = true,
+}: {
+  label: string;
+  v1: number | null;
+  v2: number | null;
+  display1?: React.ReactNode;
+  display2?: React.ReactNode;
+  mode?: 'higher-better' | 'lower-better';
+  showBar?: boolean;
+}) {
+  const d1 = display1 ?? (v1 == null ? '—' : v1);
+  const d2 = display2 ?? (v2 == null ? '—' : v2);
+  let p1Leads = false;
+  let p2Leads = false;
+  let ratio1 = 0.5;
+  if (v1 != null && v2 != null) {
+    const better1 = mode === 'higher-better' ? v1 > v2 : v1 < v2;
+    const better2 = mode === 'higher-better' ? v2 > v1 : v1 > v2;
+    p1Leads = better1;
+    p2Leads = better2;
+    if (showBar && v1 + v2 > 0) {
+      const a = Math.max(1, mode === 'higher-better' ? v1 : 1 / v1);
+      const b = Math.max(1, mode === 'higher-better' ? v2 : 1 / v2);
+      ratio1 = a / (a + b);
+    }
+  }
+  return (
+    <div className="px-3 md:px-5 py-3 md:py-4 border-b border-[var(--color-border)] last:border-b-0">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+        <div className={`text-sm md:text-base font-mono font-semibold text-right ${p1Leads ? 'text-[var(--color-accent)]' : 'text-gray-300'}`}>
+          {d1}
+        </div>
+        <div className="text-[10px] uppercase tracking-wider text-gray-500 font-bold px-2">
+          {label}
+        </div>
+        <div className={`text-sm md:text-base font-mono font-semibold text-left ${p2Leads ? 'text-[var(--color-accent)]' : 'text-gray-300'}`}>
+          {d2}
+        </div>
+      </div>
+      {showBar && v1 != null && v2 != null && (
+        <div className="mt-2 h-1 rounded-full overflow-hidden bg-[var(--color-card)] flex">
+          <div
+            className={p1Leads ? 'bg-[var(--color-accent)]' : 'bg-gray-600'}
+            style={{ width: `${(ratio1 * 100).toFixed(1)}%` }}
+          />
+          <div
+            className={p2Leads ? 'bg-[var(--color-accent)]' : 'bg-gray-600'}
+            style={{ width: `${((1 - ratio1) * 100).toFixed(1)}%` }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Pills V/D coloridos para a "Forma L5". Aceita strings tipo "VVVDV", "WWLWW". */
+function FormPills({ f }: { f: string | null }) {
+  if (!f) return <span className="text-gray-500">—</span>;
+  const chars = f.replace(/[^VWDL]/gi, '').toUpperCase().slice(-5);
+  return (
+    <span className="inline-flex gap-0.5">
+      {chars.split('').map((c, i) => {
+        const win = c === 'V' || c === 'W';
+        return (
+          <span
+            key={i}
+            className={`inline-block w-3.5 h-3.5 rounded text-[8px] font-bold flex items-center justify-center ${
+              win ? 'bg-[var(--color-accent)] text-[var(--color-surface)]' : 'bg-red-500/70 text-white'
+            }`}
+            aria-label={win ? 'Vitória' : 'Derrota'}
+          >
+            {win ? 'V' : 'D'}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+/**
+ * Narrativa SEO-friendly gerada a partir dos dados — 3-4 parágrafos de texto
+ * em PT-PT mencionando especialidade de cada player, momento, vantagem ELO,
+ * idade etc. Boa para indexação Google + AI search bots.
+ */
+function H2HNarrative({
+  p1, p2, ovr, surfElo, momentum, age,
+}: {
+  p1: Player;
+  p2: Player;
+  ovr: [number, number];
+  surfElo: { hard: [number, number]; clay: [number, number]; grass: [number, number] };
+  momentum: [number | null, number | null];
+  age: [number | null, number | null];
+}) {
+  const last1 = p1.name.split(' ').slice(-1)[0];
+  const last2 = p2.name.split(' ').slice(-1)[0];
+  const diff = ovr[0] - ovr[1];
+  const absDiff = Math.abs(diff);
+  const leader = diff > 0 ? p1 : p2;
+  const leaderLast = diff > 0 ? last1 : last2;
+  const underdog = diff > 0 ? p2 : p1;
+  const underdogLast = diff > 0 ? last2 : last1;
+
+  // Melhor surface de cada (a que tem ELO maior em relação ao seu overall)
+  function bestSurface(p: Player, ovrVal: number, surfs: [number, number]): string | null {
+    const items: Array<[string, number]> = [
+      ['hard', surfElo.hard[surfs[0]]],
+      ['terra batida', surfElo.clay[surfs[0]]],
+      ['relvado', surfElo.grass[surfs[0]]],
+    ];
+    const filtered = items.filter(([, v]) => v > ovrVal + 15);
+    if (!filtered.length) return null;
+    filtered.sort((a, b) => b[1] - a[1]);
+    return filtered[0][0];
+  }
+  const best1 = bestSurface(p1, ovr[0], [0, 0]);
+  const best2 = bestSurface(p2, ovr[1], [1, 1]);
+
+  // Momento texto
+  function momentumText(m: number | null, last: string): string | null {
+    if (m == null) return null;
+    if (m > 30)  return `${last} está em grande momento (+${Math.round(m)} ELO nos últimos 30 dias)`;
+    if (m > 10)  return `${last} vem em subida (+${Math.round(m)} ELO em 30d)`;
+    if (m < -30) return `${last} está em queda acentuada (${Math.round(m)} ELO em 30d)`;
+    if (m < -10) return `${last} tem perdido terreno (${Math.round(m)} ELO em 30d)`;
+    return null;
+  }
+  const mom1Text = momentumText(momentum[0], last1);
+  const mom2Text = momentumText(momentum[1], last2);
+
+  // Diferença em probabilidade
+  const probGap = absDiff > 200 ? 'enorme' : absDiff > 100 ? 'significativa' : absDiff > 50 ? 'moderada' : 'pequena';
+
+  // Idade
+  const ageText = age[0] && age[1]
+    ? age[0] === age[1]
+      ? `Ambos têm ${age[0]} anos.`
+      : `${last1} tem ${age[0]} anos${age[0] < age[1] ? ' (mais novo)' : ''}, ${last2} tem ${age[1]} anos${age[1] < age[0] ? ' (mais novo)' : ''}.`
+    : null;
+
+  // Slams
+  const slamsText = (p1.slams > 0 || p2.slams > 0)
+    ? (p1.slams === p2.slams
+        ? null
+        : p1.slams > p2.slams
+          ? `${last1} tem ${p1.slams} Grand Slam${p1.slams > 1 ? 's' : ''} no currículo — vantagem clara de experiência em majors.`
+          : `${last2} tem ${p2.slams} Grand Slam${p2.slams > 1 ? 's' : ''} no currículo — vantagem clara de experiência em majors.`)
+    : null;
+
+  return (
+    <div className="mt-2 mb-8">
+      <h2 className="text-xl font-bold mb-3">Análise do confronto</h2>
+      <div className="stat-card p-5 md:p-6 space-y-3 text-sm md:text-base text-gray-300 leading-relaxed">
+        <p>
+          <strong className="text-white">{p1.name}</strong>
+          {p1.country && <> ({p1.country})</>}
+          {' '}enfrenta{' '}
+          <strong className="text-white">{p2.name}</strong>
+          {p2.country && <> ({p2.country})</>}
+          {' '}com uma diferença de ELO {probGap}{' '}({absDiff} pontos a favor de {leaderLast}).
+          {' '}{leaderLast} chega como favorito do modelo (ELO {ovr[diff > 0 ? 0 : 1]} vs {ovr[diff > 0 ? 1 : 0]} de {underdogLast}).
+        </p>
+
+        {(best1 || best2) && (
+          <p>
+            {best1 && (
+              <>
+                <strong className="text-white">{last1}</strong> destaca-se em <strong>{best1}</strong> (ELO {
+                  best1 === 'hard' ? surfElo.hard[0] : best1 === 'terra batida' ? surfElo.clay[0] : surfElo.grass[0]
+                }, acima do seu ELO geral de {ovr[0]}).{' '}
+              </>
+            )}
+            {best2 && (
+              <>
+                {best1 ? '' : ''}<strong className="text-white">{last2}</strong> tem a sua melhor superfície em <strong>{best2}</strong> (ELO {
+                  best2 === 'hard' ? surfElo.hard[1] : best2 === 'terra batida' ? surfElo.clay[1] : surfElo.grass[1]
+                }).
+              </>
+            )}
+          </p>
+        )}
+
+        {(mom1Text || mom2Text) && (
+          <p>
+            {mom1Text && <>{mom1Text}. </>}
+            {mom2Text && <>{mom2Text}. </>}
+            {!mom1Text && !mom2Text ? null : 'Tendência recente é um indicador relevante para confrontos próximos.'}
+          </p>
+        )}
+
+        {slamsText && <p>{slamsText}</p>}
+
+        {ageText && (p1.career_high_atp || p2.career_high_atp) && (
+          <p>
+            {ageText}
+            {p1.career_high_atp && <> {last1} já foi #{p1.career_high_atp} no mundo.</>}
+            {p2.career_high_atp && <> {last2} chegou ao #{p2.career_high_atp}.</>}
+          </p>
+        )}
+
+        <p className="text-xs text-gray-500 pt-2 border-t border-[var(--color-border)]">
+          Análise gerada automaticamente a partir do nosso modelo ELO próprio e dados públicos ATP/WTA.
+          Os ELOs apresentados estão na escala match-equivalent (Tennis Abstract standard).
+        </p>
+      </div>
+    </div>
+  );
 }
 
 /** Preferir set-level ELO com fallback para match-level. */
@@ -97,7 +348,7 @@ async function fetchPair(
   // Apenas as colunas usadas no interface Player (egress -50%).
   const { data } = await supabase
     .from('players')
-    .select('id, slug, name, flag, tour, atp_rank, photo_url, elo_overall, elo_hard, elo_clay, elo_grass, elo_indoor, elo_set_overall, elo_set_hard, elo_set_clay, elo_set_grass, elo_30d_ago, form_l5, titles, slams')
+    .select('id, slug, name, flag, country, tour, atp_rank, photo_url, elo_overall, elo_hard, elo_clay, elo_grass, elo_indoor, elo_set_overall, elo_set_hard, elo_set_clay, elo_set_grass, elo_30d_ago, form_l5, titles, slams, birth_date, height_cm, hand, career_high_atp')
     .in('slug', [slugA, slugB]);
   if (!data || data.length < 2) return null;
   const p1 = data.find(p => p.slug === slugA) as Player | undefined;
@@ -428,39 +679,129 @@ export default async function H2HPage({
             <p className="text-gray-300 text-sm md:text-base leading-relaxed">{insight}</p>
           </div>
 
-          {/* Comparação rápida */}
-          <h2 className="text-xl font-bold mb-4">Comparação rápida</h2>
-          <div className="stat-card overflow-hidden mb-8">
-            <table className="w-full text-sm">
-              <tbody className="font-mono">
-                <tr className="border-b border-[var(--color-border)]">
-                  <td className="p-3 md:p-4 font-sans text-gray-500 text-xs uppercase">ELO geral</td>
-                  <td className="text-center p-3 md:p-4 font-bold">{Math.round(displayElo(eloOverall1) ?? eloOverall1)}</td>
-                  <td className="text-center p-3 md:p-4 font-bold">{Math.round(displayElo(eloOverall2) ?? eloOverall2)}</td>
-                </tr>
-                <tr className="border-b border-[var(--color-border)]">
-                  <td className="p-3 md:p-4 font-sans text-gray-500 text-xs uppercase">Ranking</td>
-                  <td className="text-center p-3 md:p-4">#{p1.atp_rank ?? '—'}</td>
-                  <td className="text-center p-3 md:p-4">#{p2.atp_rank ?? '—'}</td>
-                </tr>
-                <tr className="border-b border-[var(--color-border)]">
-                  <td className="p-3 md:p-4 font-sans text-gray-500 text-xs uppercase">Forma L5</td>
-                  <td className="text-center p-3 md:p-4 text-xs">{p1.form_l5 ?? '—'}</td>
-                  <td className="text-center p-3 md:p-4 text-xs">{p2.form_l5 ?? '—'}</td>
-                </tr>
-                <tr className="border-b border-[var(--color-border)]">
-                  <td className="p-3 md:p-4 font-sans text-gray-500 text-xs uppercase">Títulos</td>
-                  <td className="text-center p-3 md:p-4">{p1.titles}</td>
-                  <td className="text-center p-3 md:p-4">{p2.titles}</td>
-                </tr>
-                <tr>
-                  <td className="p-3 md:p-4 font-sans text-gray-500 text-xs uppercase">Slams</td>
-                  <td className="text-center p-3 md:p-4">{p1.slams}</td>
-                  <td className="text-center p-3 md:p-4">{p2.slams}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          {/* ── Comparação detalhada ─────────────────────────────────── */}
+          {(() => {
+            // Calcula display-ELO para cada surface (todos passam por displayElo
+            // para ficarem na mesma escala do site).
+            const ovr1 = Math.round(displayElo(eloFor(p1, 'overall')) ?? 1500);
+            const ovr2 = Math.round(displayElo(eloFor(p2, 'overall')) ?? 1500);
+            const hard1 = Math.round(displayElo(eloFor(p1, 'hard')) ?? 1500);
+            const hard2 = Math.round(displayElo(eloFor(p2, 'hard')) ?? 1500);
+            const clay1 = Math.round(displayElo(eloFor(p1, 'clay')) ?? 1500);
+            const clay2 = Math.round(displayElo(eloFor(p2, 'clay')) ?? 1500);
+            const grass1 = Math.round(displayElo(eloFor(p1, 'grass')) ?? 1500);
+            const grass2 = Math.round(displayElo(eloFor(p2, 'grass')) ?? 1500);
+
+            // Momento (Δ 30d): só faz sentido com ambos dados
+            const mom1 = (p1.elo_overall != null && p1.elo_30d_ago != null)
+              ? p1.elo_overall - p1.elo_30d_ago
+              : null;
+            const mom2 = (p2.elo_overall != null && p2.elo_30d_ago != null)
+              ? p2.elo_overall - p2.elo_30d_ago
+              : null;
+
+            const age1 = ageFromBirthDate(p1.birth_date);
+            const age2 = ageFromBirthDate(p2.birth_date);
+
+            return (
+              <>
+                <h2 className="text-xl font-bold mb-1">Comparação detalhada</h2>
+                <p className="text-xs text-gray-500 mb-4">
+                  Verde = vantagem nesse parâmetro. Barra mostra a magnitude da diferença.
+                </p>
+                {/* ELO por superfície */}
+                <div className="stat-card mb-4">
+                  <div className="px-3 md:px-5 py-2.5 bg-[var(--color-card)] border-b border-[var(--color-border)]">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-accent)]">📊 ELO por superfície</span>
+                  </div>
+                  <VsRow label="Geral"   v1={ovr1}   v2={ovr2}   />
+                  <VsRow label="Hard"    v1={hard1}  v2={hard2}  />
+                  <VsRow label="Terra"   v1={clay1}  v2={clay2}  />
+                  <VsRow label="Relva"   v1={grass1} v2={grass2} />
+                </div>
+
+                {/* Forma / Momento */}
+                <div className="stat-card mb-4">
+                  <div className="px-3 md:px-5 py-2.5 bg-[var(--color-card)] border-b border-[var(--color-border)]">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-accent)]">🔥 Forma & ranking</span>
+                  </div>
+                  <VsRow
+                    label="Momento 30d"
+                    v1={mom1} v2={mom2}
+                    display1={mom1 == null ? '—' : (
+                      <span className={mom1 > 5 ? 'text-[var(--color-accent)]' : mom1 < -5 ? 'text-red-400' : ''}>
+                        {mom1 > 0 ? '+' : ''}{mom1}
+                      </span>
+                    )}
+                    display2={mom2 == null ? '—' : (
+                      <span className={mom2 > 5 ? 'text-[var(--color-accent)]' : mom2 < -5 ? 'text-red-400' : ''}>
+                        {mom2 > 0 ? '+' : ''}{mom2}
+                      </span>
+                    )}
+                  />
+                  <VsRow
+                    label="Forma últimos 5"
+                    v1={(p1.form_l5 ?? '').split('').filter(c => c === 'V' || c === 'W').length}
+                    v2={(p2.form_l5 ?? '').split('').filter(c => c === 'V' || c === 'W').length}
+                    display1={<FormPills f={p1.form_l5} />}
+                    display2={<FormPills f={p2.form_l5} />}
+                  />
+                  <VsRow
+                    label="Ranking ATP/WTA"
+                    v1={p1.atp_rank ?? 9999} v2={p2.atp_rank ?? 9999}
+                    display1={p1.atp_rank ? `#${p1.atp_rank}` : '—'}
+                    display2={p2.atp_rank ? `#${p2.atp_rank}` : '—'}
+                    mode="lower-better"
+                  />
+                  <VsRow
+                    label="Career high"
+                    v1={p1.career_high_atp ?? 9999} v2={p2.career_high_atp ?? 9999}
+                    display1={p1.career_high_atp ? `#${p1.career_high_atp}` : '—'}
+                    display2={p2.career_high_atp ? `#${p2.career_high_atp}` : '—'}
+                    mode="lower-better"
+                  />
+                </div>
+
+                {/* Carreira & perfil */}
+                <div className="stat-card mb-8">
+                  <div className="px-3 md:px-5 py-2.5 bg-[var(--color-card)] border-b border-[var(--color-border)]">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-accent)]">🏆 Carreira</span>
+                  </div>
+                  <VsRow label="Títulos ATP/WTA" v1={p1.titles} v2={p2.titles} />
+                  <VsRow label="Grand Slams"      v1={p1.slams}  v2={p2.slams}  />
+                  <VsRow
+                    label="Idade"
+                    v1={null} v2={null}
+                    display1={age1 ? `${age1} anos` : '—'}
+                    display2={age2 ? `${age2} anos` : '—'}
+                    showBar={false}
+                  />
+                  <VsRow
+                    label="Mão dominante"
+                    v1={null} v2={null}
+                    display1={handLabel(p1.hand)}
+                    display2={handLabel(p2.hand)}
+                    showBar={false}
+                  />
+                  <VsRow
+                    label="Altura"
+                    v1={null} v2={null}
+                    display1={p1.height_cm ? `${p1.height_cm} cm` : '—'}
+                    display2={p2.height_cm ? `${p2.height_cm} cm` : '—'}
+                    showBar={false}
+                  />
+                </div>
+
+                {/* SEO narrative */}
+                <H2HNarrative p1={p1} p2={p2}
+                  ovr={[ovr1, ovr2]}
+                  surfElo={{ hard: [hard1, hard2], clay: [clay1, clay2], grass: [grass1, grass2] }}
+                  momentum={[mom1, mom2]}
+                  age={[age1, age2]}
+                />
+              </>
+            );
+          })()}
 
           {/* Quick CTAs */}
           <div className="grid sm:grid-cols-3 gap-3">
