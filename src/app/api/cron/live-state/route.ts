@@ -58,7 +58,8 @@ async function sr<T = unknown>(path: string): Promise<T | null> {
 interface SrSeasonMatch {
   _id: number;
   _utid: number;
-  _dt: { uts: number };
+  // stats_season_fixtures2 usa `time` (não `_dt` como em match_get)
+  time?: { uts: number; date: string; time: string };
   teams: { home: { _id: number; name: string }; away: { _id: number; name: string } };
   round?: number;
 }
@@ -407,7 +408,7 @@ async function pollOnce(): Promise<{ checked: number; running: number; settled: 
     );
     const matches = fixtures?.doc?.[0]?.data?.matches ?? [];
     const candidates = matches.filter(m => {
-      const uts = m._dt?.uts ?? 0;
+      const uts = m.time?.uts ?? 0;
       return uts > nowUts - 6 * 3600 && uts < nowUts + 3600;
     });
     for (const m of candidates) {
