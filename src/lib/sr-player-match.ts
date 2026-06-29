@@ -13,7 +13,9 @@
  * On miss, returns null and DOES NOT auto-create (the players table
  * is large; manual review is safer).
  */
-import { supabase } from './supabase';
+import { getServiceSupabase } from './supabase';
+
+const supabase = getServiceSupabase();
 
 export interface SrPlayer {
   sr_team_id: number;

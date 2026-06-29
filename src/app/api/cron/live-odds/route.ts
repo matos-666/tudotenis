@@ -15,7 +15,9 @@
  *   Plano Pro do OddsAPI cobre.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { getServiceSupabase } from '@/lib/supabase';
+
+const supabase = getServiceSupabase();
 import { fetchTennisLiveOdds, extractBestOdds, matchSrToOddsApi } from '@/lib/odds-api';
 
 export const dynamic = 'force-dynamic';

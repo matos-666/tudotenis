@@ -8,7 +8,9 @@
  * Auth: Authorization: Bearer ${CRON_SECRET}
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { getServiceSupabase } from '@/lib/supabase';
+
+const supabase = getServiceSupabase();
 import {
   priorsFromElo,
   bayesianServeUpdate,

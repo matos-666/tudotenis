@@ -15,7 +15,9 @@
  *   4. attachOddsToOpenPicks: edge_pct = (model_prob × live_odd - 1)
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { getServiceSupabase } from '@/lib/supabase';
+
+const supabase = getServiceSupabase();
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 10;
