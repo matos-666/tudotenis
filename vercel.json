@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/elo-snapshot",
       "schedule": "0 4 * * 1"
+    },
+    {
+      "path": "/api/cron/live-state",
+      "schedule": "* * * * *"
     }
   ]
 }
