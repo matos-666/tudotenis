@@ -61,8 +61,17 @@ async function fetchTournament(slug: string): Promise<Tournament | null> {
   return data as Tournament | null;
 }
 
+// SSG apenas torneios slam + Masters 1000/WTA 1000 dos últimos 3 anos
+// + torneios futuros próximos. Resto via ISR.
+export const dynamicParams = true;
+
 export async function generateStaticParams() {
-  const { data } = await supabase.from('tournaments').select('slug');
+  const minYear = new Date().getUTCFullYear() - 2;
+  const { data } = await supabase
+    .from('tournaments')
+    .select('slug')
+    .in('category', ['slam', '1000'])
+    .gte('year', minYear);
   return (data ?? []).map(t => ({ slug: t.slug }));
 }
 

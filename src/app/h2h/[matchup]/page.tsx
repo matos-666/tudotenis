@@ -365,28 +365,28 @@ async function fetchPair(
 }
 
 // ═══════════════════════════════════════════════════════════
-// SSG: pre-render H2H apenas para top 50 ATP + top 50 WTA
-// → C(100, 2) = 4.950 pages no build
-// Outros matchups gerados on-demand (ISR fallback) e cached.
+// SSG apenas top 8 ATP + top 8 WTA → C(16, 2) = 120 matchups.
+// Resto via ISR on-demand (cached na 1ª request). Trade-off:
+// build cai 40× e SEO mantém-se nos confrontos mais procurados
+// (Sinner-Alcaraz, Djokovic-Sinner, Sabalenka-Swiatek, etc).
 // ═══════════════════════════════════════════════════════════
 export const dynamicParams = true;
 
 export async function generateStaticParams() {
-  // Top 50 ATP + Top 50 WTA por set-level ELO
   const { data: atp } = await supabase
     .from('players')
     .select('slug, tour')
     .eq('tour', 'atp')
     .eq('active', true)
     .order('elo_set_overall', { ascending: false, nullsFirst: false })
-    .limit(50);
+    .limit(8);
   const { data: wta } = await supabase
     .from('players')
     .select('slug, tour')
     .eq('tour', 'wta')
     .eq('active', true)
     .order('elo_set_overall', { ascending: false, nullsFirst: false })
-    .limit(50);
+    .limit(8);
   const top = [...(atp ?? []), ...(wta ?? [])];
   const params: { matchup: string }[] = [];
   for (let i = 0; i < top.length; i++) {

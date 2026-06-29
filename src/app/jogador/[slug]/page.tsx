@@ -52,13 +52,29 @@ async function fetchPlayer(slug: string): Promise<Player | null> {
   return data;
 }
 
-// SSG: gera estaticamente perfis de todos os players activos
+// SSG apenas top 150 ATP + top 150 WTA por ELO. Resto via ISR
+// on-demand (cached na 1ª request). Trade-off: build 12× mais rápido
+// e SEO mantém-se nos players com tráfego real.
+export const dynamicParams = true;
+
 export async function generateStaticParams() {
-  const { data } = await supabase
-    .from('players')
-    .select('slug')
-    .eq('active', true);
-  return (data ?? []).map(p => ({ slug: p.slug }));
+  const [atp, wta] = await Promise.all([
+    supabase
+      .from('players')
+      .select('slug')
+      .eq('tour', 'atp')
+      .eq('active', true)
+      .order('elo_set_overall', { ascending: false, nullsFirst: false })
+      .limit(150),
+    supabase
+      .from('players')
+      .select('slug')
+      .eq('tour', 'wta')
+      .eq('active', true)
+      .order('elo_set_overall', { ascending: false, nullsFirst: false })
+      .limit(150),
+  ]);
+  return [...(atp.data ?? []), ...(wta.data ?? [])].map(p => ({ slug: p.slug }));
 }
 
 export async function generateMetadata({
