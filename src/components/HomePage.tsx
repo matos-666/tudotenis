@@ -8,6 +8,29 @@ import { Footer } from '@/components/Footer';
 import { localizedHref, type Locale } from '@/lib/i18n';
 import { supabase } from '@/lib/supabase';
 
+interface LiveMatchStrip {
+  sr_match_id: number;
+  name_a: string | null;
+  name_b: string | null;
+  set_a: number;
+  set_b: number;
+  game_a: number;
+  game_b: number;
+  tiebreak: boolean;
+  match_win_prob_a: number | null;
+  tournament_slug: string | null;
+}
+
+async function fetchLiveMatchesForStrip(): Promise<LiveMatchStrip[]> {
+  const { data } = await supabase
+    .from('live_state_latest')
+    .select('sr_match_id, name_a, name_b, set_a, set_b, game_a, game_b, tiebreak, match_win_prob_a, tournament_slug')
+    .eq('running', true)
+    .order('captured_at', { ascending: false })
+    .limit(12);
+  return (data ?? []) as LiveMatchStrip[];
+}
+
 async function fetchActiveSlam(): Promise<{
   atpSlug: string;
   wtaSlug: string;
@@ -43,7 +66,7 @@ async function fetchActiveSlam(): Promise<{
 export async function HomePage({ locale }: { locale: Locale }) {
   const isBR = locale === 'pt-BR';
   const lh = (href: string) => localizedHref(locale, href);
-  const slam = await fetchActiveSlam();
+  const [slam, liveMatches] = await Promise.all([fetchActiveSlam(), fetchLiveMatchesForStrip()]);
 
   return (
     <>
@@ -112,6 +135,67 @@ export async function HomePage({ locale }: { locale: Locale }) {
             </div>
           </div>
         </section>
+
+        {liveMatches.length > 0 && (
+          <section className="border-b border-[var(--color-border)] bg-gradient-to-r from-red-500/5 via-transparent to-transparent">
+            <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-7">
+              <div className="flex items-baseline justify-between gap-4 mb-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 bg-red-500/15 border border-red-500/40 text-red-400 rounded-full px-2.5 py-1 text-xs font-semibold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+                    AO VIVO AGORA
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    {liveMatches.length} {liveMatches.length === 1 ? 'match' : 'matches'}
+                  </span>
+                </div>
+                <Link href={lh('/ao-vivo')} className="text-sm text-[var(--color-accent)] hover:underline">
+                  {isBR ? 'Ver todos →' : 'Ver todos →'}
+                </Link>
+              </div>
+              <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-thin">
+                {liveMatches.map(m => {
+                  const probA = m.match_win_prob_a;
+                  const aFav = probA != null && probA >= 0.5;
+                  const lastA = (m.name_a ?? '').split(',')[0] || '?';
+                  const lastB = (m.name_b ?? '').split(',')[0] || '?';
+                  return (
+                    <Link
+                      key={m.sr_match_id}
+                      href={lh(`/jogo/${m.sr_match_id}`)}
+                      className="flex-shrink-0 w-[260px] snap-start stat-card p-3 hover:border-[var(--color-accent)]/50 transition group"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] text-gray-500 truncate">{m.tournament_slug?.replace(/-/g, ' ') ?? ''}</span>
+                        <span className="inline-flex items-center gap-1 text-red-400 text-[10px] font-semibold">
+                          <span className="w-1 h-1 rounded-full bg-red-400 animate-pulse" />
+                          LIVE
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
+                        <div className={`text-sm truncate ${aFav ? 'font-bold text-[var(--color-accent)]' : 'text-gray-300'}`}>{lastA}</div>
+                        <div className="text-center font-mono">
+                          <div className="text-base font-extrabold">{m.set_a}-{m.set_b}</div>
+                          <div className="text-[9px] text-gray-500">{m.tiebreak ? 'TB' : `${m.game_a}-${m.game_b}`}</div>
+                        </div>
+                        <div className={`text-sm truncate text-right ${probA != null && !aFav ? 'font-bold text-[var(--color-accent)]' : 'text-gray-300'}`}>{lastB}</div>
+                      </div>
+                      {probA != null && (
+                        <div className="mt-2 flex items-center justify-between text-[10px]">
+                          <span className="font-mono text-gray-400">{Math.round(probA * 100)}%</span>
+                          <span className="text-[10px] text-[var(--color-accent)] opacity-0 group-hover:opacity-100 transition">
+                            {isBR ? 'Ver →' : 'Ver →'}
+                          </span>
+                          <span className="font-mono text-gray-400">{Math.round((1 - probA) * 100)}%</span>
+                        </div>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        )}
 
         {slam && (
           <section className="border-b border-[var(--color-border)] bg-gradient-to-br from-[var(--color-card)] to-transparent">
