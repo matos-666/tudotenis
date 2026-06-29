@@ -135,19 +135,22 @@ function VsRow({
   );
 }
 
-/** Pills V/D coloridos para a "Forma L5". Aceita strings tipo "VVVDV", "WWLWW". */
-function FormPills({ f }: { f: string | null }) {
+/** Pills V/D coloridos para a "Forma L5". Aceita "VVVDV", "WWLWW". */
+function FormPills({ f, align = 'center' }: { f: string | null; align?: 'left' | 'right' | 'center' }) {
   if (!f) return <span className="text-gray-500">—</span>;
   const chars = f.replace(/[^VWDL]/gi, '').toUpperCase().slice(-5);
+  const justifyClass = align === 'right' ? 'justify-end' : align === 'left' ? 'justify-start' : 'justify-center';
   return (
-    <span className="inline-flex gap-0.5">
+    <span className={`inline-flex gap-1 ${justifyClass} w-full`}>
       {chars.split('').map((c, i) => {
         const win = c === 'V' || c === 'W';
         return (
           <span
             key={i}
-            className={`inline-block w-3.5 h-3.5 rounded text-[8px] font-bold flex items-center justify-center ${
-              win ? 'bg-[var(--color-accent)] text-[var(--color-surface)]' : 'bg-red-500/70 text-white'
+            className={`inline-flex items-center justify-center w-6 h-6 rounded text-[11px] font-extrabold ${
+              win
+                ? 'bg-[var(--color-accent)] text-[var(--color-surface)] shadow shadow-[var(--color-accent)]/30'
+                : 'bg-red-500 text-white shadow shadow-red-500/30'
             }`}
             aria-label={win ? 'Vitória' : 'Derrota'}
           >
@@ -500,6 +503,34 @@ export default async function H2HPage({
 
   const { p1, p2 } = pair;
 
+  // Momento 30d via elo_history (snapshot semanal mais recente vs ~30d atrás).
+  // O legacy players.elo_30d_ago está congelado em Nov 2025 — inútil agora.
+  const momentum30d: Record<number, number | null> = {};
+  {
+    const since = new Date();
+    since.setDate(since.getDate() - 45); // janela de 45d para apanhar snapshot ~30d ago
+    const { data: history } = await supabase
+      .from('elo_history')
+      .select('player_id, date, elo_set_overall, elo_overall')
+      .in('player_id', [p1.id, p2.id])
+      .gte('date', since.toISOString().slice(0, 10))
+      .order('date', { ascending: true });
+    const byPlayer = new Map<number, Array<{ date: string; val: number }>>();
+    for (const r of (history ?? []) as Array<{ player_id: number; date: string; elo_set_overall: number | null; elo_overall: number | null }>) {
+      const v = (r.elo_set_overall ?? r.elo_overall);
+      if (v == null) continue;
+      if (!byPlayer.has(r.player_id)) byPlayer.set(r.player_id, []);
+      byPlayer.get(r.player_id)!.push({ date: r.date, val: Number(v) });
+    }
+    for (const pid of [p1.id, p2.id]) {
+      const pts = byPlayer.get(pid) ?? [];
+      if (pts.length < 2) { momentum30d[pid] = null; continue; }
+      const latest = pts[pts.length - 1].val;
+      const oldest = pts[0].val;
+      momentum30d[pid] = latest - oldest;
+    }
+  }
+
   // Set-level ELO → eloProb dá set-prob → compor com BO formula para
   // probabilidade de match. Default BO3 (formato standard ATP/WTA).
   const eloOverall1 = eloFor(p1, 'overall');
@@ -692,13 +723,13 @@ export default async function H2HPage({
             const grass1 = Math.round(displayElo(eloFor(p1, 'grass')) ?? 1500);
             const grass2 = Math.round(displayElo(eloFor(p2, 'grass')) ?? 1500);
 
-            // Momento (Δ 30d): só faz sentido com ambos dados
-            const mom1 = (p1.elo_overall != null && p1.elo_30d_ago != null)
-              ? p1.elo_overall - p1.elo_30d_ago
-              : null;
-            const mom2 = (p2.elo_overall != null && p2.elo_30d_ago != null)
-              ? p2.elo_overall - p2.elo_30d_ago
-              : null;
+            // Momento (Δ ~30d) — vem do elo_history (snapshots semanais),
+            // não do players.elo_30d_ago legacy (congelado em Nov 2025).
+            const mom1Raw = momentum30d[p1.id];
+            const mom2Raw = momentum30d[p2.id];
+            // Round to int para display
+            const mom1 = mom1Raw != null ? Math.round(mom1Raw) : null;
+            const mom2 = mom2Raw != null ? Math.round(mom2Raw) : null;
 
             const age1 = ageFromBirthDate(p1.birth_date);
             const age2 = ageFromBirthDate(p2.birth_date);
