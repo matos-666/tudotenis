@@ -76,76 +76,44 @@ async function main() {
     console.error('[twin] saved debug to /tmp/twin-rendered.{html,png}');
   }
 
-  // Extraction strategy: localizar containers que tenham 2 nomes de jogadores
-  // + 2 odds. Heurística baseada em:
-  //   - Texto numérico no formato X.XX entre 1.01 e 50.0
-  //   - Pares de nomes próximos (mesmo card / linha)
+  // Extraction via data-test selectors (estáveis vs class hashes do build).
+  // Twin marca cada card com data-test-el="sportline-event-card" e dentro
+  // dele cada runner com data-test="sportline-runner-name|price".
   const matches = await page.evaluate(() => {
-    const allEls = Array.from(document.querySelectorAll('*'));
-    const candidates = [];
-
-    // Find odd buttons: elements whose direct text is a decimal X.XX
-    const oddRe = /^\s*(\d+\.\d{2})\s*$/;
-    const oddElements = [];
-    for (const el of allEls) {
-      if (el.childNodes.length === 1 && el.firstChild?.nodeType === 3) {
-        const t = el.textContent?.trim() ?? '';
-        const m = oddRe.exec(t);
-        if (m) {
-          const v = parseFloat(m[1]);
-          if (v >= 1.01 && v <= 50.0) {
-            oddElements.push({ el, value: v });
-          }
-        }
-      }
-    }
-
-    // Group odd elements by shared ancestor (likely match card).
-    // Walk up DOM until we find an ancestor that contains EXACTLY 2 odds
-    // and also looks like a card (has player name-ish text).
-    const groups = new Map();
-    for (const { el, value } of oddElements) {
-      let node = el.parentElement;
-      let depth = 0;
-      while (node && depth < 10) {
-        const oddsInside = node.querySelectorAll('*').length;
-        if (oddsInside > 2 && oddsInside < 200) {
-          // Check if has 2 odds in immediate children/descendants
-          const numericTexts = node.innerText?.match(/\b\d+\.\d{2}\b/g) ?? [];
-          if (numericTexts.length === 2) {
-            if (!groups.has(node)) {
-              groups.set(node, { node, odds: [], texts: numericTexts });
-            }
-            groups.get(node).odds.push(value);
-            break;
-          }
-        }
-        node = node.parentElement;
-        depth++;
-      }
-    }
-
+    const cards = Array.from(document.querySelectorAll('[data-test-el="sportline-event-card"]'));
     const out = [];
-    for (const [node, info] of groups.entries()) {
-      const innerText = node.innerText ?? '';
-      // Look for player names: typical pattern is "Player Name1" + "Player Name2"
-      // each on their own line, with text length > 4 and contains a space or known characters
-      const lines = innerText.split('\n').map(s => s.trim()).filter(Boolean);
-      // Names: lines that are NOT numeric and contain letters
-      const nameLines = lines.filter(l => /[A-Za-z]{3,}/.test(l) && !/^\d+\.?\d*$/.test(l) && !/^\d+:\d+$/.test(l) && l.length < 60);
-      if (nameLines.length < 2) continue;
-      const odds = info.texts.map(t => parseFloat(t));
-      if (odds.length !== 2 || odds.some(o => !isFinite(o))) continue;
-      // Heuristic: first 2 candidate name-like lines are likely the players
+    for (const card of cards) {
+      const isLive = card.getAttribute('data-test-attr-live') === 'true';
+      if (!isLive) continue;
+
+      const names = Array.from(card.querySelectorAll('[data-test-el="sportline-runner-name"]'))
+        .map(el => (el.textContent ?? '').trim())
+        .filter(s => s.length > 0);
+      const prices = Array.from(card.querySelectorAll('[data-test-el="sportline-runner-price"]'))
+        .map(el => parseFloat((el.textContent ?? '').trim()))
+        .filter(n => isFinite(n) && n >= 1.01 && n <= 50.0);
+
+      if (prices.length < 2) continue;
+
+      // Nomes dos jogadores: Twin renderiza-os em elementos cujo class
+      // contém 'competitor__name' (hash CSS-modules varia por build).
+      // Formato: "LastName, FirstName" (mesmo da Sportradar — ideal para matching).
+      const competitorEls = Array.from(card.querySelectorAll('[class*="competitor__name"]'));
+      const compNames = competitorEls
+        .map(el => (el.textContent ?? '').trim())
+        .filter(s => s.length > 1);
+      if (compNames.length < 2) continue;
+
+      const href = card.querySelector('a[href*="/bets/tennis/"]')?.getAttribute('href') ?? '';
+
       out.push({
-        name_a: nameLines[0],
-        name_b: nameLines[1],
-        odd_a: odds[0],
-        odd_b: odds[1],
-        all_lines: lines.slice(0, 8), // for debug
+        name_a: compNames[0],
+        name_b: compNames[1],
+        odd_a: prices[0],
+        odd_b: prices[1],
+        href,
       });
     }
-
     return out;
   });
 
