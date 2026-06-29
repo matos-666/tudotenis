@@ -1,0 +1,48 @@
+name: Live State Poller
+
+# Vercel Hobby plan não permite cron < 1 dia. GitHub Actions corre o
+# loop e bate em /api/cron/live-state. Por workflow (5 min), fazemos
+# 12 calls de 25 em 25s → ~1 snapshot por match por 25s.
+#
+# Cobertura: ~12-14h por dia úteis de Wimbledon (sessões diurnas +
+# nocturnas se houver).
+
+on:
+  schedule:
+    # GitHub Actions cron mínimo = 5 min
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  poll:
+    name: Poll live-state
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+
+    steps:
+      - name: Loop 12× 25s = 5min
+        run: |
+          ENDPOINT="https://tudotenis.com/api/cron/live-state"
+          ITERATIONS=12
+          INTERVAL_S=25
+          OK=0
+          FAIL=0
+
+          for i in $(seq 1 $ITERATIONS); do
+            ts=$(date +%H:%M:%S)
+            response=$(curl -sS -w "\nHTTP:%{http_code}" \
+              -X POST "$ENDPOINT" \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              --max-time 15)
+            code=$(echo "$response" | grep "HTTP:" | cut -d: -f2)
+            body=$(echo "$response" | grep -v "HTTP:")
+            echo "[$ts] iter=$i HTTP=$code → $body"
+            if [ "$code" = "200" ]; then OK=$((OK+1)); else FAIL=$((FAIL+1)); fi
+            if [ $i -lt $ITERATIONS ]; then sleep $INTERVAL_S; fi
+          done
+
+          echo ""
+          echo "═══ Summary ═══"
+          echo "OK:   $OK / $ITERATIONS"
+          echo "FAIL: $FAIL / $ITERATIONS"
+          if [ $OK -eq 0 ]; then exit 1; fi

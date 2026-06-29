@@ -20,7 +20,10 @@ import {
 import { resolveSrPlayers } from '@/lib/sr-player-match';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+// Hobby plan: max 10s. Endpoint faz UM poll cycle por invocação.
+// Loop de polling fica no GitHub Action que chama este endpoint
+// em ciclo a cada 5min.
+export const maxDuration = 10;
 
 // Hardcoded Wimbledon 2026 season IDs descobertos via gismo
 // stats_season_fixtures2. ATP = 132572. WTA TBD (adicionar quando
@@ -280,28 +283,9 @@ export async function POST(req: NextRequest) {
   if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
-
-  const results: Array<{ iter: number; checked: number; running: number; errors: number; ms: number }> = [];
-  const startAll = Date.now();
-  const ITERATIONS = 3;
-  const INTERVAL_MS = 20000;
-
-  for (let i = 0; i < ITERATIONS; i++) {
-    const t0 = Date.now();
-    const r = await pollOnce();
-    results.push({ iter: i, ms: Date.now() - t0, ...r });
-    if (i < ITERATIONS - 1) {
-      const elapsed = Date.now() - t0;
-      const sleep = Math.max(0, INTERVAL_MS - elapsed);
-      if (sleep > 0) await new Promise(res => setTimeout(res, sleep));
-    }
-  }
-
-  return NextResponse.json({
-    ok: true,
-    total_ms: Date.now() - startAll,
-    iterations: results,
-  });
+  const t0 = Date.now();
+  const r = await pollOnce();
+  return NextResponse.json({ ok: true, ms: Date.now() - t0, ...r });
 }
 
 export async function GET(req: NextRequest) {
