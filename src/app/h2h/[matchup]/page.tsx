@@ -283,10 +283,6 @@ function H2HNarrative({
           </p>
         )}
 
-        <p className="text-xs text-gray-500 pt-2 border-t border-[var(--color-border)]">
-          Análise gerada automaticamente a partir do nosso modelo ELO próprio e dados públicos ATP/WTA.
-          Os ELOs apresentados estão na escala match-equivalent (Tennis Abstract standard).
-        </p>
       </div>
     </div>
   );
