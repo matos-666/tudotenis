@@ -1,0 +1,75 @@
+name: Twin Live Odds Scraper
+
+# Scrape odds Twin live tennis via Playwright headless e POSTa para
+# /api/cron/live-odds-ingest no Vercel. Repo público → GHA minutes
+# ilimitados, sem custos.
+#
+# Cobertura: a cada 5 min durante 24/7. Cada run ~30s com cache
+# de browsers do Playwright.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+jobs:
+  scrape:
+    name: Twin scrape
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-chromium-${{ runner.os }}-v1
+
+      - name: Install Playwright + chromium
+        run: |
+          npm install --no-save playwright@1.49.0
+          if [ "${{ steps.pw-cache.outputs.cache-hit }}" != "true" ]; then
+            npx playwright install --with-deps chromium
+          else
+            # ainda assim correr install-deps (apt-get) que não é cached
+            npx playwright install-deps chromium || true
+          fi
+
+      - name: Run scraper
+        id: scrape
+        run: |
+          node scripts/scrape-twin-live.mjs > /tmp/twin.json
+          /usr/bin/wc -c /tmp/twin.json
+          # show first 600 chars for log visibility
+          head -c 600 /tmp/twin.json
+          echo ""
+
+      - name: POST to Vercel ingest
+        run: |
+          response=$(curl -sS -w "\nHTTP_STATUS:%{http_code}" \
+            -X POST "https://tudotenis.com/api/cron/live-odds-ingest" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --data-binary @/tmp/twin.json \
+            --max-time 30)
+          http_status=$(echo "$response" | grep "HTTP_STATUS:" | cut -d: -f2)
+          body=$(echo "$response" | grep -v "HTTP_STATUS:")
+          echo "Status: $http_status"
+          echo "Response: $body"
+          if [ "$http_status" != "200" ]; then exit 1; fi
+
+      - name: Upload debug artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: twin-debug-${{ github.run_id }}
+          path: /tmp/twin-*.{html,png,json}
+          if-no-files-found: ignore
+          retention-days: 3
