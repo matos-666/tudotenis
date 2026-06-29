@@ -182,6 +182,66 @@ function hasStarted(p: Pick): boolean {
   return new Date(p.scheduled_at).getTime() <= Date.now();
 }
 
+/**
+ * Devolve a key de dia (YYYY-MM-DD em timezone Lisbon) do scheduled_at.
+ * Usado para agrupar picks por dia no display.
+ */
+function dayKey(iso: string | null): string {
+  if (!iso) return '0000-00-00';
+  const d = new Date(iso);
+  // Lisbon date-string via toLocaleDateString
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Lisbon',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+  return fmt.format(d);
+}
+
+function dayLabel(key: string, locale: 'pt-PT' | 'pt-BR'): string {
+  if (key === '0000-00-00') return locale === 'pt-BR' ? 'Sem data' : 'Sem data';
+  // hoje / amanhã em timezone Lisbon
+  const todayKey = (() => {
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Lisbon',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+    });
+    return fmt.format(new Date());
+  })();
+  const tomorrowKey = (() => {
+    const d = new Date(Date.now() + 86_400_000);
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Lisbon',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+    });
+    return fmt.format(d);
+  })();
+  if (key === todayKey)    return locale === 'pt-BR' ? 'Hoje'   : 'Hoje';
+  if (key === tomorrowKey) return locale === 'pt-BR' ? 'Amanhã' : 'Amanhã';
+  // Formato longo: "Segunda · 29 jun"
+  const d = new Date(key + 'T12:00:00Z');
+  const weekday = new Intl.DateTimeFormat(locale, {
+    timeZone: 'Europe/Lisbon', weekday: 'long',
+  }).format(d);
+  const dayMonth = new Intl.DateTimeFormat(locale, {
+    timeZone: 'Europe/Lisbon', day: 'numeric', month: 'short',
+  }).format(d);
+  const capWeekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+  return `${capWeekday} · ${dayMonth}`;
+}
+
+function groupByDay<T extends { scheduled_at: string | null }>(picks: T[]): Array<{ key: string; label: string; picks: T[] }> {
+  const groups = new Map<string, T[]>();
+  for (const p of picks) {
+    const k = dayKey(p.scheduled_at);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k)!.push(p);
+  }
+  // Ordenado por key (YYYY-MM-DD ascendente)
+  return [...groups.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, picks]) => ({ key, label: '', picks }));
+}
+
 /** Alias mantido para retrocompatibilidade com o card. */
 function isLive(p: Pick): boolean {
   return hasStarted(p);
@@ -699,7 +759,7 @@ export default async function PicksPage() {
             </div>
           ) : (
             <>
-              {/* 1. POR JOGAR (pré-live) — o que interessa para apostar agora */}
+              {/* 1. POR JOGAR (pré-live) — agrupado por dia (hoje, amanhã, etc.) */}
               {todayUpcoming.length > 0 && (
                 <section className="mb-10">
                   <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
@@ -712,9 +772,19 @@ export default async function PicksPage() {
                       {isBR ? 'Apostar antes do início' : 'Apostar antes do início'}
                     </span>
                   </div>
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {todayUpcoming.map(p => <PickCard key={p.id} p={p} locale={locale} />)}
-                  </div>
+                  {groupByDay(todayUpcoming).map(group => (
+                    <div key={group.key} className="mb-7 last:mb-0">
+                      <h4 className="text-xs uppercase tracking-wider text-[var(--color-accent)] font-bold mb-3 flex items-baseline gap-2">
+                        <span>{dayLabel(group.key, locale)}</span>
+                        <span className="text-gray-500 font-normal normal-case tracking-normal">
+                          · {group.picks.length} {isBR ? 'palpites' : 'picks'}
+                        </span>
+                      </h4>
+                      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {group.picks.map(p => <PickCard key={p.id} p={p} locale={locale} />)}
+                      </div>
+                    </div>
+                  ))}
                 </section>
               )}
 
@@ -762,9 +832,19 @@ export default async function PicksPage() {
                         {isBR ? 'Por jogar' : 'Por jogar'}
                         <span className="text-xs text-gray-500 font-normal">({doublesUpcoming.length})</span>
                       </h3>
-                      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {doublesUpcoming.map(p => <DoublesPickCard key={p.id} p={p} locale={locale} />)}
-                      </div>
+                      {groupByDay(doublesUpcoming).map(group => (
+                        <div key={group.key} className="mb-6 last:mb-0">
+                          <h4 className="text-xs uppercase tracking-wider text-[var(--color-accent)] font-bold mb-3 flex items-baseline gap-2">
+                            <span>{dayLabel(group.key, locale)}</span>
+                            <span className="text-gray-500 font-normal normal-case tracking-normal">
+                              · {group.picks.length} {isBR ? 'palpites' : 'picks'}
+                            </span>
+                          </h4>
+                          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {group.picks.map(p => <DoublesPickCard key={p.id} p={p} locale={locale} />)}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
 

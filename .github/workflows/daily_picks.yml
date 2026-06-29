@@ -2,11 +2,12 @@ name: Daily Picks Generator
 
 on:
   schedule:
-    # 06:00 UTC = 08:00 Lisboa em DST (Mar-Out) · 07:00 Lisboa em winter time.
-    # User pediu "às 8:00 da manhã de Lisboa" — alinha em DST que é o
-    # período mais activo do calendário ATP/WTA. Em winter (Nov-Mar) dispara
-    # às 07:00 Lisboa, o que ainda é razoável.
+    # Picks geração:
+    # 06:00 UTC = 08:00 Lisboa DST (primário, apanha matches já publicados)
+    # 12:00 UTC = 14:00 Lisboa DST (catch-up para matches publicados tarde,
+    #   ex. dia antes de slams onde TS publica em horário irregular)
     - cron: "0 6 * * *"
+    - cron: "0 12 * * *"
   workflow_dispatch:
 
 jobs:
