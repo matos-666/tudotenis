@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { SurfaceFormGrid } from '@/components/SurfaceFormGrid';
-import { getLocale, hreflangAlternates, surfaceLabel, type Locale } from '@/lib/i18n';
+import { hreflangAlternates, surfaceLabel, type Locale } from '@/lib/i18n';
 import { displayElo } from '@/lib/elo';
 
 export const revalidate = 3600;
@@ -158,12 +158,17 @@ function daysUntil(date: string | null): number | null {
   return Math.floor((d.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
-export default async function PreparacaoPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function PreparacaoPage({
+  params,
+  locale = 'pt-PT',
+}: {
+  params: Promise<{ slug: string }>;
+  locale?: Locale;
+}) {
   const { slug } = await params;
   const t = await fetchTournament(slug);
   if (!t) notFound();
 
-  const locale = await getLocale();
   const isBR = locale === 'pt-BR';
   const prefix = locale === 'pt-BR' ? '/br' : '';
 

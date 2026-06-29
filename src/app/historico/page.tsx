@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { supabase } from '@/lib/supabase';
-import { getLocale, hreflangAlternates } from '@/lib/i18n';
+import { hreflangAlternates, type Locale } from '@/lib/i18n';
 
 export const metadata: Metadata = {
   title: 'Histórico de picks · Performance auditada · TudoTénis',
@@ -53,7 +53,7 @@ async function fetchHistory(): Promise<SettledPick[]> {
 
 const SURFACE_CLASS = { clay: 'surface-clay', hard: 'surface-hard', grass: 'surface-grass', indoor: 'surface-hard' } as const;
 
-export default async function HistoricoPage() {
+export default async function HistoricoPage({ locale = 'pt-PT' as Locale }: { locale?: Locale } = {}) {
   const picks = await fetchHistory();
 
   const wins  = picks.filter(p => p.result === 'win').length;
@@ -69,7 +69,6 @@ export default async function HistoricoPage() {
   // Estes números são calculados acima dinamicamente (totalPL, yieldPct, etc.)
   // quando há dados no DB.
 
-  const locale = await getLocale();
   const isBR = locale === 'pt-BR';
   const prefix = isBR ? '/br' : '';
 

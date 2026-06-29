@@ -2,7 +2,14 @@ import type { Metadata } from 'next';
 import { supabase } from '@/lib/supabase';
 import { hreflangAlternatesBR } from '@/lib/i18n';
 
-export { default, generateStaticParams } from '../../../../torneios/[slug]/predictor/page';
+import PredictorPage from '../../../../torneios/[slug]/predictor/page';
+export { generateStaticParams } from '../../../../torneios/[slug]/predictor/page';
+
+export const revalidate = 3600;
+
+export default function Page(props: { params: Promise<{ slug: string }> }) {
+  return <PredictorPage params={props.params} locale="pt-BR" />;
+}
 
 export async function generateMetadata({
   params,

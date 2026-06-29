@@ -1,7 +1,14 @@
 import type { Metadata } from 'next';
 import { hreflangAlternatesBR } from '@/lib/i18n';
 
-export { default, generateStaticParams } from '../../../h2h/[matchup]/page';
+import H2HPage from '../../../h2h/[matchup]/page';
+export { generateStaticParams } from '../../../h2h/[matchup]/page';
+
+export const revalidate = 3600;
+
+export default function Page(props: { params: Promise<{ matchup: string }> }) {
+  return <H2HPage params={props.params} locale="pt-BR" />;
+}
 
 export async function generateMetadata({
   params,

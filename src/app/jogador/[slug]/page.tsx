@@ -7,7 +7,7 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { EloChart } from '@/components/EloChart';
 import { breadcrumbJsonLd } from '@/lib/jsonld';
-import { getLocale, hreflangAlternates, surfaceLabel } from '@/lib/i18n';
+import { hreflangAlternates, surfaceLabel, type Locale } from '@/lib/i18n';
 import { displayElo } from '@/lib/elo';
 
 // Re-gerar a cada hora; novos jogadores acrescentados via cron
@@ -92,14 +92,15 @@ function calcAge(birth: string | null): number | null {
 
 export default async function PlayerPage({
   params,
+  locale = 'pt-PT',
 }: {
   params: Promise<{ slug: string }>;
+  locale?: Locale;
 }) {
   const { slug } = await params;
   const player = await fetchPlayer(slug);
   if (!player) notFound();
 
-  const locale = await getLocale();
   const prefix = locale === 'pt-BR' ? '/br' : '';
 
   const delta = player.elo_overall && player.elo_30d_ago

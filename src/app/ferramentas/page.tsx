@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
-import { getLocale, hreflangAlternates } from '@/lib/i18n';
+import { hreflangAlternates, type Locale } from '@/lib/i18n';
 
 export const metadata: Metadata = {
   title: 'Ferramentas · ELO Predictor, Monte Carlo, Kelly',
@@ -11,8 +11,7 @@ export const metadata: Metadata = {
   alternates: hreflangAlternates('/ferramentas'),
 };
 
-export default async function FerramentasIndex() {
-  const locale = await getLocale();
+export default async function FerramentasIndex({ locale = 'pt-PT' as Locale }: { locale?: Locale } = {}) {
   const isBR = locale === 'pt-BR';
   const prefix = isBR ? '/br' : '';
 

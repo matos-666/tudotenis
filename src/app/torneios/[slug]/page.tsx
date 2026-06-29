@@ -7,7 +7,7 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { breadcrumbJsonLd, sportsEventJsonLd } from '@/lib/jsonld';
 import { TournamentTopInsights } from '@/components/TournamentTopInsights';
-import { getLocale, hreflangAlternates } from '@/lib/i18n';
+import { hreflangAlternates, type Locale } from '@/lib/i18n';
 
 export const revalidate = 3600;
 
@@ -191,14 +191,15 @@ function FinalCard({
 
 export default async function TournamentDetail({
   params,
+  locale = 'pt-PT',
 }: {
   params: Promise<{ slug: string }>;
+  locale?: Locale;
 }) {
   const { slug } = await params;
   const t = await fetchTournament(slug);
   if (!t) notFound();
 
-  const locale = await getLocale();
   const prefix = locale === 'pt-BR' ? '/br' : '';
 
   const surfClass = t.surface ? SURFACE_CLASS[t.surface as keyof typeof SURFACE_CLASS] : '';

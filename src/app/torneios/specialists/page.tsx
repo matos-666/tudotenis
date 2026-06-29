@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
-import { getLocale, hreflangAlternates, surfaceLabel, type Locale } from '@/lib/i18n';
+import { hreflangAlternates, surfaceLabel, type Locale } from '@/lib/i18n';
 import { displayElo } from '@/lib/elo';
 
 export const revalidate = 3600;
@@ -150,8 +150,7 @@ function SurfaceColumn({
   );
 }
 
-export default async function SpecialistsPage() {
-  const locale = await getLocale();
+export default async function SpecialistsPage({ locale = 'pt-PT' as Locale }: { locale?: Locale } = {}) {
   const isBR = locale === 'pt-BR';
   const prefix = locale === 'pt-BR' ? '/br' : '';
   const rows = await fetchSpecialists();

@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { supabase } from '@/lib/supabase';
-import { getLocale, hreflangAlternates, localizedHref } from '@/lib/i18n';
+import { hreflangAlternates, localizedHref, type Locale } from '@/lib/i18n';
 
 export const metadata: Metadata = {
   title: 'Jogadores · ATP, WTA, Challengers · TudoTénis',
@@ -89,8 +89,7 @@ function PlayerCard({ p, locale }: { p: PlayerLite; locale: 'pt-PT' | 'pt-BR' })
   );
 }
 
-export default async function JogadoresPage() {
-  const locale = await getLocale();
+export default async function JogadoresPage({ locale = 'pt-PT' as Locale }: { locale?: Locale } = {}) {
   const isBR = locale === 'pt-BR';
   const [atp, wta] = await Promise.all([fetchPlayers('atp'), fetchPlayers('wta')]);
   const total = atp.length + wta.length;

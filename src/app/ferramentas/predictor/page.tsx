@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Predictor } from '@/components/Predictor';
-import { getLocale, hreflangAlternates } from '@/lib/i18n';
+import { hreflangAlternates, type Locale } from '@/lib/i18n';
 
 export const metadata: Metadata = {
   title: 'ELO Predictor · Probabilidade entre 2 jogadores',
@@ -33,8 +33,7 @@ export interface PredictorPlayer {
   elo_set_grass: number | null;
 }
 
-export default async function PredictorPage() {
-  const locale = await getLocale();
+export default async function PredictorPage({ locale = 'pt-PT' as Locale }: { locale?: Locale } = {}) {
   const prefix = locale === 'pt-BR' ? '/br' : '';
 
   const { data } = await supabase

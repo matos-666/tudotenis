@@ -11,7 +11,7 @@ import { breadcrumbJsonLd } from '@/lib/jsonld';
 import { H2HSparklineCompare } from '@/components/H2HSparklineCompare';
 import { H2HSurfaceMiniSparkline } from '@/components/H2HSurfaceMiniSparkline';
 import { fetchH2HSurfaceHistory } from '@/lib/h2h-surface-history';
-import { getLocale, hreflangAlternates, surfaceLabel } from '@/lib/i18n';
+import { hreflangAlternates, surfaceLabel, type Locale } from '@/lib/i18n';
 
 export const revalidate = 3600;
 
@@ -472,11 +472,12 @@ function PlayerHeadCard({ p, isFav, prefix = '' }: { p: Player; isFav: boolean; 
 
 export default async function H2HPage({
   params,
+  locale = 'pt-PT',
 }: {
   params: Promise<{ matchup: string }>;
+  locale?: Locale;
 }) {
   const { matchup } = await params;
-  const locale = await getLocale();
   const prefix = locale === 'pt-BR' ? '/br' : '';
 
   // Single-player slug (sem "-vs-" e player existe) → redirect para perfil

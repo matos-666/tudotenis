@@ -5,7 +5,7 @@ import { Footer } from '@/components/Footer';
 import { AffiliateButtons } from '@/components/AffiliateButtons';
 import { OddsCompareCTA } from '@/components/OddsCompareCTA';
 import { supabase } from '@/lib/supabase';
-import { getLocale, hreflangAlternates, localizedHref, surfaceLabel, type Locale } from '@/lib/i18n';
+import { hreflangAlternates, localizedHref, surfaceLabel, type Locale } from '@/lib/i18n';
 import { buildMatchupSlug } from '@/lib/elo';
 
 export const metadata: Metadata = {
@@ -656,8 +656,7 @@ function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────
-export default async function PicksPage() {
-  const locale = await getLocale();
+export default async function PicksPage({ locale = 'pt-PT' as Locale }: { locale?: Locale } = {}) {
   const isBR = locale === 'pt-BR';
 
   const [today, yesterday, todayDoubles] = await Promise.all([

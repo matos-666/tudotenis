@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
-import { getLocale, hreflangAlternates, surfaceLabel, type Locale } from '@/lib/i18n';
+import { hreflangAlternates, surfaceLabel, type Locale } from '@/lib/i18n';
 import { displayElo, eloProb, matchProbFromSetProb } from '@/lib/elo';
 import { ModelVsMarketScatter, type ModelEntry } from '@/components/ModelVsMarketScatter';
 
@@ -181,12 +181,17 @@ function runMonteCarlo(players: SimPlayer[], rounds: number, simulations: number
 
 // ─────────────────────────────────────────────────────────────────────────
 
-export default async function PredictorPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function PredictorPage({
+  params,
+  locale = 'pt-PT',
+}: {
+  params: Promise<{ slug: string }>;
+  locale?: Locale;
+}) {
   const { slug } = await params;
   const t = await fetchTournament(slug);
   if (!t) notFound();
 
-  const locale = await getLocale();
   const isBR = locale === 'pt-BR';
   const prefix = locale === 'pt-BR' ? '/br' : '';
 

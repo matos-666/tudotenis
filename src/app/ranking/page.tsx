@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import type { Metadata } from 'next';
-import { getLocale, hreflangAlternates, type Locale } from '@/lib/i18n';
+import { hreflangAlternates, type Locale } from '@/lib/i18n';
 import { displayElo } from '@/lib/elo';
 
 export const metadata: Metadata = {
@@ -96,8 +96,7 @@ async function fetchTopPlayers(tour: 'atp' | 'wta', limit = 50): Promise<Player[
   return data ?? [];
 }
 
-export default async function RankingPage() {
-  const locale = await getLocale();
+export default async function RankingPage({ locale = 'pt-PT' as Locale }: { locale?: Locale } = {}) {
   const [atp, wta] = await Promise.all([
     fetchTopPlayers('atp', 10),
     fetchTopPlayers('wta', 10),

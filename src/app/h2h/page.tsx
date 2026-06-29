@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { eloProb, buildMatchupSlug } from '@/lib/elo';
-import { getLocale, hreflangAlternates } from '@/lib/i18n';
+import { hreflangAlternates, type Locale } from '@/lib/i18n';
 
 export const revalidate = 3600;
 
@@ -24,8 +24,7 @@ interface Player {
   elo_overall: number | null;
 }
 
-export default async function H2HIndexPage() {
-  const locale = await getLocale();
+export default async function H2HIndexPage({ locale = 'pt-PT' as Locale }: { locale?: Locale } = {}) {
   const isBR = locale === 'pt-BR';
   const prefix = isBR ? '/br' : '';
 

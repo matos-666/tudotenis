@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { TournamentsExplorer } from '@/components/TournamentsExplorer';
-import { getLocale, hreflangAlternates } from '@/lib/i18n';
+import { hreflangAlternates, type Locale } from '@/lib/i18n';
 
 export const revalidate = 3600;
 
@@ -41,8 +41,7 @@ async function fetchTournaments(): Promise<TournamentLite[]> {
   return data ?? [];
 }
 
-export default async function TournamentsPage() {
-  const locale = await getLocale();
+export default async function TournamentsPage({ locale = 'pt-PT' as Locale }: { locale?: Locale } = {}) {
   const isBR = locale === 'pt-BR';
   const prefix = isBR ? '/br' : '';
   const tournaments = await fetchTournaments();

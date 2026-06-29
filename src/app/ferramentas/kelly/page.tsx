@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { KellyCalc } from '@/components/KellyCalc';
-import { getLocale, hreflangAlternates } from '@/lib/i18n';
+import { hreflangAlternates, type Locale } from '@/lib/i18n';
 
 export const metadata: Metadata = {
   title: 'Calculadora Kelly · Stake ótimo por bankroll',
@@ -13,8 +13,7 @@ export const metadata: Metadata = {
   alternates: hreflangAlternates('/ferramentas/kelly'),
 };
 
-export default async function KellyPage() {
-  const locale = await getLocale();
+export default async function KellyPage({ locale = 'pt-PT' as Locale }: { locale?: Locale } = {}) {
   const isBR = locale === 'pt-BR';
   const prefix = isBR ? '/br' : '';
 

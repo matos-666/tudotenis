@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { breadcrumbJsonLd, faqJsonLd } from '@/lib/jsonld';
-import { getLocale, hreflangAlternates } from '@/lib/i18n';
+import { hreflangAlternates, type Locale } from '@/lib/i18n';
 
 const FAQ_ITEMS = [
   {
@@ -47,8 +47,7 @@ export const metadata: Metadata = {
 
 export const revalidate = 86400; // 1 dia
 
-export default async function ComoFuncionaPage() {
-  const locale = await getLocale();
+export default async function ComoFuncionaPage({ locale = 'pt-PT' as Locale }: { locale?: Locale } = {}) {
   const prefix = locale === 'pt-BR' ? '/br' : '';
 
   const breadcrumb = breadcrumbJsonLd([
