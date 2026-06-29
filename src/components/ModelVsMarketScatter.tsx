@@ -10,6 +10,7 @@
  */
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { CoinsIcon, AlertTriangleIcon } from '@/components/icons';
 
 export interface ModelEntry {
   p: number;         // P(champion) segundo o modelo (0..1)
@@ -119,7 +120,7 @@ export async function ModelVsMarketScatter({
     <div className="stat-card p-4 md:p-5 mb-6">
       <div className="flex items-baseline justify-between mb-2 flex-wrap gap-2">
         <h2 className="font-bold text-base md:text-lg flex items-center gap-2">
-          <span>💰</span>
+          <CoinsIcon size={18} className="text-[var(--color-accent)]" />
           <span>Modelo vs Mercado</span>
         </h2>
         <span className="text-[10px] text-gray-500 uppercase tracking-wider font-mono">
@@ -300,7 +301,7 @@ export async function ModelVsMarketScatter({
                 className="text-xs font-bold uppercase tracking-wider mb-2"
                 style={{ color: '#ff7a7a' }}
               >
-                ⚠️ Overhyped (-EV)
+                <AlertTriangleIcon size={14} className="inline-block mr-1 align-text-bottom" /> Overhyped (-EV)
               </h3>
               <ul className="space-y-1.5">
                 {overhyped.map(e => (

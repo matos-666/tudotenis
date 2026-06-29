@@ -5,6 +5,7 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { KellyCalc } from '@/components/KellyCalc';
 import { hreflangAlternates, type Locale } from '@/lib/i18n';
+import { CoinsIcon } from '@/components/icons';
 
 export const metadata: Metadata = {
   title: 'Calculadora Kelly · Stake ótimo por bankroll',
@@ -30,7 +31,7 @@ export default async function KellyPage({ locale = 'pt-PT' as Locale }: { locale
             <span>Calculadora Kelly</span>
           </div>
 
-          <h1 className="text-2xl md:text-4xl font-extrabold mb-2">💰 Calculadora Kelly</h1>
+          <h1 className="text-2xl md:text-4xl font-extrabold mb-2 inline-flex items-center gap-2"><CoinsIcon size={32} className="text-[var(--color-accent)]" /> Calculadora Kelly</h1>
           <p className="text-gray-400 text-sm md:text-base mb-6 md:mb-8">
             {isBR
               ? 'Stake ótima por bankroll · combina probabilidade do modelo + odd da casa'

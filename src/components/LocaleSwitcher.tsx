@@ -41,8 +41,8 @@ export function LocaleSwitcher({ current }: { current: Locale }) {
       onChange={e => switchTo(e.target.value as Locale)}
       className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg px-2 md:px-3 py-1.5 text-xs md:text-sm cursor-pointer"
     >
-      <option value="pt-PT">🇵🇹 PT</option>
-      <option value="pt-BR">🇧🇷 BR</option>
+      <option value="pt-PT">PT</option>
+      <option value="pt-BR">BR</option>
     </select>
   );
 }

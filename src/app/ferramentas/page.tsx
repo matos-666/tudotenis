@@ -3,6 +3,8 @@ import type { Metadata } from 'next';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { hreflangAlternates, type Locale } from '@/lib/i18n';
+import { TargetIcon, CoinsIcon } from '@/components/icons';
+import type { ComponentType, SVGProps } from 'react';
 
 export const metadata: Metadata = {
   title: 'Ferramentas · ELO Predictor, Monte Carlo, Kelly',
@@ -15,10 +17,11 @@ export default async function FerramentasIndex({ locale = 'pt-PT' as Locale }: {
   const isBR = locale === 'pt-BR';
   const prefix = isBR ? '/br' : '';
 
-  const TOOLS = [
+  type IconCmp = ComponentType<SVGProps<SVGSVGElement> & { size?: number }>;
+  const TOOLS: Array<{ href: string; Icon: IconCmp; title: string; desc: string; badge: string }> = [
     {
       href: `${prefix}/ferramentas/predictor`,
-      icon: '🎯',
+      Icon: TargetIcon,
       title: 'ELO Predictor',
       desc: isBR
         ? 'Probabilidade de vitória entre 2 jogadores · 4 pisos · BO3/BO5'
@@ -27,7 +30,7 @@ export default async function FerramentasIndex({ locale = 'pt-PT' as Locale }: {
     },
     {
       href: `${prefix}/ferramentas/kelly`,
-      icon: '💰',
+      Icon: CoinsIcon,
       title: isBR ? 'Calculadora Kelly' : 'Calculadora Kelly',
       desc: isBR
         ? 'Stake ótima por bankroll · slider de fração (cauteloso → agressivo)'
@@ -54,7 +57,7 @@ export default async function FerramentasIndex({ locale = 'pt-PT' as Locale }: {
                 className="stat-card p-6 hover:border-[var(--color-accent)]/50 group"
               >
                 <div className="flex items-start justify-between mb-3">
-                  <div className="text-3xl">{t.icon}</div>
+                  <t.Icon size={32} className="text-[var(--color-accent)]" />
                   <span className="text-[10px] uppercase font-semibold tracking-wider text-[var(--color-accent)] bg-[var(--color-accent)]/10 px-2 py-1 rounded">
                     {t.badge}
                   </span>

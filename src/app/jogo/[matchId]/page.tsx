@@ -5,6 +5,7 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { SportradarWidget } from '@/components/SportradarWidget';
 import { LiveWinProbChart } from '@/components/LiveWinProbChart';
+import { AlertTriangleIcon } from '@/components/icons';
 import { supabase } from '@/lib/supabase';
 import { type Locale } from '@/lib/i18n';
 
@@ -248,8 +249,8 @@ export default async function LiveMatchPage({
               <div className="flex items-baseline justify-between flex-wrap gap-2 mb-3">
                 <h2 className="text-sm uppercase tracking-wider text-gray-400">Modelo ELO · prob. vencer match</h2>
                 {impHigh && (
-                  <span className="text-xs bg-yellow-500/15 border border-yellow-500/40 text-yellow-400 rounded-full px-2.5 py-0.5">
-                    ⚠ Volatilidade elevada (I={imp!.toFixed(2)})
+                  <span className="text-xs bg-yellow-500/15 border border-yellow-500/40 text-yellow-400 rounded-full px-2.5 py-0.5 inline-flex items-center gap-1">
+                    <AlertTriangleIcon size={12} /> Volatilidade elevada (I={imp!.toFixed(2)})
                   </span>
                 )}
               </div>

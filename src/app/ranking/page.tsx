@@ -4,6 +4,7 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import type { Metadata } from 'next';
 import { hreflangAlternates, type Locale } from '@/lib/i18n';
+import { AlertTriangleIcon } from '@/components/icons';
 import { displayElo } from '@/lib/elo';
 
 export const metadata: Metadata = {
@@ -115,7 +116,7 @@ export default async function RankingPage({ locale = 'pt-PT' as Locale }: { loca
 
           {isEmpty && (
             <div className="stat-card p-6 mb-6 border-yellow-500/30">
-              <h2 className="font-bold mb-2">⚠️ Base de dados vazia</h2>
+              <h2 className="font-bold mb-2 flex items-center gap-2"><AlertTriangleIcon size={18} className="text-yellow-400" /> Base de dados vazia</h2>
               <p className="text-sm text-gray-400 mb-3">
                 A tabela <code className="text-[var(--color-accent)]">players</code> está vazia. Aplica o schema SQL via Supabase Dashboard:
               </p>

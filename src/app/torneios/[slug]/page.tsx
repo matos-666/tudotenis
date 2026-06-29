@@ -8,6 +8,7 @@ import { Footer } from '@/components/Footer';
 import { breadcrumbJsonLd, sportsEventJsonLd } from '@/lib/jsonld';
 import { TournamentTopInsights } from '@/components/TournamentTopInsights';
 import { hreflangAlternates, type Locale } from '@/lib/i18n';
+import { TrophyIcon, TargetIcon, ChartIcon } from '@/components/icons';
 
 export const revalidate = 3600;
 
@@ -144,7 +145,7 @@ function FinalCard({
   return (
     <div className="stat-card p-5 md:p-6 mb-4">
       <div className="flex items-baseline justify-between mb-5 flex-wrap gap-2">
-        <h3 className="font-bold">🏆 Final {tour}</h3>
+        <h3 className="font-bold inline-flex items-center gap-2"><TrophyIcon size={18} className="text-[var(--color-accent)]" /> Final {tour}</h3>
       </div>
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 md:gap-6">
         {/* Winner */}
@@ -160,8 +161,8 @@ function FinalCard({
             )}
           </Link>
           <div className="min-w-0">
-            <div className="text-[9px] md:text-[10px] uppercase text-[var(--color-accent)] font-bold tracking-wider mb-0.5">
-              🏆 Campeão
+            <div className="text-[9px] md:text-[10px] uppercase text-[var(--color-accent)] font-bold tracking-wider mb-0.5 inline-flex items-center gap-1">
+              <TrophyIcon size={11} /> Campeão
             </div>
             <Link href={`${prefix}/jogador/${winner.slug}`} className="font-bold truncate text-sm md:text-lg block hover:underline">
               {winner.name}
@@ -373,7 +374,7 @@ export default async function TournamentDetail({
                 href={`${prefix}/torneios/${t.slug}/preparacao`}
                 className="stat-card p-4 hover:border-[var(--color-accent)]/40 transition group"
               >
-                <div className="text-2xl mb-2">🎯</div>
+                <TargetIcon size={26} className="mb-2 text-[var(--color-accent)]" />
                 <h3 className="font-bold mb-1 group-hover:text-[var(--color-accent)] transition">
                   Quem está preparado?
                 </h3>
@@ -385,7 +386,7 @@ export default async function TournamentDetail({
                 href={`${prefix}/torneios/${t.slug}/predictor`}
                 className="stat-card p-4 hover:border-[var(--color-accent)]/40 transition group"
               >
-                <div className="text-2xl mb-2">🎲</div>
+                <ChartIcon size={26} className="mb-2 text-[var(--color-accent)]" />
                 <h3 className="font-bold mb-1 group-hover:text-[var(--color-accent)] transition">
                   Predictor Monte Carlo
                 </h3>
@@ -406,9 +407,9 @@ export default async function TournamentDetail({
             </Link>
             <Link
               href={`${prefix}/ranking`}
-              className="bg-[var(--color-accent)] text-[var(--color-surface)] px-4 py-3 rounded-lg text-sm font-semibold"
+              className="bg-[var(--color-accent)] text-[var(--color-surface)] px-4 py-3 rounded-lg text-sm font-semibold inline-flex items-center gap-2"
             >
-              🏆 Ver Ranking ELO
+              <TrophyIcon size={16} /> Ver Ranking ELO
             </Link>
           </div>
 

@@ -26,6 +26,7 @@
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { surfaceLabel, type Locale } from '@/lib/i18n';
+import { ChartIcon } from '@/components/icons';
 
 // Set-level (Phase C) é a fonte de verdade actual; legacy match-level só
 // serve de fallback para snapshots antigos onde ainda não havia set-level.
@@ -162,7 +163,7 @@ export async function SurfaceFormGrid({
     return (
       <div className="stat-card p-4 md:p-5 mb-8">
         <h2 className="font-bold text-base md:text-lg flex items-center gap-2 mb-2">
-          <span>📊</span>
+          <ChartIcon size={18} className="text-[var(--color-accent)]" />
           <span>Forma em {surfLbl}</span>
         </h2>
         <p className="text-xs text-gray-500">
@@ -201,7 +202,7 @@ export async function SurfaceFormGrid({
     <div className="stat-card p-4 md:p-5 mb-8">
       <div className="flex items-baseline justify-between mb-2 flex-wrap gap-2">
         <h2 className="font-bold text-base md:text-lg flex items-center gap-2">
-          <span>📊</span>
+          <ChartIcon size={18} className="text-[var(--color-accent)]" />
           <span>Forma em {surfLbl}</span>
         </h2>
         <span className="text-[10px] text-gray-500 uppercase tracking-wider font-mono whitespace-nowrap">

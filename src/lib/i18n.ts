@@ -125,7 +125,7 @@ const dict = {
   'tournament.category':     { 'pt-PT': 'Categoria',              'pt-BR': 'Categoria' },
   'tournament.summary':      { 'pt-PT': 'Resumo do torneio',      'pt-BR': 'Resumo do torneio' },
   'tournament.back':         { 'pt-PT': '← Voltar ao calendário', 'pt-BR': '← Voltar ao calendário' },
-  'tournament.see_ranking':  { 'pt-PT': '🏆 Ver Ranking ELO',     'pt-BR': '🏆 Ver Ranking ELO' },
+  'tournament.see_ranking':  { 'pt-PT': 'Ver Ranking ELO',       'pt-BR': 'Ver Ranking ELO' },
   'tournament.scatter.title':{ 'pt-PT': 'Quem está mais preparado para {surface}?',
                                'pt-BR': 'Quem está mais preparado para {surface}?' },
 

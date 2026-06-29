@@ -18,7 +18,7 @@ export const AFFILIATES: Affiliate[] = [
     slug: 'twin',
     name: 'Twin',
     trackingUrl: 'https://dashboard.onetwoaffiliates.com/click?campaign_id=796&ref_id=370',
-    badge: '⭐ Principal',
+    badge: 'Principal',
     primary: true,
   },
   {

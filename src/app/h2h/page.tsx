@@ -5,6 +5,7 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { eloProb, buildMatchupSlug } from '@/lib/elo';
 import { hreflangAlternates, type Locale } from '@/lib/i18n';
+import { CrossedRacquetsIcon } from '@/components/icons';
 
 export const revalidate = 3600;
 
@@ -67,7 +68,7 @@ export default async function H2HIndexPage({ locale = 'pt-PT' as Locale }: { loc
           </p>
 
           {/* Featured rivalries */}
-          <h2 className="text-xl font-bold mb-4">⚔️ Rivalidades em destaque</h2>
+          <h2 className="text-xl font-bold mb-4 inline-flex items-center gap-2"><CrossedRacquetsIcon size={22} className="text-[var(--color-accent)]" /> Rivalidades em destaque</h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-10">
             {featured.map(({ p1, p2, prob1 }) => (
               <Link

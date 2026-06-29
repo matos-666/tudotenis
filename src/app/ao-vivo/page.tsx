@@ -4,6 +4,7 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { supabase } from '@/lib/supabase';
 import { hreflangAlternates, type Locale } from '@/lib/i18n';
+import { TennisBallIcon } from '@/components/icons';
 
 export const revalidate = 30;
 
@@ -101,7 +102,7 @@ export default async function AoVivoPage({ locale = 'pt-PT' as Locale }: { local
 
           {matches.length === 0 ? (
             <div className="stat-card p-8 text-center">
-              <div className="text-3xl mb-3">🎾</div>
+              <TennisBallIcon size={36} className="mx-auto mb-3 text-[var(--color-accent)]" />
               <div className="font-semibold mb-1">Sem matches em curso agora</div>
               <p className="text-xs text-gray-500 max-w-md mx-auto">
                 O cron de captação corre a cada minuto durante o dia. Volta dentro de momentos ou consulta os {' '}

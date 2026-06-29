@@ -5,6 +5,7 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { TournamentsExplorer } from '@/components/TournamentsExplorer';
 import { hreflangAlternates, type Locale } from '@/lib/i18n';
+import { TargetIcon } from '@/components/icons';
 
 export const revalidate = 3600;
 
@@ -72,7 +73,7 @@ export default async function TournamentsPage({ locale = 'pt-PT' as Locale }: { 
               </p>
             </Link>
             <div className="stat-card p-4 opacity-60">
-              <div className="text-2xl mb-2">🎯</div>
+              <TargetIcon size={26} className="mb-2 text-[var(--color-accent)]" />
               <h3 className="font-bold mb-1">Próximo Slam: análise ELO</h3>
               <p className="text-xs text-gray-500">
                 {isBR

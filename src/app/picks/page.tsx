@@ -7,6 +7,7 @@ import { OddsCompareCTA } from '@/components/OddsCompareCTA';
 import { supabase } from '@/lib/supabase';
 import { hreflangAlternates, localizedHref, surfaceLabel, type Locale } from '@/lib/i18n';
 import { buildMatchupSlug } from '@/lib/elo';
+import { StarIcon, AlertTriangleIcon } from '@/components/icons';
 
 export const metadata: Metadata = {
   title: 'Picks do dia · ELO + Edge',
@@ -463,8 +464,8 @@ function DoublesPickCard({ p, locale }: { p: DoublesPick; locale: Locale }) {
 
       {/* Equipa escolhida (destaque) vs adversária (cinza) */}
       <div className="mb-3">
-        <div className="text-[10px] uppercase tracking-wider text-[var(--color-accent)] font-bold mb-1">
-          ⭐ {isBR ? 'Nossa dupla' : 'Nossa dupla'}
+        <div className="text-[10px] uppercase tracking-wider text-[var(--color-accent)] font-bold mb-1 inline-flex items-center gap-1">
+          <StarIcon size={12} /> {isBR ? 'Nossa dupla' : 'Nossa dupla'}
         </div>
         <div className="flex items-center gap-2 mb-2">
           <PlayerAvatar src={null} flag={selFlag1} name={selName1 ?? ''} size="xs" />
@@ -644,8 +645,8 @@ function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
             {isBR ? 'Resultado já conhecido — pick fechado' : 'Resultado já conhecido — pick fechado'}
           </div>
         ) : live ? (
-          <div className="text-center text-xs text-red-400 py-2">
-            {isBR ? '⚠ Em curso — modelo só aposta pré-live' : '⚠ Em curso — modelo só aposta pré-live'}
+          <div className="text-center text-xs text-red-400 py-2 inline-flex items-center justify-center gap-1 w-full">
+            <AlertTriangleIcon size={12} /> {isBR ? 'Em curso — modelo só aposta pré-live' : 'Em curso — modelo só aposta pré-live'}
           </div>
         ) : (
           <OddsCompareCTA seed={p.id} odd={Number(p.odd)} market={p.market} isBR={isBR} />

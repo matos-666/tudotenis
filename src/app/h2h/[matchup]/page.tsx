@@ -12,6 +12,7 @@ import { H2HSparklineCompare } from '@/components/H2HSparklineCompare';
 import { H2HSurfaceMiniSparkline } from '@/components/H2HSurfaceMiniSparkline';
 import { fetchH2HSurfaceHistory } from '@/lib/h2h-surface-history';
 import { hreflangAlternates, surfaceLabel, type Locale } from '@/lib/i18n';
+import { ChartIcon, TrophyIcon } from '@/components/icons';
 
 export const revalidate = 3600;
 
@@ -750,7 +751,7 @@ export default async function H2HPage({
                 {/* ELO por superfície */}
                 <div className="stat-card mb-4">
                   <div className="px-3 md:px-5 py-2.5 bg-[var(--color-card)] border-b border-[var(--color-border)]">
-                    <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-accent)]">📊 ELO por superfície</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-accent)] inline-flex items-center gap-1.5"><ChartIcon size={14} /> ELO por superfície</span>
                   </div>
                   <VsRow label="Geral"   v1={ovr1}   v2={ovr2}   />
                   <VsRow label="Hard"    v1={hard1}  v2={hard2}  />
@@ -803,7 +804,7 @@ export default async function H2HPage({
                 {/* Carreira & perfil */}
                 <div className="stat-card mb-8">
                   <div className="px-3 md:px-5 py-2.5 bg-[var(--color-card)] border-b border-[var(--color-border)]">
-                    <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-accent)]">🏆 Carreira</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-accent)] inline-flex items-center gap-1.5"><TrophyIcon size={14} /> Carreira</span>
                   </div>
                   <VsRow label="Títulos ATP/WTA" v1={p1.titles} v2={p2.titles} />
                   <VsRow label="Grand Slams"      v1={p1.slams}  v2={p2.slams}  />

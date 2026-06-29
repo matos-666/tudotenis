@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import type { TournamentLite } from '@/app/torneios/page';
+import { TennisBallIcon } from '@/components/icons';
 
 // Indoor mapeado para hard — torneios indoor são quase sempre hard courts
 // cobertos. Não temos UI dedicada à surface indoor.
@@ -21,7 +22,7 @@ const PT_MONTH = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho',
 
 const CATEGORIES = [
   { id: 'all',     label: 'Todos',         icon: '' },
-  { id: 'slam',    label: 'Grand Slams',   icon: '🏆' },
+  { id: 'slam',    label: 'Grand Slams',   icon: '' },
   { id: '1000',    label: 'Masters 1000',  icon: 'M' },
   { id: '500',     label: '500',           icon: '' },
   { id: '250',     label: '250',           icon: '' },
@@ -138,7 +139,7 @@ export function TournamentsExplorer({ tournaments, locale = 'pt-PT' }: { tournam
       {/* Empty state */}
       {filtered.length === 0 ? (
         <div className="stat-card p-8 text-center">
-          <div className="text-3xl mb-3">🎾</div>
+          <TennisBallIcon size={36} className="mx-auto mb-3 text-[var(--color-accent)]" />
           <div className="font-semibold mb-1">Nenhum torneio encontrado</div>
           <p className="text-xs text-gray-500">Tenta ajustar os filtros.</p>
         </div>

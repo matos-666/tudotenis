@@ -53,7 +53,11 @@ export default async function Image() {
         >
           <span>Tudo</span>
           <span style={{ color: '#d4ff3a' }}>Ténis</span>
-          <span style={{ color: '#d4ff3a', fontSize: 40 }}>🎾</span>
+          <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#d4ff3a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M3.5 8.5C6.5 9.5 8.5 11.5 8.5 14.5C8.5 17 7 19 5 20.5" />
+            <path d="M20.5 8.5C17.5 9.5 15.5 11.5 15.5 14.5C15.5 17 17 19 19 20.5" />
+          </svg>
         </div>
 
         {/* Tagline */}

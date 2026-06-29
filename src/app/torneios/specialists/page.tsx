@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { hreflangAlternates, surfaceLabel, type Locale } from '@/lib/i18n';
+import { TrophyIcon } from '@/components/icons';
 import { displayElo } from '@/lib/elo';
 
 export const revalidate = 3600;
@@ -235,9 +236,9 @@ export default async function SpecialistsPage({ locale = 'pt-PT' as Locale }: { 
             </Link>
             <Link
               href={`${prefix}/ranking`}
-              className="bg-[var(--color-card)] border border-[var(--color-border)] hover:border-[var(--color-accent)] px-4 py-2 rounded-lg text-sm"
+              className="bg-[var(--color-card)] border border-[var(--color-border)] hover:border-[var(--color-accent)] px-4 py-2 rounded-lg text-sm inline-flex items-center gap-2"
             >
-              🏆 Ranking ELO overall
+              <TrophyIcon size={16} className="text-[var(--color-accent)]" /> Ranking ELO overall
             </Link>
           </div>
 

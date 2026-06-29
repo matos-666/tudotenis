@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { localizedHref, type Locale } from '@/lib/i18n';
+import { StarIcon } from '@/components/icons';
 
 export function Footer({ locale = 'pt-PT' }: { locale?: Locale }) {
   const isBR = locale === 'pt-BR';
@@ -46,7 +47,7 @@ export function Footer({ locale = 'pt-PT' }: { locale?: Locale }) {
                 rel="sponsored noopener"
                 className="hover:text-[var(--color-accent)]"
               >
-                Twin <span className="text-xs">⭐</span>
+                Twin <StarIcon size={12} className="inline-block ml-1 text-[var(--color-accent)] align-baseline" />
               </a>
             </li>
             <li>

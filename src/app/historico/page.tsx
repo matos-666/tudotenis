@@ -4,6 +4,7 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { supabase } from '@/lib/supabase';
 import { hreflangAlternates, type Locale } from '@/lib/i18n';
+import { ChartIcon } from '@/components/icons';
 
 export const metadata: Metadata = {
   title: 'Histórico de picks · Performance auditada',
@@ -131,7 +132,7 @@ export default async function HistoricoPage({ locale = 'pt-PT' as Locale }: { lo
           {/* Tabela de histórico */}
           {picks.length === 0 ? (
             <div className="stat-card p-8 text-center">
-              <div className="text-3xl mb-3">📊</div>
+              <ChartIcon size={36} className="mx-auto mb-3 text-[var(--color-accent)]" />
               <div className="font-semibold mb-1">Sem picks resolvidos no site ainda</div>
               <p className="text-xs text-gray-500 max-w-md mx-auto">
                 O sistema acabou de arrancar. À medida que os jogos vão acabando, o histórico

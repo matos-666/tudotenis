@@ -24,6 +24,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AFFILIATES } from '@/lib/affiliates';
+import { TrophyIcon } from '@/components/icons';
 
 const SHOWCASE_BOOKIES = [
   'Betano',
@@ -202,7 +203,7 @@ function OddsCompareModal({
         {done ? (
           // ── SETTLED ────────────────────────────────────────────────────
           <div className="text-center">
-            <div className="text-4xl mb-2" aria-hidden>🏆</div>
+            <TrophyIcon size={40} className="mx-auto mb-2 text-[var(--color-accent)]" />
             <h2 id="odds-cmp-title" className="text-lg md:text-xl font-bold mb-1">
               {isBR ? 'Melhor odd encontrada' : 'Melhor odd encontrada'}
             </h2>

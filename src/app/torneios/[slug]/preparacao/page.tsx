@@ -7,6 +7,7 @@ import { Footer } from '@/components/Footer';
 import { SurfaceFormGrid } from '@/components/SurfaceFormGrid';
 import { hreflangAlternates, surfaceLabel, type Locale } from '@/lib/i18n';
 import { displayElo } from '@/lib/elo';
+import { AlertTriangleIcon } from '@/components/icons';
 
 export const revalidate = 3600;
 
@@ -329,7 +330,7 @@ export default async function PreparacaoPage({
           {vulnerable.length > 0 && (
             <section className="mb-12">
               <h2 className="text-xl font-bold mb-2 flex items-center gap-2">
-                <span>⚠️</span>
+                <AlertTriangleIcon size={20} className="text-yellow-400" />
                 Vulneráveis nesta surface
               </h2>
               <p className="text-xs text-gray-500 mb-4">

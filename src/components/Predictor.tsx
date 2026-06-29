@@ -11,6 +11,7 @@ import {
   displayElo,
 } from '@/lib/elo';
 import type { PredictorPlayer } from '@/app/ferramentas/predictor/page';
+import { CoinsIcon } from '@/components/icons';
 
 type Surface = 'hard' | 'clay' | 'grass';
 type BoVal = 3 | 5;
@@ -308,7 +309,7 @@ export function Predictor({ players }: { players: PredictorPlayer[] }) {
       {edge != null && edge > 0 && (
         <div className="stat-card p-5 md:p-6 mb-6 border-[var(--color-accent)]/30">
           <div className="flex items-start gap-4">
-            <div className="text-3xl">💰</div>
+            <CoinsIcon size={32} className="text-[var(--color-accent)] flex-shrink-0" />
             <div className="flex-1">
               <h3 className="font-bold mb-1">Edge positivo detectado: +{edge.toFixed(1)}%</h3>
               <p className="text-sm text-gray-400 mb-3">

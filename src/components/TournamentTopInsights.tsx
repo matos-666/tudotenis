@@ -19,6 +19,7 @@
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { surfaceLabel, type Locale } from '@/lib/i18n';
+import { TargetIcon } from '@/components/icons';
 
 const SURFACE_COL = {
   hard: 'elo_set_hard',
@@ -207,7 +208,7 @@ export async function TournamentTopInsights({
         <div className="stat-card p-4 md:p-5">
           <div className="flex items-baseline justify-between mb-2 flex-wrap gap-1">
             <h3 className="font-bold text-sm md:text-base flex items-center gap-1.5">
-              <span>🎯</span>
+              <TargetIcon size={16} className="text-[var(--color-accent)]" />
               <span>Upset radar</span>
             </h3>
             <span className="text-[10px] text-gray-500 uppercase tracking-wider font-mono">

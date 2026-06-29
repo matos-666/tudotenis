@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { LiveMatchesCarousel } from '@/components/LiveMatchesCarousel';
+import { TrophyIcon, CrossedRacquetsIcon, CoinsIcon } from '@/components/icons';
 import { localizedHref, type Locale } from '@/lib/i18n';
 import { supabase } from '@/lib/supabase';
 
@@ -219,7 +220,7 @@ export async function HomePage({ locale }: { locale: Locale }) {
           </p>
           <div className="grid md:grid-cols-3 gap-4">
             <Link href={lh('/ranking')} className="stat-card p-5 hover:border-[var(--color-accent)]/40 transition group">
-              <div className="text-2xl mb-2">🏆</div>
+              <TrophyIcon size={26} className="mb-2 text-[var(--color-accent)]" />
               <h3 className="font-semibold mb-1 group-hover:text-[var(--color-accent)] transition">Ranking ELO</h3>
               <p className="text-xs text-gray-500">
                 {isBR
@@ -228,7 +229,7 @@ export async function HomePage({ locale }: { locale: Locale }) {
               </p>
             </Link>
             <Link href={lh('/ferramentas/predictor')} className="stat-card p-5 hover:border-[var(--color-accent)]/40 transition group">
-              <div className="text-2xl mb-2">⚔️</div>
+              <CrossedRacquetsIcon size={26} className="mb-2 text-[var(--color-accent)]" />
               <h3 className="font-semibold mb-1 group-hover:text-[var(--color-accent)] transition">ELO Predictor</h3>
               <p className="text-xs text-gray-500">
                 {isBR
@@ -237,7 +238,7 @@ export async function HomePage({ locale }: { locale: Locale }) {
               </p>
             </Link>
             <Link href={lh('/picks')} className="stat-card p-5 hover:border-[var(--color-accent)]/40 transition group">
-              <div className="text-2xl mb-2">💰</div>
+              <CoinsIcon size={26} className="mb-2 text-[var(--color-accent)]" />
               <h3 className="font-semibold mb-1 group-hover:text-[var(--color-accent)] transition">
                 {isBR ? 'Palpites com edge' : 'Picks com edge'}
               </h3>

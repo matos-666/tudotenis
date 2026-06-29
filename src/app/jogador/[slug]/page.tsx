@@ -8,6 +8,7 @@ import { Footer } from '@/components/Footer';
 import { EloChart } from '@/components/EloChart';
 import { breadcrumbJsonLd } from '@/lib/jsonld';
 import { hreflangAlternates, surfaceLabel, type Locale } from '@/lib/i18n';
+import { CrossedRacquetsIcon, TargetIcon, TrophyIcon } from '@/components/icons';
 import { displayElo } from '@/lib/elo';
 
 // Re-gerar a cada hora; novos jogadores acrescentados via cron
@@ -247,7 +248,7 @@ export default async function PlayerPage({
               href={`${prefix}/h2h/${player.slug}`}
               className="stat-card p-4 hover:border-[var(--color-accent)]/50"
             >
-              <div className="text-2xl mb-2">⚔️</div>
+              <CrossedRacquetsIcon size={26} className="mb-2 text-[var(--color-accent)]" />
               <div className="font-semibold">H2H</div>
               <div className="text-xs text-gray-500">
                 {locale === 'pt-BR' ? 'Compare com qualquer jogador' : 'Compara com qualquer jogador'}
@@ -257,7 +258,7 @@ export default async function PlayerPage({
               href={`${prefix}/ferramentas/predictor`}
               className="stat-card p-4 hover:border-[var(--color-accent)]/50"
             >
-              <div className="text-2xl mb-2">🎯</div>
+              <TargetIcon size={26} className="mb-2 text-[var(--color-accent)]" />
               <div className="font-semibold">ELO Predictor</div>
               <div className="text-xs text-gray-500">
                 Probabilidade vs outro jogador
@@ -267,7 +268,7 @@ export default async function PlayerPage({
               href={`${prefix}/ranking`}
               className="stat-card p-4 hover:border-[var(--color-accent)]/50"
             >
-              <div className="text-2xl mb-2">🏆</div>
+              <TrophyIcon size={26} className="mb-2 text-[var(--color-accent)]" />
               <div className="font-semibold">Ranking ELO</div>
               <div className="text-xs text-gray-500">
                 Onde {player.name.split(' ').pop()} está

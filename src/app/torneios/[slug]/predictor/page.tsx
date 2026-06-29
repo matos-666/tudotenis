@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { hreflangAlternates, surfaceLabel, type Locale } from '@/lib/i18n';
+import { AlertTriangleIcon, TargetIcon } from '@/components/icons';
 import { displayElo, eloProb, matchProbFromSetProb } from '@/lib/elo';
 import { ModelVsMarketScatter, type ModelEntry } from '@/components/ModelVsMarketScatter';
 
@@ -264,8 +265,8 @@ export default async function PredictorPage({
           </p>
 
           <div className="stat-card p-4 mb-6 border-[var(--color-accent)]/20">
-            <h3 className="text-xs font-bold text-[var(--color-accent)] uppercase tracking-wider mb-2">
-              ⚠️ Limitações desta simulação
+            <h3 className="text-xs font-bold text-[var(--color-accent)] uppercase tracking-wider mb-2 inline-flex items-center gap-1.5">
+              <AlertTriangleIcon size={14} /> Limitações desta simulação
             </h3>
             <p className="text-xs text-gray-400 leading-relaxed">
               {isBR
@@ -335,9 +336,9 @@ export default async function PredictorPage({
             </Link>
             <Link
               href={`${prefix}/torneios/${t.slug}/preparacao`}
-              className="bg-[var(--color-accent)] text-[var(--color-surface)] px-4 py-3 rounded-lg text-sm font-semibold"
+              className="bg-[var(--color-accent)] text-[var(--color-surface)] px-4 py-3 rounded-lg text-sm font-semibold inline-flex items-center gap-2"
             >
-              🎯 Preparação para o torneio
+              <TargetIcon size={16} /> Preparação para o torneio
             </Link>
           </div>
         </div>
