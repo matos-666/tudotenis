@@ -1,17 +1,15 @@
 name: Live Odds Poller
 
-# Stub: corre em paralelo ao live_state_poller para capturar odds das
-# casas em sincronia com snapshots de live_state.
+# Corre em paralelo ao live_state_poller para capturar odds The Odds API
+# (OddsAPI v4) em sincronia com snapshots de live_state.
 #
-# Status: o endpoint /api/cron/live-odds é no-op até pluggar o adapter
-# real (1xBet betlbl tennis / OddsAPI live). Manter desligado da agenda
-# (workflow_dispatch only) para não gastar runner-minutes em vão.
+# Cobertura: 2 calls OA por execução (atp_wimbledon + wta_wimbledon).
+# 12 execuções/h × 2 = 24/h × 24h = 576/dia. Plano Pro do OddsAPI cobre.
 
 on:
   workflow_dispatch:
-  # Quando o adapter estiver pronto, descomentar a próxima linha:
-  # schedule:
-  #   - cron: "*/5 * * * *"
+  schedule:
+    - cron: "*/5 * * * *"
 
 jobs:
   poll:
