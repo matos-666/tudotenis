@@ -38,7 +38,9 @@ export async function fetchTennisLiveOdds(sportKey: string): Promise<OddsApiMatc
     console.warn('[odds-api] ODDS_API_KEY missing');
     return [];
   }
-  const url = `${API_BASE}/sports/${sportKey}/odds?apiKey=${key}&regions=eu,uk&markets=h2h&oddsFormat=decimal`;
+  // Apenas 1 region para conservar quota (cada region extra dobra o cost).
+  // Region 'eu' inclui Pinnacle, Betfair Exchange EU, casas centrais.
+  const url = `${API_BASE}/sports/${sportKey}/odds?apiKey=${key}&regions=eu&markets=h2h&oddsFormat=decimal`;
   try {
     const r = await fetch(url, { cache: 'no-store' });
     if (!r.ok) {

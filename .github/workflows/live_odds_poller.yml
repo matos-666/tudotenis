@@ -8,8 +8,10 @@ name: Live Odds Poller
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "*/5 * * * *"
+  # Schedule DESACTIVADO até decidir plano OddsAPI (free=500/mês, cada call
+  # eu+uk consome 2). Activar via descomentar abaixo + ajustar frequência:
+  # schedule:
+  #   - cron: "*/30 * * * *"  # ~96 calls/dia × 2 sport keys = 192/dia
 
 jobs:
   poll:
@@ -18,11 +20,11 @@ jobs:
     timeout-minutes: 6
 
     steps:
-      - name: Loop 10× 30s = 5min
+      - name: Loop reduzido (1 call para conservar quota OddsAPI free tier)
         run: |
           ENDPOINT="https://tudotenis.com/api/cron/live-odds"
-          ITERATIONS=10
-          INTERVAL_S=30
+          ITERATIONS=1
+          INTERVAL_S=0
           OK=0
           FAIL=0
 
