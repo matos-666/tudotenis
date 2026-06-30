@@ -91,24 +91,16 @@ interface PlayerIndex {
   byTour: Map<string, Array<PlayerRow & { norm: string; last: string }>>;
 }
 
-async function buildPlayerIndex(): Promise<PlayerIndex> {
-  const out: PlayerIndex = { byTour: new Map() };
-  let offset = 0;
-  const page = 1000;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const all: any[] = [];
-  while (true) {
-    const { data } = await supabase
-      .from('players')
-      .select('id, name, slug, flag, tour, elo_overall, elo_set_overall, elo_set_hard, elo_set_clay, elo_set_grass, elo_set_indoor')
-      .eq('active', true)
-      .range(offset, offset + page - 1);
-    if (!data || data.length === 0) break;
-    all.push(...data);
-    if (data.length < page) break;
-    offset += page;
-  }
-  for (const p of all as PlayerRow[]) {
+async function buildPlayerIndex(): Promise<PlayerIndex & { _err?: string }> {
+  const out: PlayerIndex & { _err?: string } = { byTour: new Map() };
+  // 1786 active players cabe num único pull com limit alto. Sem pagination.
+  const { data, error } = await supabase
+    .from('players')
+    .select('id, name, slug, flag, tour, elo_overall, elo_set_overall, elo_set_hard, elo_set_clay, elo_set_grass, elo_set_indoor')
+    .eq('active', true)
+    .limit(3000);
+  if (error) { out._err = error.message; return out; }
+  for (const p of (data ?? []) as PlayerRow[]) {
     const norm = strip(p.name);
     const tokens = p.name.split(/\s+/);
     const last = strip(tokens[tokens.length - 1] ?? '');
@@ -218,6 +210,7 @@ export async function POST(req: NextRequest) {
     has_sinner: idx.byTour.get('atp')?.some(p => p.name.includes('Sinner')) ?? false,
     has_arnaldi: idx.byTour.get('atp')?.some(p => p.name.includes('Arnaldi')) ?? false,
     sample_atp_3: idx.byTour.get('atp')?.slice(0, 3).map(p => ({ name: p.name, norm: p.norm, last: p.last })) ?? [],
+    err: idx._err ?? null,
   };
 
   for (const m of matches) {
