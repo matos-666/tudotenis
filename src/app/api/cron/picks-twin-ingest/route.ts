@@ -212,6 +212,13 @@ export async function POST(req: NextRequest) {
   const idx = await buildPlayerIndex();
   let resolved = 0, inserted = 0, skipped = 0;
   const debugSamples: Array<{ name_a: string; name_b: string; pA: string | null; pB: string | null }> = [];
+  const indexDebug = {
+    total_atp: idx.byTour.get('atp')?.length ?? 0,
+    total_wta: idx.byTour.get('wta')?.length ?? 0,
+    has_sinner: idx.byTour.get('atp')?.some(p => p.name.includes('Sinner')) ?? false,
+    has_arnaldi: idx.byTour.get('atp')?.some(p => p.name.includes('Arnaldi')) ?? false,
+    sample_atp_3: idx.byTour.get('atp')?.slice(0, 3).map(p => ({ name: p.name, norm: p.norm, last: p.last })) ?? [],
+  };
 
   for (const m of matches) {
     const pA = resolvePlayerFromIndex(m.name_a, m.tour, idx);
@@ -291,6 +298,7 @@ export async function POST(req: NextRequest) {
     inserted,
     skipped,
     debug_samples: debugSamples,
+    index_debug: indexDebug,
   });
 }
 
