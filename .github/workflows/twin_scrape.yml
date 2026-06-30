@@ -4,19 +4,26 @@ name: Twin Live Odds Scraper
 # /api/cron/live-odds-ingest no Vercel. Repo público → GHA minutes
 # ilimitados, sem custos.
 #
-# Cobertura: a cada 5 min durante 24/7. Cada run ~30s com cache
-# de browsers do Playwright.
+# Estratégia anti-staleness:
+#   - DUAS cron schedules em offset → dobra a chance de GHA disparar
+#     um workflow num intervalo curto (GHA throttla scheduled crons).
+#   - LOOP INTERNO de 6 scrapes × 40s dentro de cada run → quando
+#     a workflow corre de facto, despeja 6 snapshots em ~4min,
+#     mantendo odds frescas mesmo se próxima cron atrasar.
+#   - Resultado: gap máximo entre snapshots cai de 1-4h para <30min
+#     no pior caso, e tipicamente <1min em condições normais.
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "*/5 * * * *"       # 0, 5, 10, 15, ...
+    - cron: "2-59/5 * * * *"    # 2, 7, 12, 17, ... (offset 2min)
 
 jobs:
   scrape:
-    name: Twin scrape
+    name: Twin scrape loop
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 6
 
     steps:
       - uses: actions/checkout@v4
@@ -38,32 +45,39 @@ jobs:
           if [ "${{ steps.pw-cache.outputs.cache-hit }}" != "true" ]; then
             npx playwright install --with-deps chromium
           else
-            # ainda assim correr install-deps (apt-get) que não é cached
             npx playwright install-deps chromium || true
           fi
 
-      - name: Run scraper
-        id: scrape
+      - name: Scrape + POST loop (6 iterações × 40s = ~4min coverage)
         run: |
-          node scripts/scrape-twin-live.mjs > /tmp/twin.json
-          /usr/bin/wc -c /tmp/twin.json
-          # show first 600 chars for log visibility
-          head -c 600 /tmp/twin.json
-          echo ""
+          ENDPOINT="https://tudotenis.com/api/cron/live-odds-ingest"
+          ITERATIONS=6
+          INTERVAL_S=40
+          OK=0
+          FAIL=0
 
-      - name: POST to Vercel ingest
-        run: |
-          response=$(curl -sS -w "\nHTTP_STATUS:%{http_code}" \
-            -X POST "https://tudotenis.com/api/cron/live-odds-ingest" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            -H "Content-Type: application/json" \
-            --data-binary @/tmp/twin.json \
-            --max-time 30)
-          http_status=$(echo "$response" | grep "HTTP_STATUS:" | cut -d: -f2)
-          body=$(echo "$response" | grep -v "HTTP_STATUS:")
-          echo "Status: $http_status"
-          echo "Response: $body"
-          if [ "$http_status" != "200" ]; then exit 1; fi
+          for i in $(seq 1 $ITERATIONS); do
+            ts=$(date +%H:%M:%S)
+            node scripts/scrape-twin-live.mjs > /tmp/twin.json 2>/dev/null
+            size=$(wc -c < /tmp/twin.json)
+            response=$(curl -sS -w "\nHTTP:%{http_code}" \
+              -X POST "$ENDPOINT" \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              -H "Content-Type: application/json" \
+              --data-binary @/tmp/twin.json \
+              --max-time 30 2>/dev/null)
+            code=$(echo "$response" | grep "HTTP:" | cut -d: -f2)
+            body=$(echo "$response" | grep -v "HTTP:")
+            echo "[$ts] iter=$i size=${size}B HTTP=$code → $body"
+            if [ "$code" = "200" ]; then OK=$((OK+1)); else FAIL=$((FAIL+1)); fi
+            if [ $i -lt $ITERATIONS ]; then sleep $INTERVAL_S; fi
+          done
+
+          echo ""
+          echo "═══ Summary ═══"
+          echo "OK:   $OK / $ITERATIONS"
+          echo "FAIL: $FAIL / $ITERATIONS"
+          if [ $OK -eq 0 ]; then exit 1; fi
 
       - name: Upload debug artifacts on failure
         if: failure()
