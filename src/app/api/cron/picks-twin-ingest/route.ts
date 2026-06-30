@@ -61,7 +61,6 @@ interface PlayerRow {
   elo_set_hard: number | null;
   elo_set_clay: number | null;
   elo_set_grass: number | null;
-  elo_set_indoor: number | null;
 }
 
 function strip(s: string): string {
@@ -96,7 +95,7 @@ async function buildPlayerIndex(): Promise<PlayerIndex & { _err?: string }> {
   // 1786 active players cabe num único pull com limit alto. Sem pagination.
   const { data, error } = await supabase
     .from('players')
-    .select('id, name, slug, flag, tour, elo_overall, elo_set_overall, elo_set_hard, elo_set_clay, elo_set_grass, elo_set_indoor')
+    .select('id, name, slug, flag, tour, elo_overall, elo_set_overall, elo_set_hard, elo_set_clay, elo_set_grass')
     .eq('active', true)
     .limit(3000);
   if (error) { out._err = error.message; return out; }
@@ -156,7 +155,9 @@ function inferTournamentInfo(tournament: string | null, tour: 'atp' | 'wta'): To
 }
 
 function eloFor(p: PlayerRow, surface: 'hard' | 'clay' | 'grass' | 'indoor'): number | null {
-  const key = `elo_set_${surface}` as const;
+  // 'indoor' colapsa para 'hard' (não há coluna dedicada).
+  const eff = surface === 'indoor' ? 'hard' : surface;
+  const key = `elo_set_${eff}` as 'elo_set_hard' | 'elo_set_clay' | 'elo_set_grass';
   return p[key] ?? p.elo_set_overall ?? p.elo_overall ?? null;
 }
 
