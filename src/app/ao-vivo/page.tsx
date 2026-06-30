@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import AutoRefresh from '@/components/AutoRefresh';
+import PlayerAvatar from '@/components/PlayerAvatar';
 import { supabase } from '@/lib/supabase';
 import { hreflangAlternates, type Locale } from '@/lib/i18n';
 import { TennisBallIcon } from '@/components/icons';
@@ -49,6 +50,18 @@ async function fetchOpenPicksFor(matchIds: number[]): Promise<Map<number, LivePi
   return out;
 }
 
+interface PlayerLite { id: number; photo_url: string | null; flag: string | null }
+async function fetchPlayerPhotos(ids: number[]): Promise<Map<number, PlayerLite>> {
+  if (ids.length === 0) return new Map();
+  const { data } = await supabase
+    .from('players')
+    .select('id, photo_url, flag')
+    .in('id', ids);
+  const out = new Map<number, PlayerLite>();
+  for (const p of (data ?? []) as PlayerLite[]) out.set(p.id, p);
+  return out;
+}
+
 export const metadata: Metadata = {
   title: 'Ao vivo · Matches em curso',
   description: 'Lista de matches de ténis em curso agora, com a nossa probabilidade ELO e score actualizado a cada 20 segundos.',
@@ -82,15 +95,22 @@ async function fetchLiveMatches(): Promise<LiveRow[]> {
   return ((data ?? []) as LiveRow[]).filter(m => m.name_a && m.name_b);
 }
 
-function MatchCard({ m, pick }: { m: LiveRow; pick: LivePick | undefined }) {
+function MatchCard({ m, pick, photoA, photoB }: {
+  m: LiveRow;
+  pick: LivePick | undefined;
+  photoA: PlayerLite | undefined;
+  photoB: PlayerLite | undefined;
+}) {
   const probA = m.match_win_prob_a;
   const favIsA = probA != null && probA >= 0.5;
+  const score = `${m.set_a}-${m.set_b}`;
+  const cur = m.tiebreak ? 'TB' : `${m.game_a}-${m.game_b}`;
   return (
     <Link
       href={`/jogo/${m.sr_match_id}`}
-      className="stat-card p-4 hover:border-[var(--color-accent)]/50 transition block"
+      className="pick-card-3d p-4 block group"
     >
-      <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+      <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
         <span className="inline-flex items-center gap-1.5 bg-red-500/15 border border-red-500/40 text-red-400 rounded-full px-2 py-0.5 text-[10px] font-semibold">
           <span className="w-1 h-1 rounded-full bg-red-400 animate-pulse" />
           AO VIVO
@@ -100,24 +120,33 @@ function MatchCard({ m, pick }: { m: LiveRow; pick: LivePick | undefined }) {
         )}
       </div>
       <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
-        <div className={`text-sm truncate ${favIsA ? 'font-bold text-[var(--color-accent)]' : 'text-gray-300'}`}>
-          {m.name_a ?? '–'}
+        <div className="flex items-center gap-2 min-w-0 justify-end text-right">
+          <div className="min-w-0">
+            <div className={`text-sm truncate ${favIsA ? 'font-bold text-[var(--color-accent)]' : 'font-semibold text-gray-200'}`}>
+              {m.name_a ?? '–'}
+            </div>
+            {probA != null && (
+              <div className="text-[11px] font-mono text-gray-500">{Math.round(probA * 100)}%</div>
+            )}
+          </div>
+          <PlayerAvatar photoUrl={photoA?.photo_url} flag={photoA?.flag ?? null} name={m.name_a ?? '–'} size={40} ring />
         </div>
-        <div className="text-center font-mono shrink-0">
-          <div className="text-lg font-extrabold">{m.set_a}-{m.set_b}</div>
-          <div className="text-[10px] text-gray-500 whitespace-nowrap">{m.tiebreak ? 'TB' : `${m.game_a}-${m.game_b}`}</div>
+        <div className="text-center font-mono shrink-0 px-1">
+          <div className="text-xl font-extrabold tracking-wider">{score}</div>
+          <div className="text-[10px] text-gray-500 whitespace-nowrap mt-0.5">{cur}</div>
         </div>
-        <div className={`text-sm truncate text-right ${!favIsA && probA != null ? 'font-bold text-[var(--color-accent)]' : 'text-gray-300'}`}>
-          {m.name_b ?? '–'}
+        <div className="flex items-center gap-2 min-w-0">
+          <PlayerAvatar photoUrl={photoB?.photo_url} flag={photoB?.flag ?? null} name={m.name_b ?? '–'} size={40} ring />
+          <div className="min-w-0">
+            <div className={`text-sm truncate ${!favIsA && probA != null ? 'font-bold text-[var(--color-accent)]' : 'font-semibold text-gray-200'}`}>
+              {m.name_b ?? '–'}
+            </div>
+            {probA != null && (
+              <div className="text-[11px] font-mono text-gray-500">{Math.round((1 - probA) * 100)}%</div>
+            )}
+          </div>
         </div>
       </div>
-      {probA != null && (
-        <div className="mt-3 text-[11px] text-gray-500 flex justify-between">
-          <span><span className="font-mono text-gray-300">{Math.round(probA * 100)}%</span></span>
-          <span className="text-gray-500">modelo</span>
-          <span><span className="font-mono text-gray-300">{Math.round((1 - probA) * 100)}%</span></span>
-        </div>
-      )}
       {pick && pick.live_odd != null && pick.edge_pct != null && (
         <div className="mt-3 pt-3 border-t border-[var(--color-border)]/40 flex items-baseline justify-between gap-2">
           <span className="text-[10px] uppercase tracking-wider text-gray-500">Pick activa</span>
@@ -135,7 +164,10 @@ function MatchCard({ m, pick }: { m: LiveRow; pick: LivePick | undefined }) {
 
 export default async function AoVivoPage({ locale = 'pt-PT' as Locale }: { locale?: Locale } = {}) {
   const matches = await fetchLiveMatches();
-  const picksByMatch = await fetchOpenPicksFor(matches.map(m => m.sr_match_id));
+  const [picksByMatch, photosById] = await Promise.all([
+    fetchOpenPicksFor(matches.map(m => m.sr_match_id)),
+    fetchPlayerPhotos(matches.flatMap(m => [m.player_a_id, m.player_b_id]).filter((x): x is number => x != null)),
+  ]);
   return (
     <>
       <Header locale={locale} />
@@ -166,7 +198,15 @@ export default async function AoVivoPage({ locale = 'pt-PT' as Locale }: { local
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {matches.map(m => <MatchCard key={m.sr_match_id} m={m} pick={picksByMatch.get(m.sr_match_id)} />)}
+              {matches.map(m => (
+                <MatchCard
+                  key={m.sr_match_id}
+                  m={m}
+                  pick={picksByMatch.get(m.sr_match_id)}
+                  photoA={m.player_a_id ? photosById.get(m.player_a_id) : undefined}
+                  photoB={m.player_b_id ? photosById.get(m.player_b_id) : undefined}
+                />
+              ))}
             </div>
           )}
         </div>

@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { hreflangAlternates, localizedHref, surfaceLabel, type Locale } from '@/lib/i18n';
 import { buildMatchupSlug } from '@/lib/elo';
 import { StarIcon, AlertTriangleIcon } from '@/components/icons';
+import PlayerAvatar from '@/components/PlayerAvatar';
 
 export const metadata: Metadata = {
   title: 'Picks do dia · ELO + Edge',
@@ -258,44 +259,9 @@ function isLive(p: Pick): boolean {
   return hasStarted(p);
 }
 
-function PlayerAvatar({
-  src,
-  flag,
-  name,
-  size = 'sm',
-}: {
-  src: string | null | undefined;
-  flag: string | null;
-  name: string;
-  size?: 'sm' | 'xs';
-}) {
-  const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-  const dim = size === 'sm' ? 'w-8 h-8' : 'w-6 h-6';
-  return (
-    <div className={`relative ${dim} rounded-full bg-[var(--color-card)] border border-[var(--color-border)] overflow-hidden flex-shrink-0 flex items-center justify-center`}>
-      {src ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={src}
-          alt={name}
-          loading="lazy"
-          className="w-full h-full object-cover"
-          style={{ objectPosition: 'top center' }}
-        />
-      ) : (
-        <span className="text-[9px] font-bold text-gray-500">{initials || '·'}</span>
-      )}
-      {flag && (
-        <span
-          className="absolute -bottom-0 -right-0 text-[7px] leading-none bg-[var(--color-surface)] rounded-tl px-px"
-          aria-hidden="true"
-        >
-          {flag}
-        </span>
-      )}
-    </div>
-  );
-}
+// PlayerAvatar local foi substituído pelo componente partilhado em
+// @/components/PlayerAvatar (com fallback robusto onError + iniciais
+// sobre gradiente accent). Mantém-se a importação no topo deste ficheiro.
 
 // ── Compact Pick Row (live + settled — sem CTAs) ─────────────────────────
 function CompactPickRow({ p, locale }: { p: Pick; locale: Locale }) {
@@ -351,7 +317,7 @@ function CompactPickRow({ p, locale }: { p: Pick; locale: Locale }) {
       {/* Players + stats em linha (mobile-friendly) */}
       <div className="flex items-center gap-2 text-sm">
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
-          <PlayerAvatar src={p.p1_photo_url} flag={p.p1_flag} name={p.p1_name ?? p.selection} size="xs" />
+          <PlayerAvatar photoUrl={p.p1_photo_url} flag={p.p1_flag} name={p.p1_name ?? p.selection} size={24} />
           <span className={`truncate font-semibold ${
             isWin ? 'text-[var(--color-accent)]' : isLoss ? 'text-red-300' : ''
           }`}>
@@ -361,7 +327,7 @@ function CompactPickRow({ p, locale }: { p: Pick; locale: Locale }) {
         <span className="text-[9px] uppercase text-gray-600 shrink-0">vs</span>
         <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
           <span className="truncate text-gray-400 text-right">{p.p2_name ?? '–'}</span>
-          <PlayerAvatar src={p.p2_photo_url} flag={p.p2_flag} name={p.p2_name ?? ''} size="xs" />
+          <PlayerAvatar photoUrl={p.p2_photo_url} flag={p.p2_flag} name={p.p2_name ?? ''} size={24} />
         </div>
       </div>
 
@@ -434,7 +400,7 @@ function DoublesPickCard({ p, locale }: { p: DoublesPick; locale: Locale }) {
           : '';
 
   return (
-    <div className={`stat-card p-4 md:p-5 relative ${cardBorder} ${settled ? 'opacity-90' : ''}`}>
+    <div className={`pick-card-3d p-4 md:p-5 relative ${cardBorder} ${settled ? 'opacity-90' : ''}`}>
       {settled && (
         <div className={`absolute -top-2 -right-2 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider z-10 ${
           isWin ? 'bg-[var(--color-accent)] text-[var(--color-surface)]'
@@ -478,22 +444,22 @@ function DoublesPickCard({ p, locale }: { p: DoublesPick; locale: Locale }) {
           <StarIcon size={12} /> {isBR ? 'Nossa dupla' : 'Nossa dupla'}
         </div>
         <div className="flex items-center gap-2 mb-2">
-          <PlayerAvatar src={null} flag={selFlag1} name={selName1 ?? ''} size="xs" />
+          <PlayerAvatar photoUrl={null} flag={selFlag1} name={selName1 ?? ''} size={24} />
           <span className={`font-semibold text-sm truncate ${isWin ? 'text-[var(--color-accent)]' : isLoss ? 'text-red-300' : ''}`}>
             {selName1}
           </span>
           <span className="text-gray-600">/</span>
-          <PlayerAvatar src={null} flag={selFlag2} name={selName2 ?? ''} size="xs" />
+          <PlayerAvatar photoUrl={null} flag={selFlag2} name={selName2 ?? ''} size={24} />
           <span className={`font-semibold text-sm truncate ${isWin ? 'text-[var(--color-accent)]' : isLoss ? 'text-red-300' : ''}`}>
             {selName2}
           </span>
         </div>
         <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">vs</div>
         <div className="flex items-center gap-2">
-          <PlayerAvatar src={null} flag={oppFlag1} name={oppName1 ?? ''} size="xs" />
+          <PlayerAvatar photoUrl={null} flag={oppFlag1} name={oppName1 ?? ''} size={24} />
           <span className="text-gray-400 text-xs truncate">{oppName1}</span>
           <span className="text-gray-600">/</span>
-          <PlayerAvatar src={null} flag={oppFlag2} name={oppName2 ?? ''} size="xs" />
+          <PlayerAvatar photoUrl={null} flag={oppFlag2} name={oppName2 ?? ''} size={24} />
           <span className="text-gray-400 text-xs truncate">{oppName2}</span>
         </div>
       </div>
@@ -576,7 +542,7 @@ function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
       {/* Players — side-by-side com foto */}
       <div className="flex items-center gap-2 mb-3">
         <div className="flex items-center gap-1.5 md:gap-2 flex-1 min-w-0">
-          <PlayerAvatar src={p.p1_photo_url} flag={p.p1_flag} name={p.p1_name ?? p.selection} />
+          <PlayerAvatar photoUrl={p.p1_photo_url} flag={p.p1_flag} name={p.p1_name ?? p.selection} size={32} />
           <span className={`font-semibold text-sm md:text-base truncate ${isWin ? 'text-[var(--color-accent)]' : isLoss ? 'text-red-300' : ''}`}>
             {p.p1_name ?? p.selection}
           </span>
@@ -586,7 +552,7 @@ function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
           <span className="text-gray-400 text-sm md:text-base truncate">
             {p.p2_name ?? '–'}
           </span>
-          <PlayerAvatar src={p.p2_photo_url} flag={p.p2_flag} name={p.p2_name ?? ''} />
+          <PlayerAvatar photoUrl={p.p2_photo_url} flag={p.p2_flag} name={p.p2_name ?? ''} size={32} />
         </div>
       </div>
 
@@ -620,7 +586,7 @@ function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
   );
 
   return (
-    <div className={`stat-card p-4 md:p-5 relative ${cardBorder} ${settled ? 'opacity-90' : ''}`}>
+    <div className={`pick-card-3d p-4 md:p-5 relative ${cardBorder} ${settled ? 'opacity-90' : ''}`}>
       {/* Status badge top-right corner for settled picks */}
       {settled && (
         <div
@@ -935,13 +901,13 @@ export default async function PicksPage({ locale = 'pt-PT' as Locale }: { locale
                       <tr key={p.id} className="border-t border-[var(--color-border)]">
                         <td className="p-2 md:p-4 font-sans font-semibold">
                           <div className="flex items-center gap-2">
-                            <PlayerAvatar src={p.p1_photo_url} flag={p.p1_flag} name={p.p1_name ?? p.selection} size="xs" />
+                            <PlayerAvatar photoUrl={p.p1_photo_url} flag={p.p1_flag} name={p.p1_name ?? p.selection} size={24} />
                             <span className="truncate">{p.p1_name ?? p.selection}</span>
                           </div>
                         </td>
                         <td className="hidden sm:table-cell p-4 font-sans text-gray-400">
                           <div className="flex items-center gap-2">
-                            <PlayerAvatar src={p.p2_photo_url} flag={p.p2_flag} name={p.p2_name ?? ''} size="xs" />
+                            <PlayerAvatar photoUrl={p.p2_photo_url} flag={p.p2_flag} name={p.p2_name ?? ''} size={24} />
                             <span className="truncate">{p.p2_name ?? '–'}</span>
                           </div>
                         </td>

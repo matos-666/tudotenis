@@ -124,15 +124,71 @@ body {
 .loss { color: var(--color-loss); }
 .void { color: var(--color-void); }
 
-/* Stat cards */
+/* Stat cards — base subtle elevation */
 .stat-card {
   background: var(--color-card);
   border: 1px solid var(--color-border);
   border-radius: 12px;
-  transition: transform 0.15s ease, border-color 0.15s ease, background 0.2s ease;
+  box-shadow:
+    0 1px 2px -1px rgba(0, 0, 0, 0.06),
+    0 4px 10px -6px rgba(0, 0, 0, 0.18);
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 .stat-card:hover {
   transform: translateY(-1px);
+}
+
+/* Pick cards — depth 3D, premium feel.
+   Gradient sutil topo→fundo (catch da luz no topo), shadow layered
+   (próximo + distante), borda mais pronunciada e hover lift + ring
+   accent. Funciona em light e dark via color-mix com surface. */
+.pick-card-3d {
+  position: relative;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-card) 96%, white 4%) 0%,
+      var(--color-card) 60%,
+      color-mix(in srgb, var(--color-card) 92%, black 8%) 100%
+    );
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 6%, transparent),
+    0 1px 2px -1px rgba(0, 0, 0, 0.12),
+    0 8px 18px -8px rgba(0, 0, 0, 0.30),
+    0 16px 32px -16px rgba(0, 0, 0, 0.18);
+  transition:
+    transform 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.2s ease;
+}
+.pick-card-3d:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--color-accent) 35%, var(--color-border));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 8%, transparent),
+    0 2px 4px -1px rgba(0, 0, 0, 0.14),
+    0 14px 26px -10px rgba(0, 0, 0, 0.36),
+    0 24px 48px -16px color-mix(in srgb, var(--color-accent) 18%, rgba(0, 0, 0, 0.18));
+}
+.pick-card-3d::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      120% 100% at 50% 0%,
+      color-mix(in srgb, var(--color-accent) 6%, transparent) 0%,
+      transparent 50%
+    );
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+.pick-card-3d:hover::after {
+  opacity: 1;
 }
 
 /* Grade badges */

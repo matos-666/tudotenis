@@ -6,6 +6,7 @@ import { Footer } from '@/components/Footer';
 import { LiveWinProbChart } from '@/components/LiveWinProbChart';
 import { MatchTracker } from '@/components/MatchTracker';
 import AutoRefresh from '@/components/AutoRefresh';
+import PlayerAvatar from '@/components/PlayerAvatar';
 import { AlertTriangleIcon } from '@/components/icons';
 import { supabase } from '@/lib/supabase';
 import { type Locale } from '@/lib/i18n';
@@ -160,23 +161,6 @@ function formatTournamentName(slug: string): string {
     return p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
   }).join(' ');
   return tourLabel ? `${titled} · ${tourLabel}` : titled;
-}
-
-function PlayerAvatar({ photoUrl, name, size = 40 }: { photoUrl: string | null | undefined; name: string; size?: number }) {
-  const initial = name.charAt(0).toUpperCase();
-  return (
-    <div
-      className="rounded-full overflow-hidden bg-[var(--color-card)] border border-[var(--color-border)] flex items-center justify-center shrink-0"
-      style={{ width: size, height: size }}
-    >
-      {photoUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={photoUrl} alt={name} width={size} height={size} className="w-full h-full object-cover" loading="lazy" />
-      ) : (
-        <span className="text-xs font-bold text-gray-400">{initial}</span>
-      )}
-    </div>
-  );
 }
 
 function ProbBar({ probA, nameA, nameB }: { probA: number; nameA: string; nameB: string }) {
