@@ -40,6 +40,11 @@ async function fetchRunningMatches(): Promise<LiveMatchRef[]> {
   return ((data ?? []) as LiveMatchRef[]).filter(m => m.name_a && m.name_b);
 }
 
+// Caps de viabilidade (ver doc em live-odds-ingest/route.ts).
+const ODD_MIN = 1.25;
+const ODD_MAX = 4.0;
+const EDGE_MAX_PCT = 100;
+
 async function attachOddsToOpenPicks(srMatchId: number, oddA: number | null, oddB: number | null): Promise<number> {
   const { data: openPicks } = await supabase
     .from('live_picks')
@@ -54,10 +59,16 @@ async function attachOddsToOpenPicks(srMatchId: number, oddA: number | null, odd
     const odd = sel === 'A' ? oddA : sel === 'B' ? oddB : null;
     if (odd == null) continue;
     const modelProb = Number(pick.model_prob);
-    const edgePct = +(modelProb * odd - 1).toFixed(4) * 100;
+    const edgePct = +((modelProb * odd - 1) * 100).toFixed(2);
+
+    if (odd < ODD_MIN || odd > ODD_MAX || edgePct > EDGE_MAX_PCT) {
+      await supabase.from('live_picks').delete().eq('id', pick.id);
+      continue;
+    }
+
     const { error } = await supabase
       .from('live_picks')
-      .update({ live_odd: odd, live_odd_source: 'oddsapi', edge_pct: +edgePct.toFixed(2) })
+      .update({ live_odd: odd, live_odd_source: 'oddsapi', edge_pct: edgePct })
       .eq('id', pick.id);
     if (!error) updated++;
   }

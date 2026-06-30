@@ -52,6 +52,19 @@ function lastNameToken(s: string): string {
   return strip(tokens[tokens.length - 1] ?? '');
 }
 
+// Caps de viabilidade duma pick após termos a odd live:
+// - ODD_MIN: odds abaixo de 1.25 têm prémio insuficiente para
+//   compensar o risco/variância. Strike rate cosmético.
+// - ODD_MAX: odds acima de 4.0 são longshots — o modelo a propor
+//   um @15 com edge gigante é quase sempre overconfidence
+//   (calibração fraca em cauda).
+// - EDGE_MAX_PCT: edge teórico acima de 100% ≈ modelo discorda do
+//   mercado em factor 2x — sinal típico de erro de modelo, não de
+//   valor. Mercado é regularizador implícito.
+const ODD_MIN = 1.25;
+const ODD_MAX = 4.0;
+const EDGE_MAX_PCT = 100;
+
 async function attachOddsToOpenPicks(
   srMatchId: number,
   oddA: number | null,
@@ -71,6 +84,14 @@ async function attachOddsToOpenPicks(
     if (odd == null) continue;
     const modelProb = Number(pick.model_prob);
     const edgePct = +((modelProb * odd - 1) * 100).toFixed(2);
+
+    // Caps: pick fora dos limites → apaga em vez de atribuir odd
+    // (evita inflar histórico com picks que nunca devíamos ter)
+    if (odd < ODD_MIN || odd > ODD_MAX || edgePct > EDGE_MAX_PCT) {
+      await supabase.from('live_picks').delete().eq('id', pick.id);
+      continue;
+    }
+
     const { error } = await supabase
       .from('live_picks')
       .update({ live_odd: odd, live_odd_source: source, edge_pct: edgePct })
