@@ -218,10 +218,42 @@ async function settleMatch(srMatchId: number, finalWinner: 'A' | 'B', finalScore
   return { snapshots: snapshotsUpdated ?? 0, picks: picksSettled };
 }
 
+/**
+ * Só emite picks em "break moments": transições naturais do jogo onde
+ * os jogadores estão em changeover / set break e a probabilidade do
+ * modelo refletiu um game completo, não um spike intra-game.
+ *
+ * - Set break: total de sets aumentou desde o snapshot anterior
+ * - Game break: game_a OR game_b mudou E o total de games joga em 3,
+ *   5, 7 ou 9 (changeovers tradicionais) OU estamos prestes a entrar
+ *   em tiebreak (game 6-6 acabou de ser atingido)
+ *
+ * Razão: emitir picks no meio de games gera ruído (spikes de 1
+ * snapshot que voltam logo). Em break moments o modelo digeriu o
+ * game inteiro e a prob é estável até ao próximo game.
+ */
+function isBreakMoment(
+  prev: { set_a: number; set_b: number; game_a: number; game_b: number; tiebreak: boolean } | null,
+  cur: { sA: number; sB: number; gA: number; gB: number; tiebreak: boolean },
+): boolean {
+  if (!prev) return false;
+  // Set break — algum dos sets incrementou
+  if (cur.sA > prev.set_a || cur.sB > prev.set_b) return true;
+  // Game break — algum dos games mudou
+  const gameChanged = cur.gA !== prev.game_a || cur.gB !== prev.game_b;
+  if (!gameChanged) return false;
+  // Just-entered tiebreak (6-6)
+  if (cur.gA === 6 && cur.gB === 6 && !prev.tiebreak) return true;
+  // Changeover natural: total games joga em ímpar (3, 5, 7, 9, 11)
+  const total = cur.gA + cur.gB;
+  return total === 3 || total === 5 || total === 7 || total === 9 || total === 11;
+}
+
 async function maybeEmitPick(opts: {
   srMatchId: number;
   snapshotId: number | null;
   state: { sA: number; sB: number; gA: number; gB: number; ptA: number; ptB: number; server: 'A' | 'B'; tiebreak: boolean };
+  prevState: { set_a: number; set_b: number; game_a: number; game_b: number; tiebreak: boolean } | null;
   matchProb: number;
   importance: number;
   playerAId: number;
@@ -230,7 +262,11 @@ async function maybeEmitPick(opts: {
   nameB: string;
   tournamentSlug: string;
 }): Promise<boolean> {
-  const { matchProb, importance, state } = opts;
+  const { matchProb, importance, state, prevState } = opts;
+
+  // Break-moment gate: só emite em changeover (after games 3, 5, 7, 9),
+  // antes do TB, ou em set break. Bloqueia spikes intra-game.
+  if (!isBreakMoment(prevState, state)) return false;
 
   // Anti-volatility guard: nunca emite em estados de alta importância (BP críticos,
   // set points apertados). Captura sinais quando o modelo está confortável.
@@ -302,7 +338,7 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
   // Stats carry-forward incluindo totals (denominador para Bayes).
   const { data: lastSnap } = await supabase
     .from('live_state')
-    .select('id, captured_at, final_winner, aces_a, aces_b, df_a, df_b, bp_won_a, bp_won_b, bp_total_a, bp_total_b, serve_pts_won_a, serve_pts_won_b, serve_pts_total_a, serve_pts_total_b, first_serve_won_a, first_serve_won_b, first_serve_in_a, first_serve_in_b')
+    .select('id, captured_at, final_winner, set_a, set_b, game_a, game_b, tiebreak, aces_a, aces_b, df_a, df_b, bp_won_a, bp_won_b, bp_total_a, bp_total_b, serve_pts_won_a, serve_pts_won_b, serve_pts_total_a, serve_pts_total_b, first_serve_won_a, first_serve_won_b, first_serve_in_a, first_serve_in_b')
     .eq('sr_match_id', m._id)
     .order('captured_at', { ascending: false })
     .limit(1)
@@ -482,6 +518,13 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
       srMatchId: data._id,
       snapshotId: inserted.id,
       state: { sA: state.sA, sB: state.sB, gA: state.gA, gB: state.gB, ptA: state.ptA, ptB: state.ptB, server: state.server, tiebreak: state.tiebreak },
+      prevState: lastSnap ? {
+        set_a: lastSnap.set_a as number,
+        set_b: lastSnap.set_b as number,
+        game_a: lastSnap.game_a as number,
+        game_b: lastSnap.game_b as number,
+        tiebreak: lastSnap.tiebreak as boolean,
+      } : null,
       matchProb,
       importance,
       playerAId,
