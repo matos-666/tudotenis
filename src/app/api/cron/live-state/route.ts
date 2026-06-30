@@ -203,11 +203,20 @@ async function settleMatch(srMatchId: number, finalWinner: 'A' | 'B', finalScore
 
   let picksSettled = 0;
   for (const pick of openPicks ?? []) {
+    // Defensive: picks que cheguem ao fim do match sem live_odd não são
+    // apostáveis. Em vez de marcar W/L cosméticos com pl=null (inflam
+    // contagem de wins sem contribuir para PnL), apagamos. Cinto extra
+    // ao requisito já existente no emit, mas cobre eventual race onde
+    // a odd existia ao emitir e desapareceu antes do settle.
+    if (pick.live_odd == null) {
+      await supabase.from('live_picks').delete().eq('id', pick.id);
+      continue;
+    }
     const sel = pick.selection as 'A' | 'B' | string;
     const won = sel === finalWinner;
-    const odd = pick.live_odd != null ? Number(pick.live_odd) : null;
+    const odd = Number(pick.live_odd);
     const stake = Number(pick.stake ?? 1);
-    const pl = odd != null ? (won ? +(stake * (odd - 1)).toFixed(2) : -stake) : null;
+    const pl = won ? +(stake * (odd - 1)).toFixed(2) : -stake;
     const { error } = await supabase
       .from('live_picks')
       .update({ result: won ? 'win' : 'loss', pl, settled_at: settledAt })
@@ -302,6 +311,34 @@ async function maybeEmitPick(opts: {
     .eq('set_b', state.sB);
   if ((existingInSet ?? 0) > 0) return false;
 
+  // Regra de emissão: SÓ emite se houver odd live disponível para este
+  // match e selecção, captada nos últimos 5 minutos. Bloqueia o caso
+  // "pick fica órfã sem odd → não é apostável → enche o histórico de
+  // wins/losses virtuais sem PnL real". A odd é embutida na pick à
+  // partida — picks nascem completas.
+  const FRESH_ODD_MS = 5 * 60 * 1000;
+  const since = new Date(Date.now() - FRESH_ODD_MS).toISOString();
+  const { data: latestOdd } = await supabase
+    .from('live_odds_history')
+    .select('odd_a, odd_b, source, captured_at')
+    .eq('sr_match_id', opts.srMatchId)
+    .gt('captured_at', since)
+    .order('captured_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const oddRaw = selection === 'A' ? latestOdd?.odd_a : latestOdd?.odd_b;
+  const liveOdd = oddRaw != null ? Number(oddRaw) : null;
+  if (liveOdd == null || !Number.isFinite(liveOdd)) return false;
+
+  // Caps de viabilidade (mesmos limites usados no attach):
+  // odd ∈ [1.25, 4.0] e edge ≤ 100%. Aqui é cinto-e-suspensórios — se
+  // a odd live cair fora, nem chega a entrar na DB.
+  if (liveOdd < 1.25 || liveOdd > 4.0) return false;
+  const edgePct = +((conviction * liveOdd - 1) * 100).toFixed(2);
+  if (edgePct > 100) return false;
+  // Só emite picks +EV — sem valor de mercado, não há recomendação
+  if (edgePct <= 0) return false;
+
   const scoreDesc = `${state.sA}-${state.sB} sets · ${state.tiebreak ? 'TB' : `${state.gA}-${state.gB}`} game`;
 
   const { error } = await supabase
@@ -326,6 +363,9 @@ async function maybeEmitPick(opts: {
       point_importance: +importance.toFixed(4),
       grade,
       stake: 1,
+      live_odd: liveOdd,
+      live_odd_source: latestOdd?.source ?? null,
+      edge_pct: edgePct,
     }, { onConflict: 'sr_match_id,selection,set_a,set_b,game_a,game_b', ignoreDuplicates: true });
 
   return !error;
