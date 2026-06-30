@@ -243,9 +243,13 @@ export async function POST(req: NextRequest) {
     let pickOdd = 0;
     let pickEv = 0;
 
-    if (evA >= 0.05 && evA >= evB) {
+    // Cap EV a 30%. Acima disso é quase sempre erro de modelo (ELO stale,
+    // baixo set_count, veteranos com ELO histórico desactualizado). Twin é
+    // eficiente — EV reais raramente passam de 15-20%.
+    const MAX_EV = 0.30;
+    if (evA >= 0.05 && evA <= MAX_EV && evA >= evB) {
       pickPlayer = pA; pickOpp = pB; pickOdd = m.odd_a; pickEv = evA;
-    } else if (evB >= 0.05) {
+    } else if (evB >= 0.05 && evB <= MAX_EV) {
       pickPlayer = pB; pickOpp = pA; pickOdd = m.odd_b; pickEv = evB;
     } else {
       skipped++; continue;
