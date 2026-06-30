@@ -14,10 +14,9 @@ name: Twin Live Odds Scraper
 #     no pior caso, e tipicamente <1min em condições normais.
 
 on:
+  # DESACTIVADO: substituído por live_continuous.yml (long-running loop
+  # 15s durante 11h/dia). Mantém workflow_dispatch para debug manual.
   workflow_dispatch:
-  schedule:
-    - cron: "*/5 * * * *"       # 0, 5, 10, 15, ...
-    - cron: "2-59/5 * * * *"    # 2, 7, 12, 17, ... (offset 2min)
 
 jobs:
   scrape:

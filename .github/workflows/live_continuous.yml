@@ -1,0 +1,98 @@
+name: Live Continuous Poller
+
+# Anti-staleness: GHA short scheduled crons (*/5min) são heavily throttled.
+# Solução: daily crons (much more reliable) que arrancam um workflow que
+# corre durante ~5.5h num loop tight (15s cadence).
+#
+# Cobertura: 2 schedules × 5.5h cada = ~11h por dia (sessões Wimbledon).
+# Cada loop iteration: Twin scrape (Playwright) + Sportradar state poll
+# + POST ambos para Vercel. Total wall cycle ~15-20s.
+#
+# Free tier: repo público = GHA minutes ilimitados. Sem custo.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 10 * * *"   # 10:00 UTC → corre até ~15:30 UTC (morning + early afternoon)
+    - cron: "0 16 * * *"   # 16:00 UTC → corre até ~21:30 UTC (afternoon + night session)
+
+jobs:
+  poll:
+    name: Continuous 15s loop
+    runs-on: ubuntu-latest
+    timeout-minutes: 340   # 5h40min — abaixo do limite 6h da GHA
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-chromium-${{ runner.os }}-v1
+
+      - name: Install Playwright + chromium
+        run: |
+          npm install --no-save playwright@1.49.0
+          if [ "${{ steps.pw-cache.outputs.cache-hit }}" != "true" ]; then
+            npx playwright install --with-deps chromium
+          else
+            npx playwright install-deps chromium || true
+          fi
+
+      - name: Loop scrape + state poll por ~5.5h
+        env:
+          AUTH: "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+        run: |
+          ENDPOINT_ODDS="https://tudotenis.com/api/cron/live-odds-ingest"
+          ENDPOINT_STATE="https://tudotenis.com/api/cron/live-state"
+
+          START=$(date +%s)
+          END_BY=$((START + 19800))   # 5h30min runtime
+          INTERVAL=15                  # target cycle 15s
+          ITER=0
+          OK_ODDS=0; FAIL_ODDS=0
+          OK_STATE=0; FAIL_STATE=0
+
+          while [ $(date +%s) -lt $END_BY ]; do
+            ITER=$((ITER + 1))
+            CYCLE_START=$(date +%s)
+            ts=$(date +%H:%M:%S)
+
+            # ── Twin scrape Playwright ─────────────────────────────────
+            node scripts/scrape-twin-live.mjs > /tmp/twin.json 2>/dev/null
+            SIZE=$(wc -c < /tmp/twin.json 2>/dev/null || echo 0)
+            ODDS_CODE=$(curl -sS -X POST "$ENDPOINT_ODDS" \
+              -H "$AUTH" -H "Content-Type: application/json" \
+              --data-binary @/tmp/twin.json --max-time 20 \
+              -o /tmp/odds-resp.json -w "%{http_code}" 2>/dev/null || echo "000")
+            if [ "$ODDS_CODE" = "200" ]; then OK_ODDS=$((OK_ODDS+1)); else FAIL_ODDS=$((FAIL_ODDS+1)); fi
+
+            # ── Sportradar live-state ──────────────────────────────────
+            STATE_CODE=$(curl -sS -X POST "$ENDPOINT_STATE" \
+              -H "$AUTH" --max-time 60 \
+              -o /tmp/state-resp.json -w "%{http_code}" 2>/dev/null || echo "000")
+            if [ "$STATE_CODE" = "200" ]; then OK_STATE=$((OK_STATE+1)); else FAIL_STATE=$((FAIL_STATE+1)); fi
+
+            # Log cada 10 iterations (200s ≈ 3min) para evitar spam
+            if [ $((ITER % 10)) -eq 0 ] || [ $ITER -le 3 ]; then
+              echo "[$ts] iter=$ITER odds=${ODDS_CODE}(${SIZE}B) state=${STATE_CODE}"
+            fi
+
+            # Sleep para completar o ciclo de 15s
+            CYCLE_TIME=$(( $(date +%s) - CYCLE_START ))
+            SLEEP=$(( INTERVAL - CYCLE_TIME ))
+            if [ $SLEEP -gt 0 ]; then sleep $SLEEP; fi
+          done
+
+          ELAPSED=$(( $(date +%s) - START ))
+          echo ""
+          echo "═══ Summary ═══"
+          echo "Runtime:     ${ELAPSED}s (${ITER} iterations)"
+          echo "Odds:        $OK_ODDS / $((OK_ODDS+FAIL_ODDS)) OK"
+          echo "State:       $OK_STATE / $((OK_STATE+FAIL_STATE)) OK"

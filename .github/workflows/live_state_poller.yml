@@ -8,9 +8,8 @@ name: Live State Poller
 # nocturnas se houver).
 
 on:
-  schedule:
-    # GitHub Actions cron mínimo = 5 min
-    - cron: "*/5 * * * *"
+  # DESACTIVADO: substituído por live_continuous.yml. Mantém workflow_dispatch
+  # para debug manual / fallback.
   workflow_dispatch:
 
 jobs:
