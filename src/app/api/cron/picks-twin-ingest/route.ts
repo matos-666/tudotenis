@@ -185,12 +185,16 @@ export async function POST(req: NextRequest) {
 
   const playerCache = new Map<string, PlayerRow | null>();
   let resolved = 0, inserted = 0, skipped = 0;
+  const debugSamples: Array<{ name_a: string; name_b: string; pA: string | null; pB: string | null }> = [];
 
   for (const m of matches) {
     const [pA, pB] = await Promise.all([
       resolvePlayer(m.name_a, m.tour, playerCache),
       resolvePlayer(m.name_b, m.tour, playerCache),
     ]);
+    if (debugSamples.length < 5) {
+      debugSamples.push({ name_a: m.name_a, name_b: m.name_b, pA: pA?.name ?? null, pB: pB?.name ?? null });
+    }
     if (!pA || !pB) { skipped++; continue; }
     resolved++;
 
@@ -262,6 +266,7 @@ export async function POST(req: NextRequest) {
     resolved,
     inserted,
     skipped,
+    debug_samples: debugSamples,
   });
 }
 
