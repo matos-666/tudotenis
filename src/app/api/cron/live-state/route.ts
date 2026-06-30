@@ -250,6 +250,22 @@ async function maybeEmitPick(opts: {
   }
 
   const grade = conviction >= 0.75 ? 'A' : conviction >= 0.65 ? 'B' : 'C';
+
+  // Regra de emissão: SÓ grade A (convicção >= 0.75). B/C ficam de fora
+  // porque o yield histórico delas não justifica o ruído.
+  if (grade !== 'A') return false;
+
+  // Regra de emissão: no MÁXIMO 1 pick por set neste match, independente
+  // de selecção. Se já existe uma pick para (match, set_a, set_b) na DB,
+  // ignoramos. (O unique index actual é por game-state, demasiado fino.)
+  const { count: existingInSet } = await supabase
+    .from('live_picks')
+    .select('id', { count: 'exact', head: true })
+    .eq('sr_match_id', opts.srMatchId)
+    .eq('set_a', state.sA)
+    .eq('set_b', state.sB);
+  if ((existingInSet ?? 0) > 0) return false;
+
   const scoreDesc = `${state.sA}-${state.sB} sets · ${state.tiebreak ? 'TB' : `${state.gA}-${state.gB}`} game`;
 
   const { error } = await supabase
