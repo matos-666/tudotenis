@@ -289,13 +289,11 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
     state.bestOf = 3;
   }
 
-  // detailsextended é o SR call mais lento (~1.5s). Stats mudam só entre
-  // pontos (~30s) → buscar só quando é a 1ª snapshot, on match end, ou
-  // a última snapshot tem >5min. Resto reutiliza valores do último snap.
-  const lastAgeMs = lastSnap ? Date.now() - new Date(lastSnap.captured_at).getTime() : Infinity;
-  const needsStats = !lastSnap || justEnded || lastAgeMs > 5 * 60 * 1000;
+  // detailsextended (~1.5s/call SR) é só FYI (aces, BPs, etc.); modelo
+  // não depende. Apenas fetchamos no end-game (justEnded) para freezar
+  // stats finais. Resto fica null — caber em 60s é o que importa.
   let stats: SrDetailsExtended | null = null;
-  if (needsStats) {
+  if (justEnded) {
     const det = await sr<{ doc: Array<{ data: SrDetailsExtended }> }>(`match_detailsextended/${m._id}`);
     stats = det?.doc?.[0]?.data ?? null;
   }
