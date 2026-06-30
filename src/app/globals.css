@@ -77,6 +77,17 @@ body {
   color: var(--color-text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* Light theme: gradiente subtil para reduzir cansaço visual do branco
+   puro. Camada 1 = soft cream-to-grey vertical. Camada 2 = halo lime
+   muito fraco no topo (hint do accent brand sem dominar a leitura). */
+:root[data-theme="light"] body {
+  background:
+    radial-gradient(ellipse 70% 35% at 50% -5%, rgba(212, 255, 58, 0.07), transparent 70%),
+    linear-gradient(180deg, #f8fafb 0%, #eef2f5 100%);
+  background-attachment: fixed;
 }
 
 /* Light mode: ajustar text-gray-* utilities */
