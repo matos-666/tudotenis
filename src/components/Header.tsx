@@ -33,6 +33,10 @@ export function Header({ locale = 'pt-PT' }: { locale?: Locale }) {
             className="hidden md:flex items-center gap-4 lg:gap-6 text-sm font-medium"
           >
             <Link href={localizedHref(locale, '/picks')}      className="hover:text-[var(--color-accent)] transition">{t(locale, 'nav.picks')}</Link>
+            <Link href={localizedHref(locale, '/ao-vivo')}    className="hover:text-[var(--color-accent)] transition inline-flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+              Ao vivo
+            </Link>
             <Link href={localizedHref(locale, '/jogadores')}  className="hover:text-[var(--color-accent)] transition">{t(locale, 'nav.players')}</Link>
             <Link href={localizedHref(locale, '/ferramentas')}className="hover:text-[var(--color-accent)] transition">{t(locale, 'nav.tools')}</Link>
             <Link href={localizedHref(locale, '/ranking')}    className="hover:text-[var(--color-accent)] transition">{t(locale, 'nav.ranking')}</Link>

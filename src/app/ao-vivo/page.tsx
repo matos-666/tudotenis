@@ -2,11 +2,52 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import AutoRefresh from '@/components/AutoRefresh';
 import { supabase } from '@/lib/supabase';
 import { hreflangAlternates, type Locale } from '@/lib/i18n';
 import { TennisBallIcon } from '@/components/icons';
 
-export const revalidate = 30;
+export const revalidate = 20;
+
+function formatTournamentName(slug: string | null): string {
+  if (!slug) return '';
+  const parts = slug.split('-');
+  const last = parts[parts.length - 1];
+  const isTour = /^(atp|wta|itf|chl)$/i.test(last);
+  const tourLabel = isTour ? last.toUpperCase() : null;
+  const restParts = isTour ? parts.slice(0, -1) : parts;
+  const titled = restParts.map(p => {
+    if (/^\d+$/.test(p)) return p;
+    if (p.toLowerCase() === 'us') return 'US';
+    return p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
+  }).join(' ');
+  return tourLabel ? `${titled} · ${tourLabel}` : titled;
+}
+
+interface LivePick {
+  sr_match_id: number;
+  selection: 'A' | 'B' | string;
+  grade: string | null;
+  live_odd: number | null;
+  edge_pct: number | null;
+}
+
+async function fetchOpenPicksFor(matchIds: number[]): Promise<Map<number, LivePick>> {
+  if (matchIds.length === 0) return new Map();
+  const { data } = await supabase
+    .from('live_picks')
+    .select('sr_match_id, selection, grade, live_odd, edge_pct, posted_at')
+    .in('sr_match_id', matchIds)
+    .is('result', null)
+    .gt('edge_pct', 0)
+    .order('edge_pct', { ascending: false });
+  // 1 pick (a melhor EV) por match
+  const out = new Map<number, LivePick>();
+  for (const p of (data ?? []) as LivePick[]) {
+    if (!out.has(p.sr_match_id)) out.set(p.sr_match_id, p);
+  }
+  return out;
+}
 
 export const metadata: Metadata = {
   title: 'Ao vivo · Matches em curso',
@@ -35,14 +76,14 @@ async function fetchLiveMatches(): Promise<LiveRow[]> {
     .from('live_state_latest')
     .select('sr_match_id, set_a, set_b, game_a, game_b, tiebreak, name_a, name_b, match_win_prob_a, point_importance, player_a_id, player_b_id, running, match_finished, captured_at, tournament_slug')
     .eq('running', true)
+    .eq('match_finished', false)
     .order('captured_at', { ascending: false })
     .limit(40);
-  return (data ?? []) as LiveRow[];
+  return ((data ?? []) as LiveRow[]).filter(m => m.name_a && m.name_b);
 }
 
-function MatchCard({ m }: { m: LiveRow }) {
+function MatchCard({ m, pick }: { m: LiveRow; pick: LivePick | undefined }) {
   const probA = m.match_win_prob_a;
-  const probDisplay = probA != null ? `${Math.round(probA * 100)}%` : null;
   const favIsA = probA != null && probA >= 0.5;
   return (
     <Link
@@ -55,25 +96,37 @@ function MatchCard({ m }: { m: LiveRow }) {
           AO VIVO
         </span>
         {m.tournament_slug && (
-          <span className="text-[10px] text-gray-500">{m.tournament_slug.replace(/-/g, ' ')}</span>
+          <span className="text-[10px] text-gray-400 font-semibold tracking-wide">{formatTournamentName(m.tournament_slug)}</span>
         )}
       </div>
       <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
         <div className={`text-sm truncate ${favIsA ? 'font-bold text-[var(--color-accent)]' : 'text-gray-300'}`}>
           {m.name_a ?? '–'}
         </div>
-        <div className="text-center font-mono">
+        <div className="text-center font-mono shrink-0">
           <div className="text-lg font-extrabold">{m.set_a}-{m.set_b}</div>
-          <div className="text-[10px] text-gray-500">{m.tiebreak ? 'TB' : `${m.game_a}-${m.game_b}`}</div>
+          <div className="text-[10px] text-gray-500 whitespace-nowrap">{m.tiebreak ? 'TB' : `${m.game_a}-${m.game_b}`}</div>
         </div>
         <div className={`text-sm truncate text-right ${!favIsA && probA != null ? 'font-bold text-[var(--color-accent)]' : 'text-gray-300'}`}>
           {m.name_b ?? '–'}
         </div>
       </div>
-      {probDisplay && (
+      {probA != null && (
         <div className="mt-3 text-[11px] text-gray-500 flex justify-between">
-          <span>Modelo: <span className="font-mono text-gray-300">{Math.round(probA! * 100)}%</span></span>
-          <span><span className="font-mono text-gray-300">{Math.round((1 - probA!) * 100)}%</span></span>
+          <span><span className="font-mono text-gray-300">{Math.round(probA * 100)}%</span></span>
+          <span className="text-gray-500">modelo</span>
+          <span><span className="font-mono text-gray-300">{Math.round((1 - probA) * 100)}%</span></span>
+        </div>
+      )}
+      {pick && pick.live_odd != null && pick.edge_pct != null && (
+        <div className="mt-3 pt-3 border-t border-[var(--color-border)]/40 flex items-baseline justify-between gap-2">
+          <span className="text-[10px] uppercase tracking-wider text-gray-500">Pick activa</span>
+          <span className="text-xs">
+            <span className="font-bold">{pick.selection === 'A' ? m.name_a : m.name_b}</span>
+            <span className="text-gray-500 font-mono"> @{Number(pick.live_odd).toFixed(2)}</span>
+            <span className="text-[var(--color-accent)] font-bold font-mono"> · +{Number(pick.edge_pct).toFixed(1)}% EV</span>
+            {pick.grade && <span className="ml-1.5 inline-block bg-[var(--color-accent)]/15 text-[var(--color-accent)] text-[10px] px-1.5 py-0.5 rounded font-bold">{pick.grade}</span>}
+          </span>
         </div>
       )}
     </Link>
@@ -82,9 +135,11 @@ function MatchCard({ m }: { m: LiveRow }) {
 
 export default async function AoVivoPage({ locale = 'pt-PT' as Locale }: { locale?: Locale } = {}) {
   const matches = await fetchLiveMatches();
+  const picksByMatch = await fetchOpenPicksFor(matches.map(m => m.sr_match_id));
   return (
     <>
       <Header locale={locale} />
+      <AutoRefresh intervalMs={25000} />
       <main id="main" className="flex-1">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
           <div className="mb-6">
@@ -111,7 +166,7 @@ export default async function AoVivoPage({ locale = 'pt-PT' as Locale }: { local
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {matches.map(m => <MatchCard key={m.sr_match_id} m={m} />)}
+              {matches.map(m => <MatchCard key={m.sr_match_id} m={m} pick={picksByMatch.get(m.sr_match_id)} />)}
             </div>
           )}
         </div>

@@ -686,14 +686,11 @@ export default async function PicksPage({ locale = 'pt-PT' as Locale }: { locale
   const isFuture = (sched: string | null) => sched != null && new Date(sched).getTime() > nowMs;
 
   const todaySettled = today.filter(p => p.result != null);
-  const todayLive    = today.filter(p => p.result == null && isLive(p));
   const todayUpcoming = today.filter(p => p.result == null && isFuture(p.scheduled_at));
 
   const doublesSettled  = todayDoubles.filter(p => p.result != null);
-  const doublesLive     = todayDoubles.filter(p => p.result == null && hasStartedDoubles(p));
   const doublesUpcoming = todayDoubles.filter(p => p.result == null && isFuture(p.scheduled_at));
 
-  const liveCount    = todayLive.length;
   const upcomingCount = todayUpcoming.length;
   const settledCount = todaySettled.length;
 
@@ -720,7 +717,7 @@ export default async function PicksPage({ locale = 'pt-PT' as Locale }: { locale
           <div className="mb-8">
             <div className="inline-flex items-center gap-2 bg-[var(--color-card)] border border-[var(--color-border)] rounded-full px-3 py-1 text-xs mb-4 flex-wrap">
               <span className="w-2 h-2 rounded-full bg-[var(--color-accent)] animate-pulse" />
-              {upcomingCount} {isBR ? 'por jogar' : 'por jogar'} · {liveCount} ao vivo · {settledCount} {isBR ? 'terminados' : 'terminados'}
+              {upcomingCount} {isBR ? 'por jogar' : 'por jogar'} · {settledCount} {isBR ? 'terminados' : 'terminados'}
             </div>
             <h1 className="text-2xl md:text-4xl font-extrabold mb-2">
               {isBR ? 'Palpites de hoje' : 'Picks de hoje'}
@@ -805,24 +802,9 @@ export default async function PicksPage({ locale = 'pt-PT' as Locale }: { locale
                 </section>
               )}
 
-              {/* 2. AO VIVO — display only, sem CTAs (modelo só apostou pré-live) */}
-              {todayLive.length > 0 && (
-                <section className="mb-10">
-                  <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
-                    <h3 className="text-base md:text-lg font-bold flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
-                      {isBR ? 'Em andamento' : 'Em curso'}
-                      <span className="text-xs text-gray-500 font-normal">({todayLive.length})</span>
-                    </h3>
-                    <span className="text-[10px] uppercase tracking-wider text-gray-500">
-                      {isBR ? 'Já não dá para apostar' : 'Já não dá para apostar'}
-                    </span>
-                  </div>
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3">
-                    {todayLive.map(p => <CompactPickRow key={p.id} p={p} locale={locale} />)}
-                  </div>
-                </section>
-              )}
+              {/* Live action mora em /ao-vivo (fonte: live_state.running). Aqui só
+                  mostramos picks pré-live, que perdem actuabilidade quando o
+                  match começa (casas fecham mercado pré-live). */}
 
               {/* ── DOUBLES PICKS — secção separada ───────────────────────── */}
               {todayDoubles.length > 0 && (
@@ -865,18 +847,7 @@ export default async function PicksPage({ locale = 'pt-PT' as Locale }: { locale
                     </div>
                   )}
 
-                  {doublesLive.length > 0 && (
-                    <div className="mb-8">
-                      <h3 className="text-base font-bold flex items-center gap-2 mb-4">
-                        <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
-                        {isBR ? 'Em andamento' : 'Em curso'}
-                        <span className="text-xs text-gray-500 font-normal">({doublesLive.length})</span>
-                      </h3>
-                      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {doublesLive.map(p => <DoublesPickCard key={p.id} p={p} locale={locale} />)}
-                      </div>
-                    </div>
-                  )}
+                  {/* Live moved to /ao-vivo */}
 
                   {doublesSettled.length > 0 && (
                     <div>

@@ -15,6 +15,7 @@ function navLinks(locale: Locale) {
   const prefix = locale === 'pt-BR' ? '/br' : '';
   return [
     { href: `${prefix}/picks`,                  label: labels.picks       },
+    { href: `${prefix}/ao-vivo`,                label: 'Ao vivo'          },
     { href: `${prefix}/jogadores`,              label: labels.players     },
     { href: `${prefix}/torneios/specialists`,   label: labels.specialists },
     { href: `${prefix}/ranking`,                label: labels.ranking     },
