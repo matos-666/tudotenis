@@ -286,7 +286,7 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
   // Stats carry-forward incluindo totals (denominador para Bayes).
   const { data: lastSnap } = await supabase
     .from('live_state')
-    .select('id, captured_at, final_winner, aces_a, aces_b, df_a, df_b, bp_won_a, bp_won_b, bp_total_a, bp_total_b, serve_pts_won_a, serve_pts_won_b, serve_pts_total_a, serve_pts_total_b, first_serve_won_a, first_serve_won_b')
+    .select('id, captured_at, final_winner, aces_a, aces_b, df_a, df_b, bp_won_a, bp_won_b, bp_total_a, bp_total_b, serve_pts_won_a, serve_pts_won_b, serve_pts_total_a, serve_pts_total_b, first_serve_won_a, first_serve_won_b, first_serve_in_a, first_serve_in_b')
     .eq('sr_match_id', m._id)
     .order('captured_at', { ascending: false })
     .limit(1)
@@ -314,11 +314,16 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
     state.bestOf = 3;
   }
 
-  // detailsextended (~1.5s/call SR): fetch só na 1ª snapshot (lastSnap=null),
-  // no end-game (freezar finais), ou a cada ~5min (refresh). Restantes
-  // snapshots reusam stats via carry-forward (inherit from lastSnap).
-  const lastAgeMs = lastSnap ? Date.now() - new Date(lastSnap.captured_at).getTime() : Infinity;
-  const needsStats = !lastSnap || justEnded || lastAgeMs > 5 * 60 * 1000;
+  // detailsextended (~1.5s/call SR): refresh em bucket de 30s.
+  // Snapshots cabem em buckets de 30s — se o último snapshot caiu num
+  // bucket diferente do atual, refrescamos stats; senão, carry-forward.
+  // (Antes usávamos lastAgeMs > 5min mas snapshots vêm a cada 25s →
+  //  lastAgeMs nunca atingia 5min, logo stats ficavam congeladas após a
+  //  1ª snapshot do match.)
+  const BUCKET_MS = 30 * 1000;
+  const curBucket = Math.floor(Date.now() / BUCKET_MS);
+  const lastBucket = lastSnap ? Math.floor(new Date(lastSnap.captured_at).getTime() / BUCKET_MS) : -1;
+  const needsStats = !lastSnap || justEnded || curBucket !== lastBucket;
   let stats: SrDetailsExtended | null = null;
   if (needsStats) {
     const det = await sr<{ doc: Array<{ data: SrDetailsExtended }> }>(`match_detailsextended/${m._id}`);
@@ -330,7 +335,15 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
   const bpTotal = pickStatDenom(stats, '139', 'fraction');     // "4/9" → 9 (total)
   const servePts = pickStat(stats, '141');                    // "64/20/84" → 64 (won)
   const servePtsTotal = pickStatDenom(stats, '141', 'triple'); // "64/20/84" → 84 (total)
-  const fsWon = pickStat(stats, '1410');
+  // 1st Serve Pts. Won: triple "won/lost/total" → guardamos como % (won/total*100).
+  // Era key '1410' (= Receiver Points Won) que estava errado.
+  const fsWonNum = pickStat(stats, '137');
+  const fsWonDen = pickStatDenom(stats, '137', 'triple');
+  // 1st Serve In: key 1189, triple "in/out/total" → % de 1ºs serviços bem colocados.
+  const fsInNum = pickStat(stats, '1189');
+  const fsInDen = pickStatDenom(stats, '1189', 'triple');
+  const fsPct = (n: number | null, d: number | null) =>
+    n != null && d != null && d > 0 ? +(100 * n / d).toFixed(2) : null;
 
   // Carry-forward de stats + totals para Bayes update vir do último snapshot
   // se este snapshot não fetched detailsextended.
@@ -418,8 +431,10 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
       serve_pts_won_b: sptWonB,
       serve_pts_total_a: sptTotalA,
       serve_pts_total_b: sptTotalB,
-      first_serve_won_a: fsWon.a ?? lastSnap?.first_serve_won_a ?? null,
-      first_serve_won_b: fsWon.b ?? lastSnap?.first_serve_won_b ?? null,
+      first_serve_won_a: fsPct(fsWonNum.a, fsWonDen.a) ?? lastSnap?.first_serve_won_a ?? null,
+      first_serve_won_b: fsPct(fsWonNum.b, fsWonDen.b) ?? lastSnap?.first_serve_won_b ?? null,
+      first_serve_in_a:  fsPct(fsInNum.a,  fsInDen.a)  ?? lastSnap?.first_serve_in_a  ?? null,
+      first_serve_in_b:  fsPct(fsInNum.b,  fsInDen.b)  ?? lastSnap?.first_serve_in_b  ?? null,
       p_a_serve_prior: pAprior,
       p_b_serve_prior: pBprior,
       p_a_serve_live: pAlive,

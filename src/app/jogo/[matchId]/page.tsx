@@ -29,7 +29,10 @@ interface LiveState {
   aces_a: number | null; aces_b: number | null;
   df_a: number | null; df_b: number | null;
   bp_won_a: number | null; bp_won_b: number | null;
+  bp_total_a: number | null; bp_total_b: number | null;
   serve_pts_won_a: number | null; serve_pts_won_b: number | null;
+  serve_pts_total_a: number | null; serve_pts_total_b: number | null;
+  first_serve_in_a: number | null; first_serve_in_b: number | null;
   first_serve_won_a: number | null; first_serve_won_b: number | null;
   match_win_prob_a: number | null;
   set_win_prob_a: number | null;
@@ -131,13 +134,15 @@ function pct(x: number | null | undefined): string {
   return `${(x * 100).toFixed(1)}%`;
 }
 
-function ServeStatRow({ label, a, b, fmt }: { label: string; a: number | null; b: number | null; fmt?: (x: number | null) => string }) {
+type StatVal = number | string | null;
+function ServeStatRow({ label, a, b, fmt }: { label: string; a: StatVal; b: StatVal; fmt?: (x: number | null) => string }) {
   const f = fmt ?? ((x) => x == null ? '—' : String(x));
+  const render = (x: StatVal) => typeof x === 'string' ? x : f(x as number | null);
   return (
     <div className="flex items-center justify-between border-b border-[var(--color-border)]/40 py-2 last:border-b-0">
-      <span className="text-sm font-mono text-right w-16">{f(a)}</span>
+      <span className="text-sm font-mono text-right w-24">{render(a)}</span>
       <span className="text-xs text-gray-500 uppercase tracking-wide">{label}</span>
-      <span className="text-sm font-mono text-left w-16">{f(b)}</span>
+      <span className="text-sm font-mono text-left w-24">{render(b)}</span>
     </div>
   );
 }
@@ -457,11 +462,26 @@ export default async function LiveMatchPage({
           {/* STATS */}
           <div className="stat-card p-4 md:p-6">
             <h2 className="text-sm uppercase tracking-wider text-gray-400 mb-3">Stats live</h2>
-            <ServeStatRow label="Aces" a={state.aces_a} b={state.aces_b} />
-            <ServeStatRow label="Double Faults" a={state.df_a} b={state.df_b} />
-            <ServeStatRow label="BPs ganhos" a={state.bp_won_a} b={state.bp_won_b} />
-            <ServeStatRow label="Pts serviço ganhos" a={state.serve_pts_won_a} b={state.serve_pts_won_b} />
-            <ServeStatRow label="1ª serviço won %" a={state.first_serve_won_a} b={state.first_serve_won_b} fmt={(x) => x == null ? '—' : `${x}%`} />
+            {(() => {
+              const fracPct = (n: number | null, d: number | null): string =>
+                n == null || d == null ? '—' : d === 0 ? `${n}` : `${n}/${d} (${Math.round(100*n/d)}%)`;
+              const pctFmt = (x: number | null): string =>
+                x == null ? '—' : `${Math.round(Number(x))}%`;
+              const bpConvA = fracPct(state.bp_won_a, state.bp_total_a);
+              const bpConvB = fracPct(state.bp_won_b, state.bp_total_b);
+              const sptA = fracPct(state.serve_pts_won_a, state.serve_pts_total_a);
+              const sptB = fracPct(state.serve_pts_won_b, state.serve_pts_total_b);
+              return (
+                <>
+                  <ServeStatRow label="Aces" a={state.aces_a} b={state.aces_b} />
+                  <ServeStatRow label="Duplas faltas" a={state.df_a} b={state.df_b} />
+                  <ServeStatRow label="1º serviço in" a={state.first_serve_in_a} b={state.first_serve_in_b} fmt={pctFmt} />
+                  <ServeStatRow label="1º serviço won %" a={state.first_serve_won_a} b={state.first_serve_won_b} fmt={pctFmt} />
+                  <ServeStatRow label="Pts serviço ganhos" a={sptA} b={sptB} />
+                  <ServeStatRow label="Break points convertidos" a={bpConvA} b={bpConvB} />
+                </>
+              );
+            })()}
           </div>
 
         </div>
