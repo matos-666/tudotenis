@@ -53,7 +53,7 @@ interface PlayerInfo {
 }
 
 interface LiveOddRow { source: string; odd_a: number | null; odd_b: number | null; captured_at: string; }
-interface LivePickRow { selection: string; model_prob: number; live_odd: number | null; edge_pct: number | null; grade: string | null; score_description: string | null; posted_at: string; result: string | null; }
+interface LivePickRow { selection: string; model_prob: number; live_odd: number | null; edge_pct: number | null; grade: string | null; score_description: string | null; posted_at: string; result: string | null; set_a?: number; set_b?: number; }
 
 async function fetchLiveOdds(matchId: number): Promise<LiveOddRow | null> {
   const { data } = await supabase
@@ -71,11 +71,11 @@ async function fetchLivePicks(matchId: number): Promise<LivePickRow[]> {
   // o mercado já antecipou; não são recomendações de aposta.
   const { data } = await supabase
     .from('live_picks')
-    .select('selection, model_prob, live_odd, edge_pct, grade, score_description, posted_at, result')
+    .select('selection, model_prob, live_odd, edge_pct, grade, score_description, posted_at, result, set_a, set_b')
     .eq('sr_match_id', matchId)
     .gt('edge_pct', 0)
     .order('edge_pct', { ascending: false })
-    .limit(10);
+    .limit(30);
   return (data ?? []) as LivePickRow[];
 }
 
@@ -333,43 +333,97 @@ export default async function LiveMatchPage({
                 <h2 className="text-sm uppercase tracking-wider text-gray-400 mb-3">
                   Picks recomendados (EV+)
                 </h2>
-                {livePicks.length === 0 ? (
-                  <p className="text-xs text-gray-500 leading-relaxed">
-                    Nenhuma recomendação neste momento — o mercado está alinhado ou
-                    mais confiante que o modelo. Vê o EV ao vivo à esquerda para
-                    as posições actuais.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {livePicks.slice(0, 4).map((p, i) => {
-                      const sideName = p.selection === 'A' ? nameA.split(',')[0] : nameB.split(',')[0];
-                      const edgePositive = p.edge_pct != null && p.edge_pct > 0;
-                      return (
-                        <div key={`${p.posted_at}-${i}`} className="flex items-baseline gap-3 py-1.5 border-b border-[var(--color-border)]/40 last:border-b-0">
-                          <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-sm truncate">{sideName}</div>
-                            <div className="text-[10px] text-gray-500">
-                              {p.score_description ?? ''} · prob {Math.round(p.model_prob * 100)}%
-                            </div>
+                {(() => {
+                  // Agrupa picks por set (set_a + set_b + 1 = nº do set onde foi emitida)
+                  // Mantém 1 pick por set (a de maior edge). Mais recente fica em destaque.
+                  type PickWithSet = LivePickRow & { setNum: number };
+                  const enriched: PickWithSet[] = livePicks.map(p => {
+                    const sa = (p as LivePickRow & { set_a?: number }).set_a ?? 0;
+                    const sb = (p as LivePickRow & { set_b?: number }).set_b ?? 0;
+                    return { ...p, setNum: sa + sb + 1 };
+                  });
+                  const bestPerSet = new Map<number, PickWithSet>();
+                  for (const p of enriched) {
+                    const existing = bestPerSet.get(p.setNum);
+                    if (!existing || (p.edge_pct ?? 0) > (existing.edge_pct ?? 0)) {
+                      bestPerSet.set(p.setNum, p);
+                    }
+                  }
+                  const grouped = [...bestPerSet.values()].sort((a, b) => b.setNum - a.setNum);
+                  if (grouped.length === 0) {
+                    return (
+                      <p className="text-xs text-gray-500 leading-relaxed">
+                        Nenhuma recomendação neste momento — o mercado está alinhado ou
+                        mais confiante que o modelo. Vê o EV ao vivo à esquerda para
+                        as posições actuais.
+                      </p>
+                    );
+                  }
+                  const current = grouped[0];
+                  const history = grouped.slice(1);
+                  const renderPick = (p: PickWithSet, big: boolean) => {
+                    const sideName = p.selection === 'A' ? nameA.split(',')[0] : nameB.split(',')[0];
+                    return (
+                      <div className="flex items-baseline gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className={`font-semibold truncate ${big ? 'text-base md:text-lg' : 'text-xs'}`}>
+                            {sideName}
                           </div>
-                          <div className="text-right whitespace-nowrap">
-                            <div className="font-mono text-sm">
-                              {p.live_odd != null ? `@${p.live_odd.toFixed(2)}` : '—'}
-                            </div>
-                            <div className={`text-[10px] font-bold ${edgePositive ? 'text-[var(--color-accent)]' : 'text-gray-500'}`}>
-                              {p.edge_pct != null ? `${p.edge_pct > 0 ? '+' : ''}${p.edge_pct.toFixed(1)}% EV` : ''}
-                            </div>
-                          </div>
-                          {p.grade && (
-                            <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${p.grade === 'A' ? 'bg-[var(--color-accent)]/20 text-[var(--color-accent)]' : 'bg-gray-500/20 text-gray-400'}`}>
-                              {p.grade}
-                            </span>
+                          {big && (
+                            <div className="text-[10px] text-gray-500 mt-0.5">prob {Math.round(p.model_prob * 100)}%</div>
                           )}
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        <div className="text-right whitespace-nowrap">
+                          <div className={`font-mono ${big ? 'text-base md:text-lg' : 'text-xs'}`}>
+                            {p.live_odd != null ? `@${p.live_odd.toFixed(2)}` : '—'}
+                          </div>
+                          <div className={`font-bold text-[var(--color-accent)] ${big ? 'text-sm' : 'text-[10px]'}`}>
+                            {p.edge_pct != null ? `+${p.edge_pct.toFixed(1)}% EV` : ''}
+                          </div>
+                        </div>
+                        {p.grade && (
+                          <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-[var(--color-accent)]/20 text-[var(--color-accent)]`}>
+                            {p.grade}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  };
+                  return (
+                    <div>
+                      {/* CURRENT pick — destaque com Set N badge */}
+                      <div className="rounded-lg bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/30 p-3 mb-3">
+                        <div className="flex items-baseline justify-between mb-2">
+                          <span className="text-[10px] uppercase tracking-wider text-[var(--color-accent)] font-bold">
+                            Set {current.setNum} · actual
+                          </span>
+                        </div>
+                        {renderPick(current, true)}
+                      </div>
+
+                      {/* HISTORY: 1 pick por set anterior */}
+                      {history.length > 0 && (
+                        <>
+                          <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1.5">
+                            Histórico por set
+                          </div>
+                          <div className="space-y-2">
+                            {history.map(p => (
+                              <div key={p.posted_at} className="flex items-center gap-2 py-1.5 border-b border-[var(--color-border)]/40 last:border-b-0">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-gray-500 w-12 flex-shrink-0">
+                                  Set {p.setNum}
+                                </span>
+                                <div className="flex-1">
+                                  {renderPick(p, false)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           )}

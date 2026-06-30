@@ -28,8 +28,8 @@ interface Props {
 }
 
 const WIDTH = 720;
-const HEIGHT = 240;
-const PAD = { top: 18, right: 16, bottom: 28, left: 36 };
+const HEIGHT = 260;
+const PAD = { top: 18, right: 16, bottom: 48, left: 36 };
 
 async function fetchSnapshots(srMatchId: number): Promise<Row[]> {
   const { data } = await supabase
@@ -77,16 +77,38 @@ export async function LiveWinProbChart({ srMatchId, nameA, nameB }: Props) {
   // Set-end markers: detect when set_a + set_b increments
   type SetMarker = { tMs: number; winner: 'A' | 'B'; score: string };
   const setMarkers: SetMarker[] = [];
+  // Game-end markers: detect when game_a OR game_b changes (mais granular)
+  type GameMarker = { tMs: number };
+  const gameMarkers: GameMarker[] = [];
   for (let i = 1; i < rows.length; i++) {
     const prev = rows[i - 1];
     const cur = rows[i];
-    if (cur.set_a > prev.set_a || cur.set_b > prev.set_b) {
+    const setChanged = cur.set_a > prev.set_a || cur.set_b > prev.set_b;
+    const gameChanged = cur.game_a !== prev.game_a || cur.game_b !== prev.game_b;
+    if (setChanged) {
       setMarkers.push({
         tMs: new Date(cur.captured_at).getTime(),
         winner: cur.set_a > prev.set_a ? 'A' : 'B',
         score: `${cur.set_a}-${cur.set_b}`,
       });
+    } else if (gameChanged) {
+      gameMarkers.push({ tMs: new Date(cur.captured_at).getTime() });
     }
+  }
+
+  // Etiqueta de cada SET no centro do segmento (entre setMarker N e N+1)
+  type SetLabel = { startMs: number; endMs: number; num: number };
+  const setLabels: SetLabel[] = [];
+  {
+    let segStart = t0;
+    let setNum = 1;
+    for (const m of setMarkers) {
+      setLabels.push({ startMs: segStart, endMs: m.tMs, num: setNum });
+      segStart = m.tMs;
+      setNum++;
+    }
+    // O set actual (em curso) — do último marcador ao fim
+    setLabels.push({ startMs: segStart, endMs: tEnd, num: setNum });
   }
 
   // Y axis ticks at 0, 25, 50, 75, 100
@@ -151,16 +173,52 @@ export async function LiveWinProbChart({ srMatchId, nameA, nameB }: Props) {
           </g>
         ))}
 
-        {/* Set-end markers */}
+        {/* Set background bands alternadas para distinguir visualmente */}
+        {setLabels.map((s, i) => {
+          if (s.endMs <= s.startMs) return null;
+          const xa = x(s.startMs);
+          const xb = x(s.endMs);
+          if (xb - xa < 4) return null;
+          return (
+            <rect
+              key={`setband-${i}`}
+              x={xa}
+              y={PAD.top}
+              width={xb - xa}
+              height={HEIGHT - PAD.top - PAD.bottom}
+              fill="currentColor"
+              fillOpacity={i % 2 === 0 ? 0 : 0.04}
+              className="text-gray-400"
+            />
+          );
+        })}
+
+        {/* Game tick marks no eixo X (pequenos traços) */}
+        {gameMarkers.map((m, i) => (
+          <line
+            key={`game-${i}`}
+            x1={x(m.tMs)}
+            x2={x(m.tMs)}
+            y1={HEIGHT - PAD.bottom - 4}
+            y2={HEIGHT - PAD.bottom + 2}
+            stroke="currentColor"
+            strokeOpacity={0.30}
+            strokeWidth={1}
+            className="text-gray-400"
+          />
+        ))}
+
+        {/* Set-end markers — linha vertical mais marcada */}
         {setMarkers.map((m, i) => (
           <g key={`set-${i}`}>
             <line
               x1={x(m.tMs)}
               x2={x(m.tMs)}
               y1={PAD.top}
-              y2={HEIGHT - PAD.bottom}
+              y2={HEIGHT - PAD.bottom + 6}
               stroke="currentColor"
-              strokeOpacity={0.30}
+              strokeOpacity={0.55}
+              strokeWidth={1.5}
               strokeDasharray="3 3"
               className="text-gray-400"
             />
@@ -171,11 +229,35 @@ export async function LiveWinProbChart({ srMatchId, nameA, nameB }: Props) {
               textAnchor="middle"
               fill="currentColor"
               className="text-gray-500"
+              fontWeight="600"
             >
               {m.score}
             </text>
           </g>
         ))}
+
+        {/* Set N labels no centro de cada banda */}
+        {setLabels.map((s, i) => {
+          if (s.endMs <= s.startMs) return null;
+          const xa = x(s.startMs);
+          const xb = x(s.endMs);
+          if (xb - xa < 30) return null;
+          const cx = (xa + xb) / 2;
+          return (
+            <text
+              key={`setlabel-${i}`}
+              x={cx}
+              y={HEIGHT - PAD.bottom + 18}
+              fontSize="10"
+              textAnchor="middle"
+              fill="currentColor"
+              fontWeight="600"
+              className="text-gray-500"
+            >
+              Set {s.num}
+            </text>
+          );
+        })}
 
         {/* Our line */}
         <path
@@ -213,17 +295,10 @@ export async function LiveWinProbChart({ srMatchId, nameA, nameB }: Props) {
           );
         })}
 
-        {/* X axis labels: start and now */}
-        <text x={PAD.left} y={HEIGHT - 8} fontSize="10" fill="currentColor" className="text-gray-500">
-          início
-        </text>
-        <text x={WIDTH - PAD.right} y={HEIGHT - 8} fontSize="10" textAnchor="end" fill="currentColor" className="text-gray-500">
-          agora
-        </text>
       </svg>
 
       <p className="text-[11px] text-gray-500 mt-2">
-        Marcadores verticais: finais de set. Passa o rato pela linha para ver detalhes.
+        Bandas: cada set · Tracks pequenos: cada jogo · Passa o rato pela linha para ver detalhes.
       </p>
     </div>
   );
