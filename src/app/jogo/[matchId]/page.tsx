@@ -147,6 +147,37 @@ function ServeStatRow({ label, a, b, fmt }: { label: string; a: StatVal; b: Stat
   );
 }
 
+function formatTournamentName(slug: string): string {
+  const parts = slug.split('-');
+  const last = parts[parts.length - 1];
+  const isTour = /^(atp|wta|itf|chl)$/i.test(last);
+  const tourLabel = isTour ? last.toUpperCase() : null;
+  const restParts = isTour ? parts.slice(0, -1) : parts;
+  const titled = restParts.map(p => {
+    if (/^\d+$/.test(p)) return p;
+    if (p.toLowerCase() === 'us') return 'US';
+    return p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
+  }).join(' ');
+  return tourLabel ? `${titled} · ${tourLabel}` : titled;
+}
+
+function PlayerAvatar({ photoUrl, name, size = 40 }: { photoUrl: string | null | undefined; name: string; size?: number }) {
+  const initial = name.charAt(0).toUpperCase();
+  return (
+    <div
+      className="rounded-full overflow-hidden bg-[var(--color-card)] border border-[var(--color-border)] flex items-center justify-center shrink-0"
+      style={{ width: size, height: size }}
+    >
+      {photoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={photoUrl} alt={name} width={size} height={size} className="w-full h-full object-cover" loading="lazy" />
+      ) : (
+        <span className="text-xs font-bold text-gray-400">{initial}</span>
+      )}
+    </div>
+  );
+}
+
 function ProbBar({ probA, nameA, nameB }: { probA: number; nameA: string; nameB: string }) {
   const a = Math.round(probA * 100);
   const b = 100 - a;
@@ -246,34 +277,44 @@ export default async function LiveMatchPage({
               {state.tournament_slug && (
                 <Link
                   href={`/torneios/${state.tournament_slug}`}
-                  className="text-xs text-gray-400 hover:text-[var(--color-accent)] transition"
+                  className="text-xs font-semibold text-gray-300 hover:text-[var(--color-accent)] transition tracking-wide"
                 >
-                  {state.tournament_slug.replace(/-/g, ' ')}
+                  {formatTournamentName(state.tournament_slug)}
                 </Link>
               )}
               <span className="text-xs text-gray-500 ml-auto">
                 {fresh ? `atualizado há ${ageSec}s` : `desactualizado · ${ageSec}s`}
               </span>
             </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold">
-              {nameA} <span className="text-gray-500 font-normal">vs</span> {nameB}
-            </h1>
+            <div className="flex items-center gap-3 md:gap-4">
+              <div className="hidden md:block"><PlayerAvatar photoUrl={pA?.photo_url} name={nameA} size={36} /></div>
+              <h1 className="text-xl md:text-3xl font-extrabold leading-tight">
+                {nameA} <span className="text-gray-500 font-normal">vs</span> {nameB}
+              </h1>
+              <div className="hidden md:block"><PlayerAvatar photoUrl={pB?.photo_url} name={nameB} size={36} /></div>
+            </div>
           </div>
 
           {/* SCORE BOARD */}
           <div className="stat-card p-4 md:p-6">
-            <div className="grid grid-cols-3 items-center gap-4">
-              <div className="text-right">
-                <div className="text-base md:text-lg font-bold truncate">{nameA}</div>
-                {pA?.atp_rank && <div className="text-xs text-gray-500">#{pA.atp_rank} · ELO {pA.elo_overall ?? '–'}</div>}
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 md:gap-4">
+              <div className="flex items-center gap-2 md:gap-3 justify-end text-right min-w-0">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm md:text-lg font-bold truncate">{nameA}</div>
+                  {pA?.atp_rank && <div className="text-[11px] md:text-xs text-gray-500 whitespace-nowrap">#{pA.atp_rank} · ELO {pA.elo_overall ?? '–'}</div>}
+                </div>
+                <PlayerAvatar photoUrl={pA?.photo_url} name={nameA} size={40} />
               </div>
-              <div className="text-center font-mono">
+              <div className="text-center font-mono shrink-0">
                 <div className="text-3xl md:text-4xl font-extrabold tracking-wider">{scoreSets}</div>
-                <div className="text-xs text-gray-500 mt-1">{scoreCur} {state.server && <span className="text-[var(--color-accent)]">· {state.server} serve</span>}</div>
+                <div className="text-xs text-gray-500 mt-1 whitespace-nowrap">{scoreCur} {state.server && <span className="text-[var(--color-accent)]">· {state.server} serve</span>}</div>
               </div>
-              <div className="text-left">
-                <div className="text-base md:text-lg font-bold truncate">{nameB}</div>
-                {pB?.atp_rank && <div className="text-xs text-gray-500">#{pB.atp_rank} · ELO {pB.elo_overall ?? '–'}</div>}
+              <div className="flex items-center gap-2 md:gap-3 justify-start text-left min-w-0">
+                <PlayerAvatar photoUrl={pB?.photo_url} name={nameB} size={40} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm md:text-lg font-bold truncate">{nameB}</div>
+                  {pB?.atp_rank && <div className="text-[11px] md:text-xs text-gray-500 whitespace-nowrap">#{pB.atp_rank} · ELO {pB.elo_overall ?? '–'}</div>}
+                </div>
               </div>
             </div>
           </div>
