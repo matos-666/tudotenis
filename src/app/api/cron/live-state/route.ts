@@ -258,10 +258,11 @@ async function maybeEmitPick(opts: {
 async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[number]): Promise<{
   ok: boolean; reason?: string; settled?: boolean; pickEmitted?: boolean;
 }> {
-  // Pull último snapshot deste match + verifica se já settled — UMA query
+  // Pull último snapshot deste match + verifica se já settled — UMA query.
+  // Os stats carregam-se forward para os snapshots que skipam detailsextended.
   const { data: lastSnap } = await supabase
     .from('live_state')
-    .select('id, captured_at, final_winner, aces_a')
+    .select('id, captured_at, final_winner, aces_a, aces_b, df_a, df_b, bp_won_a, bp_won_b, serve_pts_won_a, serve_pts_won_b, first_serve_won_a, first_serve_won_b')
     .eq('sr_match_id', m._id)
     .order('captured_at', { ascending: false })
     .limit(1)
@@ -289,11 +290,13 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
     state.bestOf = 3;
   }
 
-  // detailsextended (~1.5s/call SR) é só FYI (aces, BPs, etc.); modelo
-  // não depende. Apenas fetchamos no end-game (justEnded) para freezar
-  // stats finais. Resto fica null — caber em 60s é o que importa.
+  // detailsextended (~1.5s/call SR): fetch só na 1ª snapshot (lastSnap=null),
+  // no end-game (freezar finais), ou a cada ~5min (refresh). Restantes
+  // snapshots reusam stats via carry-forward (inherit from lastSnap).
+  const lastAgeMs = lastSnap ? Date.now() - new Date(lastSnap.captured_at).getTime() : Infinity;
+  const needsStats = !lastSnap || justEnded || lastAgeMs > 5 * 60 * 1000;
   let stats: SrDetailsExtended | null = null;
-  if (justEnded) {
+  if (needsStats) {
     const det = await sr<{ doc: Array<{ data: SrDetailsExtended }> }>(`match_detailsextended/${m._id}`);
     stats = det?.doc?.[0]?.data ?? null;
   }
@@ -361,11 +364,17 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
       sr_team_b_id: data.teams.away._id,
       name_a: data.teams.home.name,
       name_b: data.teams.away.name,
-      aces_a: aces.a, aces_b: aces.b,
-      df_a: df.a, df_b: df.b,
-      bp_won_a: bpWon.a, bp_won_b: bpWon.b,
-      serve_pts_won_a: servePts.a, serve_pts_won_b: servePts.b,
-      first_serve_won_a: fsWon.a, first_serve_won_b: fsWon.b,
+      // Carry-forward: se não fetched stats neste snapshot, usar o último valor conhecido
+      aces_a: aces.a ?? lastSnap?.aces_a ?? null,
+      aces_b: aces.b ?? lastSnap?.aces_b ?? null,
+      df_a:   df.a   ?? lastSnap?.df_a   ?? null,
+      df_b:   df.b   ?? lastSnap?.df_b   ?? null,
+      bp_won_a: bpWon.a ?? lastSnap?.bp_won_a ?? null,
+      bp_won_b: bpWon.b ?? lastSnap?.bp_won_b ?? null,
+      serve_pts_won_a: servePts.a ?? lastSnap?.serve_pts_won_a ?? null,
+      serve_pts_won_b: servePts.b ?? lastSnap?.serve_pts_won_b ?? null,
+      first_serve_won_a: fsWon.a ?? lastSnap?.first_serve_won_a ?? null,
+      first_serve_won_b: fsWon.b ?? lastSnap?.first_serve_won_b ?? null,
       p_a_serve_prior: pAprior,
       p_b_serve_prior: pBprior,
       p_a_serve_live: pAlive,

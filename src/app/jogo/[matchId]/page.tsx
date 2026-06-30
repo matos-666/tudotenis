@@ -52,6 +52,30 @@ interface PlayerInfo {
   elo_overall: number | null;
 }
 
+interface LiveOddRow { source: string; odd_a: number | null; odd_b: number | null; captured_at: string; }
+interface LivePickRow { selection: string; model_prob: number; live_odd: number | null; edge_pct: number | null; grade: string | null; score_description: string | null; posted_at: string; result: string | null; }
+
+async function fetchLiveOdds(matchId: number): Promise<LiveOddRow | null> {
+  const { data } = await supabase
+    .from('live_odds_history')
+    .select('source, odd_a, odd_b, captured_at')
+    .eq('sr_match_id', matchId)
+    .order('captured_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data as LiveOddRow | null;
+}
+
+async function fetchLivePicks(matchId: number): Promise<LivePickRow[]> {
+  const { data } = await supabase
+    .from('live_picks')
+    .select('selection, model_prob, live_odd, edge_pct, grade, score_description, posted_at, result')
+    .eq('sr_match_id', matchId)
+    .order('posted_at', { ascending: false })
+    .limit(10);
+  return (data ?? []) as LivePickRow[];
+}
+
 async function fetchLatest(matchId: number): Promise<LiveState | null> {
   const { data } = await supabase
     .from('live_state')
@@ -171,7 +195,11 @@ export default async function LiveMatchPage({
   }
 
   const playerIds = [state.player_a_id, state.player_b_id].filter((x): x is number => x != null);
-  const players = await fetchPlayers(playerIds);
+  const [players, liveOdds, livePicks] = await Promise.all([
+    fetchPlayers(playerIds),
+    fetchLiveOdds(id),
+    fetchLivePicks(id),
+  ]);
   const pA = state.player_a_id ? players[state.player_a_id] : null;
   const pB = state.player_b_id ? players[state.player_b_id] : null;
   const nameA = pA?.name ?? state.name_a ?? 'Player A';
@@ -259,6 +287,73 @@ export default async function LiveMatchPage({
                 Probabilidade computada com Markov bottom-up sobre o estado actual.{' '}
                 Priors: p<sub>A</sub>={pct(state.p_a_serve_prior)} / p<sub>B</sub>={pct(state.p_b_serve_prior)}.
               </p>
+            </div>
+          )}
+
+          {/* LIVE ODDS + PICKS */}
+          {(liveOdds || livePicks.length > 0) && (
+            <div className="grid md:grid-cols-2 gap-4">
+              {liveOdds && (
+                <div className="stat-card p-4 md:p-5">
+                  <h2 className="text-sm uppercase tracking-wider text-gray-400 mb-3">
+                    Odds live · {liveOdds.source}
+                  </h2>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg bg-[var(--color-surface)] p-3">
+                      <div className="text-xs text-gray-500 truncate">{nameA.split(',')[0]}</div>
+                      <div className="text-2xl font-extrabold font-mono mt-1">
+                        {liveOdds.odd_a != null ? liveOdds.odd_a.toFixed(2) : '—'}
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-[var(--color-surface)] p-3">
+                      <div className="text-xs text-gray-500 truncate">{nameB.split(',')[0]}</div>
+                      <div className="text-2xl font-extrabold font-mono mt-1">
+                        {liveOdds.odd_b != null ? liveOdds.odd_b.toFixed(2) : '—'}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-gray-500 mt-3">
+                    Captado há {Math.round((Date.now() - new Date(liveOdds.captured_at).getTime()) / 1000)}s
+                  </p>
+                </div>
+              )}
+
+              {livePicks.length > 0 && (
+                <div className="stat-card p-4 md:p-5">
+                  <h2 className="text-sm uppercase tracking-wider text-gray-400 mb-3">
+                    Picks do modelo neste match
+                  </h2>
+                  <div className="space-y-2">
+                    {livePicks.slice(0, 4).map((p, i) => {
+                      const sideName = p.selection === 'A' ? nameA.split(',')[0] : nameB.split(',')[0];
+                      const edgePositive = p.edge_pct != null && p.edge_pct > 0;
+                      return (
+                        <div key={`${p.posted_at}-${i}`} className="flex items-baseline gap-3 py-1.5 border-b border-[var(--color-border)]/40 last:border-b-0">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-sm truncate">{sideName}</div>
+                            <div className="text-[10px] text-gray-500">
+                              {p.score_description ?? ''} · prob {Math.round(p.model_prob * 100)}%
+                            </div>
+                          </div>
+                          <div className="text-right whitespace-nowrap">
+                            <div className="font-mono text-sm">
+                              {p.live_odd != null ? `@${p.live_odd.toFixed(2)}` : '—'}
+                            </div>
+                            <div className={`text-[10px] font-bold ${edgePositive ? 'text-[var(--color-accent)]' : 'text-gray-500'}`}>
+                              {p.edge_pct != null ? `${p.edge_pct > 0 ? '+' : ''}${p.edge_pct.toFixed(1)}% EV` : ''}
+                            </div>
+                          </div>
+                          {p.grade && (
+                            <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${p.grade === 'A' ? 'bg-[var(--color-accent)]/20 text-[var(--color-accent)]' : 'bg-gray-500/20 text-gray-400'}`}>
+                              {p.grade}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
