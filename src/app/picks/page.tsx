@@ -149,9 +149,17 @@ async function fetchTodayDoublesPicks(): Promise<DoublesPick[]> {
   return (data ?? []) as DoublesPick[];
 }
 
+// Tennis raramente passa de 5h (mesmo BO5 em Slams). Se passou esse
+// tempo desde o scheduled_at, o match acabou na prática mesmo que o
+// settler diário (22:30 UTC) ainda não tenha marcado o result. Sem
+// cap, picks apareciam como "Em curso" durante 12-24h pós-início.
+const LIVE_WINDOW_MS = 5 * 60 * 60 * 1000;
+
 function hasStartedDoubles(p: DoublesPick): boolean {
   if (!p.scheduled_at) return false;
-  return new Date(p.scheduled_at).getTime() <= Date.now();
+  const t = new Date(p.scheduled_at).getTime();
+  const now = Date.now();
+  return t <= now && now - t < LIVE_WINDOW_MS;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -180,7 +188,9 @@ function formatTime(iso: string | null): string {
  */
 function hasStarted(p: Pick): boolean {
   if (!p.scheduled_at) return false;
-  return new Date(p.scheduled_at).getTime() <= Date.now();
+  const t = new Date(p.scheduled_at).getTime();
+  const now = Date.now();
+  return t <= now && now - t < LIVE_WINDOW_MS;
 }
 
 /**
@@ -666,15 +676,22 @@ export default async function PicksPage({ locale = 'pt-PT' as Locale }: { locale
     fetchTodayDoublesPicks(),
   ]);
 
-  // Partição singles: settled > live > upcoming
+  // Picks que já começaram (scheduled <= now) ficam "Em curso" só durante
+  // a janela LIVE_WINDOW_MS. Para além disso assumimos que já acabaram e
+  // omitimos do display até o settler diário marcar result — caso contrário
+  // matches que claramente já acabaram apareciam como "Em curso" durante
+  // 12-24h. Upcoming requer estrito-futuro (scheduled > now), não apenas
+  // !isLive (que incluiria os já-passados sem result).
+  const nowMs = Date.now();
+  const isFuture = (sched: string | null) => sched != null && new Date(sched).getTime() > nowMs;
+
   const todaySettled = today.filter(p => p.result != null);
   const todayLive    = today.filter(p => p.result == null && isLive(p));
-  const todayUpcoming = today.filter(p => p.result == null && !isLive(p));
+  const todayUpcoming = today.filter(p => p.result == null && isFuture(p.scheduled_at));
 
-  // Partição doubles (mesma estrutura)
   const doublesSettled  = todayDoubles.filter(p => p.result != null);
   const doublesLive     = todayDoubles.filter(p => p.result == null && hasStartedDoubles(p));
-  const doublesUpcoming = todayDoubles.filter(p => p.result == null && !hasStartedDoubles(p));
+  const doublesUpcoming = todayDoubles.filter(p => p.result == null && isFuture(p.scheduled_at));
 
   const liveCount    = todayLive.length;
   const upcomingCount = todayUpcoming.length;
