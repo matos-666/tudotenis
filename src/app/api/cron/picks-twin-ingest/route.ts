@@ -85,43 +85,69 @@ function firstInitial(s: string): string {
   return (tokens[0]?.[0] ?? '').toLowerCase();
 }
 
-async function resolvePlayer(scrapedName: string, tour: string, cache: Map<string, PlayerRow | null>): Promise<PlayerRow | null> {
-  const key = `${tour}::${scrapedName}`;
-  if (cache.has(key)) return cache.get(key)!;
+// Cache global pull-all (uma vez por request) — evita N queries
+// supabase + ilike incoerente. ~3000 players × small select = ~150KB.
+interface PlayerIndex {
+  byTour: Map<string, Array<PlayerRow & { norm: string; last: string }>>;
+}
+
+async function buildPlayerIndex(): Promise<PlayerIndex> {
+  const out: PlayerIndex = { byTour: new Map() };
+  let offset = 0;
+  const page = 1000;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const all: any[] = [];
+  while (true) {
+    const { data } = await supabase
+      .from('players')
+      .select('id, name, slug, flag, tour, elo_overall, elo_set_overall, elo_set_hard, elo_set_clay, elo_set_grass, elo_set_indoor')
+      .eq('active', true)
+      .range(offset, offset + page - 1);
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < page) break;
+    offset += page;
+  }
+  for (const p of all as PlayerRow[]) {
+    const norm = strip(p.name);
+    const tokens = p.name.split(/\s+/);
+    const last = strip(tokens[tokens.length - 1] ?? '');
+    const arr = out.byTour.get(p.tour) ?? [];
+    arr.push({ ...p, norm, last });
+    out.byTour.set(p.tour, arr);
+  }
+  return out;
+}
+
+function resolvePlayerFromIndex(scrapedName: string, tour: string, idx: PlayerIndex): PlayerRow | null {
+  const cands = idx.byTour.get(tour) ?? [];
+  if (cands.length === 0) return null;
 
   const last = lastNameToken(scrapedName);
   const init = firstInitial(scrapedName);
-  if (!last) {
-    cache.set(key, null);
-    return null;
-  }
+  if (!last) return null;
 
-  // Query candidates whose normalized name ends with last-name
-  const { data } = await supabase
-    .from('players')
-    .select('id, name, slug, flag, tour, elo_overall, elo_set_overall, elo_set_hard, elo_set_clay, elo_set_grass, elo_set_indoor')
-    .eq('tour', tour)
-    .ilike('name', `%${last}%`)
-    .limit(15);
-  const cands = (data ?? []) as PlayerRow[];
+  // Target: Twin "Last, First" → strip = "lastfirst"; player DB "First Last" → strip = "firstlast"
+  // Test both directions.
+  const parts = scrapedName.split(',').map(s => s.trim());
+  const reversedFull = parts.length === 2 ? strip(`${parts[1]} ${parts[0]}`) : strip(scrapedName);
 
-  // 1. Exact normalized match
-  const target = strip(scrapedName);
-  let hit = cands.find(p => strip(p.name) === target);
-  // 2. Last + first initial
+  // 1. Exact reversed match (player DB format)
+  let hit = cands.find(p => p.norm === reversedFull);
+  // 2. Last-name match + first initial
   if (!hit) {
-    hit = cands.find(p => {
-      const ns = strip(p.name);
-      return ns.endsWith(last) && (ns.startsWith(init) || ns.split(/(?<=[a-z])(?=[A-Z])/).some(t => t.toLowerCase().startsWith(init)));
-    });
+    hit = cands.find(p => p.last === last && (init === '' || p.norm.startsWith(init)));
   }
-  // 3. Unique last-name match
+  // 3. Player whose norm contains both 'last' and 'firstinitial' start of any token
   if (!hit) {
-    const lastMatches = cands.filter(p => strip(p.name).endsWith(last));
+    hit = cands.find(p => p.norm.endsWith(last) && (init === '' || p.norm.startsWith(init)));
+  }
+  // 4. Unique last-name match
+  if (!hit) {
+    const lastMatches = cands.filter(p => p.last === last);
     if (lastMatches.length === 1) hit = lastMatches[0];
   }
 
-  cache.set(key, hit ?? null);
   return hit ?? null;
 }
 
@@ -183,15 +209,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, received: 0, resolved: 0, inserted: 0 });
   }
 
-  const playerCache = new Map<string, PlayerRow | null>();
+  const idx = await buildPlayerIndex();
   let resolved = 0, inserted = 0, skipped = 0;
   const debugSamples: Array<{ name_a: string; name_b: string; pA: string | null; pB: string | null }> = [];
 
   for (const m of matches) {
-    const [pA, pB] = await Promise.all([
-      resolvePlayer(m.name_a, m.tour, playerCache),
-      resolvePlayer(m.name_b, m.tour, playerCache),
-    ]);
+    const pA = resolvePlayerFromIndex(m.name_a, m.tour, idx);
+    const pB = resolvePlayerFromIndex(m.name_b, m.tour, idx);
     if (debugSamples.length < 5) {
       debugSamples.push({ name_a: m.name_a, name_b: m.name_b, pA: pA?.name ?? null, pB: pB?.name ?? null });
     }
