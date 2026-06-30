@@ -8,7 +8,7 @@
  * tracks pequenos para cada jogo. Adapta-se a mobile via SVG fluído
  * + touch handlers.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 export interface ChartRow {
   captured_at: string;
@@ -27,12 +27,25 @@ interface Props {
   nameB: string;
 }
 
-const WIDTH = 720;
-const HEIGHT = 280;
-const PAD = { top: 22, right: 16, bottom: 52, left: 36 };
+// Desktop usa viewBox horizontal; mobile mais quadrado para ganhar
+// altura útil em ecrãs estreitos. Coords são recalculadas dinâmicamente
+// dentro do useMemo a partir destas duas constantes.
+const DESKTOP = { W: 720, H: 280, PAD: { top: 22, right: 16, bottom: 52, left: 36 } };
+const MOBILE  = { W: 420, H: 360, PAD: { top: 22, right: 14, bottom: 56, left: 32 } };
 
 export default function LiveWinProbChartView({ rows, nameA, nameB }: Props) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)');
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  const { W: WIDTH, H: HEIGHT, PAD } = isMobile ? MOBILE : DESKTOP;
 
   const view = useMemo(() => {
     const t0 = new Date(rows[0].captured_at).getTime();
@@ -82,7 +95,7 @@ export default function LiveWinProbChartView({ rows, nameA, nameB }: Props) {
     setLabels.push({ startMs: segStart, endMs: tEnd, num: setNum });
 
     return { t0, tEnd, span, plotW, plotH, x, y, xys, pathA, pathB, setMarkers, gameMarkers, setLabels };
-  }, [rows]);
+  }, [rows, WIDTH, HEIGHT, PAD]);
 
   function eventToIndex(clientX: number, currentTarget: SVGSVGElement): number {
     const rect = currentTarget.getBoundingClientRect();

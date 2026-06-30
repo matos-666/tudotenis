@@ -5,11 +5,12 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { LiveWinProbChart } from '@/components/LiveWinProbChart';
 import { MatchTracker } from '@/components/MatchTracker';
+import AutoRefresh from '@/components/AutoRefresh';
 import { AlertTriangleIcon } from '@/components/icons';
 import { supabase } from '@/lib/supabase';
 import { type Locale } from '@/lib/i18n';
 
-export const revalidate = 30;
+export const revalidate = 20;
 
 interface LiveState {
   id: number;
@@ -257,6 +258,7 @@ export default async function LiveMatchPage({
   return (
     <>
       <Header locale={locale} />
+      {state.running && !state.match_finished && <AutoRefresh intervalMs={25000} />}
       <main id="main" className="flex-1">
         <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-8 space-y-6">
 
