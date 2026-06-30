@@ -67,11 +67,14 @@ async function fetchLiveOdds(matchId: number): Promise<LiveOddRow | null> {
 }
 
 async function fetchLivePicks(matchId: number): Promise<LivePickRow[]> {
+  // Só EV positivo — pseudo-picks com EV neg são decisões do modelo que
+  // o mercado já antecipou; não são recomendações de aposta.
   const { data } = await supabase
     .from('live_picks')
     .select('selection, model_prob, live_odd, edge_pct, grade, score_description, posted_at, result')
     .eq('sr_match_id', matchId)
-    .order('posted_at', { ascending: false })
+    .gt('edge_pct', 0)
+    .order('edge_pct', { ascending: false })
     .limit(10);
   return (data ?? []) as LivePickRow[];
 }
@@ -290,38 +293,57 @@ export default async function LiveMatchPage({
           )}
 
           {/* LIVE ODDS + PICKS */}
-          {(liveOdds || livePicks.length > 0) && (
+          {liveOdds && (
             <div className="grid md:grid-cols-2 gap-4">
               {liveOdds && (
                 <div className="stat-card p-4 md:p-5">
                   <h2 className="text-sm uppercase tracking-wider text-gray-400 mb-3">
-                    Odds live · {liveOdds.source}
+                    Odds + EV ao vivo · {liveOdds.source}
                   </h2>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-lg bg-[var(--color-surface)] p-3">
-                      <div className="text-xs text-gray-500 truncate">{nameA.split(',')[0]}</div>
-                      <div className="text-2xl font-extrabold font-mono mt-1">
-                        {liveOdds.odd_a != null ? liveOdds.odd_a.toFixed(2) : '—'}
+                  {(() => {
+                    const evA = matchProb != null && liveOdds.odd_a != null ? (matchProb * liveOdds.odd_a - 1) * 100 : null;
+                    const evB = matchProb != null && liveOdds.odd_b != null ? ((1 - matchProb) * liveOdds.odd_b - 1) * 100 : null;
+                    const sideClass = (ev: number | null) => ev == null ? 'text-gray-500' : ev > 0 ? 'text-[var(--color-accent)]' : 'text-red-400';
+                    return (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-lg bg-[var(--color-surface)] p-3">
+                          <div className="text-xs text-gray-500 truncate">{nameA.split(',')[0]}</div>
+                          <div className="text-2xl font-extrabold font-mono mt-1">
+                            {liveOdds.odd_a != null ? liveOdds.odd_a.toFixed(2) : '—'}
+                          </div>
+                          <div className={`text-xs font-bold mt-1 font-mono ${sideClass(evA)}`}>
+                            {evA != null ? `${evA > 0 ? '+' : ''}${evA.toFixed(1)}% EV` : '—'}
+                          </div>
+                        </div>
+                        <div className="rounded-lg bg-[var(--color-surface)] p-3">
+                          <div className="text-xs text-gray-500 truncate">{nameB.split(',')[0]}</div>
+                          <div className="text-2xl font-extrabold font-mono mt-1">
+                            {liveOdds.odd_b != null ? liveOdds.odd_b.toFixed(2) : '—'}
+                          </div>
+                          <div className={`text-xs font-bold mt-1 font-mono ${sideClass(evB)}`}>
+                            {evB != null ? `${evB > 0 ? '+' : ''}${evB.toFixed(1)}% EV` : '—'}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="rounded-lg bg-[var(--color-surface)] p-3">
-                      <div className="text-xs text-gray-500 truncate">{nameB.split(',')[0]}</div>
-                      <div className="text-2xl font-extrabold font-mono mt-1">
-                        {liveOdds.odd_b != null ? liveOdds.odd_b.toFixed(2) : '—'}
-                      </div>
-                    </div>
-                  </div>
+                    );
+                  })()}
                   <p className="text-[10px] text-gray-500 mt-3">
-                    Captado há {Math.round((Date.now() - new Date(liveOdds.captured_at).getTime()) / 1000)}s
+                    Captado há {Math.round((Date.now() - new Date(liveOdds.captured_at).getTime()) / 1000)}s · EV = modelo prob × odd − 1
                   </p>
                 </div>
               )}
 
-              {livePicks.length > 0 && (
-                <div className="stat-card p-4 md:p-5">
-                  <h2 className="text-sm uppercase tracking-wider text-gray-400 mb-3">
-                    Picks do modelo neste match
-                  </h2>
+              <div className="stat-card p-4 md:p-5">
+                <h2 className="text-sm uppercase tracking-wider text-gray-400 mb-3">
+                  Picks recomendados (EV+)
+                </h2>
+                {livePicks.length === 0 ? (
+                  <p className="text-xs text-gray-500 leading-relaxed">
+                    Nenhuma recomendação neste momento — o mercado está alinhado ou
+                    mais confiante que o modelo. Vê o EV ao vivo à esquerda para
+                    as posições actuais.
+                  </p>
+                ) : (
                   <div className="space-y-2">
                     {livePicks.slice(0, 4).map((p, i) => {
                       const sideName = p.selection === 'A' ? nameA.split(',')[0] : nameB.split(',')[0];
@@ -351,8 +373,8 @@ export default async function LiveMatchPage({
                       );
                     })}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )}
 
