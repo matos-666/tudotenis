@@ -3,8 +3,8 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
-import { SportradarWidget } from '@/components/SportradarWidget';
 import { LiveWinProbChart } from '@/components/LiveWinProbChart';
+import { MatchTracker } from '@/components/MatchTracker';
 import { AlertTriangleIcon } from '@/components/icons';
 import { supabase } from '@/lib/supabase';
 import { type Locale } from '@/lib/i18n';
@@ -186,7 +186,6 @@ export default async function LiveMatchPage({
               Match ID {id} ainda não foi capturado pelo cron live. Aguarda 1-2 minutos ou volta ao{' '}
               <Link href="/ao-vivo" className="text-[var(--color-accent)] hover:underline">listing ao vivo</Link>.
             </p>
-            <SportradarWidget widget="match.lmtPlus" matchId={id} />
           </div>
         </main>
         <Footer locale={locale} />
@@ -360,35 +359,28 @@ export default async function LiveMatchPage({
           {/* P EVOLUTION CHART */}
           <LiveWinProbChart srMatchId={id} nameA={nameA} nameB={nameB} />
 
-          {/* SPORTRADAR LMT+ */}
-          <div className="stat-card p-2 md:p-4">
-            <div className="text-xs uppercase tracking-wider text-gray-500 mb-2 px-2">Live Match Tracker</div>
-            <SportradarWidget widget="match.lmtPlus" matchId={id} />
-          </div>
+          {/* OUR MATCH TRACKER (substitui betradar widget que tem licença limitada) */}
+          <MatchTracker
+            nameA={nameA}
+            nameB={nameB}
+            setA={state.set_a}
+            setB={state.set_b}
+            gameA={state.game_a}
+            gameB={state.game_b}
+            pointA={state.point_a}
+            pointB={state.point_b}
+            server={state.server}
+            tiebreak={state.tiebreak}
+          />
 
           {/* STATS */}
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="stat-card p-4 md:p-6">
-              <h2 className="text-sm uppercase tracking-wider text-gray-400 mb-3">Stats live</h2>
-              <ServeStatRow label="Aces" a={state.aces_a} b={state.aces_b} />
-              <ServeStatRow label="Double Faults" a={state.df_a} b={state.df_b} />
-              <ServeStatRow label="BPs ganhos" a={state.bp_won_a} b={state.bp_won_b} />
-              <ServeStatRow label="Pts serviço ganhos" a={state.serve_pts_won_a} b={state.serve_pts_won_b} />
-              <ServeStatRow label="1ª serviço won %" a={state.first_serve_won_a} b={state.first_serve_won_b} fmt={(x) => x == null ? '—' : `${x}%`} />
-            </div>
-            <div className="stat-card p-4 md:p-6">
-              <h2 className="text-sm uppercase tracking-wider text-gray-400 mb-3">Win Probability (Sportradar)</h2>
-              <SportradarWidget widget="match.winProbability" matchId={id} />
-              <p className="text-[11px] text-gray-500 mt-3">
-                Cálculo independente da Sportradar para comparar com o nosso.
-              </p>
-            </div>
-          </div>
-
-          {/* MOMENTUM */}
-          <div className="stat-card p-2 md:p-4">
-            <div className="text-xs uppercase tracking-wider text-gray-500 mb-2 px-2">Momentum</div>
-            <SportradarWidget widget="match.momentum" matchId={id} />
+          <div className="stat-card p-4 md:p-6">
+            <h2 className="text-sm uppercase tracking-wider text-gray-400 mb-3">Stats live</h2>
+            <ServeStatRow label="Aces" a={state.aces_a} b={state.aces_b} />
+            <ServeStatRow label="Double Faults" a={state.df_a} b={state.df_b} />
+            <ServeStatRow label="BPs ganhos" a={state.bp_won_a} b={state.bp_won_b} />
+            <ServeStatRow label="Pts serviço ganhos" a={state.serve_pts_won_a} b={state.serve_pts_won_b} />
+            <ServeStatRow label="1ª serviço won %" a={state.first_serve_won_a} b={state.first_serve_won_b} fmt={(x) => x == null ? '—' : `${x}%`} />
           </div>
 
         </div>
