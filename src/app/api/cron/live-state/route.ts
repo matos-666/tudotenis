@@ -88,12 +88,36 @@ interface SrMatchGet {
   tiebreak?: boolean;
 }
 interface SrDetailsExtended {
-  values: Record<string, { name: string; value: { home: number; away: number } }>;
+  // Sportradar mistura tipos: alguns stats são numéricos directos ({home: 6}),
+  // outros são strings tipo "4/9" (BPs) ou "64/20/84" (serve points won/lost/total).
+  values: Record<string, { name: string; value: { home: number | string; away: number | string } }>;
+}
+
+function parseStatVal(v: number | string | undefined | null): number | null {
+  if (v == null) return null;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  // String: pode ser "X" (numeric string), "X/Y" (fraction), "X/Y/Z" (triple)
+  const parts = v.split('/').map(s => parseInt(s.trim(), 10));
+  if (parts.length === 0 || !Number.isFinite(parts[0])) return null;
+  return parts[0]; // numerator / primeiro componente
+}
+
+function parseStatDenom(v: number | string | undefined | null, kind: 'fraction' | 'triple'): number | null {
+  if (typeof v !== 'string') return null;
+  const parts = v.split('/').map(s => parseInt(s.trim(), 10));
+  if (kind === 'fraction' && parts.length >= 2 && Number.isFinite(parts[1])) return parts[1];
+  if (kind === 'triple' && parts.length >= 3 && Number.isFinite(parts[2])) return parts[2];
+  return null;
 }
 
 function pickStat(d: SrDetailsExtended | null, key: string): { a: number | null; b: number | null } {
   const v = d?.values?.[key]?.value;
-  return { a: v?.home ?? null, b: v?.away ?? null };
+  return { a: parseStatVal(v?.home), b: parseStatVal(v?.away) };
+}
+
+function pickStatDenom(d: SrDetailsExtended | null, key: string, kind: 'fraction' | 'triple'): { a: number | null; b: number | null } {
+  const v = d?.values?.[key]?.value;
+  return { a: parseStatDenom(v?.home, kind), b: parseStatDenom(v?.away, kind) };
 }
 
 function buildState(m: SrMatchGet): MatchState | null {
@@ -259,10 +283,10 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
   ok: boolean; reason?: string; settled?: boolean; pickEmitted?: boolean;
 }> {
   // Pull último snapshot deste match + verifica se já settled — UMA query.
-  // Os stats carregam-se forward para os snapshots que skipam detailsextended.
+  // Stats carry-forward incluindo totals (denominador para Bayes).
   const { data: lastSnap } = await supabase
     .from('live_state')
-    .select('id, captured_at, final_winner, aces_a, aces_b, df_a, df_b, bp_won_a, bp_won_b, serve_pts_won_a, serve_pts_won_b, first_serve_won_a, first_serve_won_b')
+    .select('id, captured_at, final_winner, aces_a, aces_b, df_a, df_b, bp_won_a, bp_won_b, bp_total_a, bp_total_b, serve_pts_won_a, serve_pts_won_b, serve_pts_total_a, serve_pts_total_b, first_serve_won_a, first_serve_won_b')
     .eq('sr_match_id', m._id)
     .order('captured_at', { ascending: false })
     .limit(1)
@@ -302,9 +326,18 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
   }
   const aces = pickStat(stats, '130');
   const df = pickStat(stats, '132');
-  const bpWon = pickStat(stats, '139');
-  const servePts = pickStat(stats, '141');
+  const bpWon = pickStat(stats, '139');                       // "4/9" → 4 (won)
+  const bpTotal = pickStatDenom(stats, '139', 'fraction');     // "4/9" → 9 (total)
+  const servePts = pickStat(stats, '141');                    // "64/20/84" → 64 (won)
+  const servePtsTotal = pickStatDenom(stats, '141', 'triple'); // "64/20/84" → 84 (total)
   const fsWon = pickStat(stats, '1410');
+
+  // Carry-forward de stats + totals para Bayes update vir do último snapshot
+  // se este snapshot não fetched detailsextended.
+  const sptWonA = servePts.a ?? lastSnap?.serve_pts_won_a ?? null;
+  const sptWonB = servePts.b ?? lastSnap?.serve_pts_won_b ?? null;
+  const sptTotalA = servePtsTotal.a ?? lastSnap?.serve_pts_total_a ?? null;
+  const sptTotalB = servePtsTotal.b ?? lastSnap?.serve_pts_total_b ?? null;
 
   const playerMap = await resolveSrPlayers([
     { sr_team_id: data.teams.home._id, name: data.teams.home.name },
@@ -331,8 +364,15 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
       });
       pAprior = priors.pA;
       pBprior = priors.pB;
-      pAlive = pAprior;
-      pBlive = pBprior;
+      // Bayesian update: se temos serve_pts_won/total deste match,
+      // ajusta p_serve do prior em direcção ao observado. k=80 (prior
+      // strength ~ 1.5 sets de serviço). Se sem dados, pAlive = prior.
+      pAlive = sptWonA != null && sptTotalA != null && sptTotalA > 0
+        ? bayesianServeUpdate(pAprior, sptWonA, sptTotalA, 80)
+        : pAprior;
+      pBlive = sptWonB != null && sptTotalB != null && sptTotalB > 0
+        ? bayesianServeUpdate(pBprior, sptWonB, sptTotalB, 80)
+        : pBprior;
       matchProb = matchWinProb(state, pAlive, pBlive);
       importance = pointImportance(state, pAlive, pBlive);
     }
@@ -364,15 +404,20 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
       sr_team_b_id: data.teams.away._id,
       name_a: data.teams.home.name,
       name_b: data.teams.away.name,
-      // Carry-forward: se não fetched stats neste snapshot, usar o último valor conhecido
+      // Stats com carry-forward de lastSnap. Agora tudo numérico
+      // (string-format "X/Y/Z" tratado por parseStat*).
       aces_a: aces.a ?? lastSnap?.aces_a ?? null,
       aces_b: aces.b ?? lastSnap?.aces_b ?? null,
       df_a:   df.a   ?? lastSnap?.df_a   ?? null,
       df_b:   df.b   ?? lastSnap?.df_b   ?? null,
       bp_won_a: bpWon.a ?? lastSnap?.bp_won_a ?? null,
       bp_won_b: bpWon.b ?? lastSnap?.bp_won_b ?? null,
-      serve_pts_won_a: servePts.a ?? lastSnap?.serve_pts_won_a ?? null,
-      serve_pts_won_b: servePts.b ?? lastSnap?.serve_pts_won_b ?? null,
+      bp_total_a: bpTotal.a ?? lastSnap?.bp_total_a ?? null,
+      bp_total_b: bpTotal.b ?? lastSnap?.bp_total_b ?? null,
+      serve_pts_won_a: sptWonA,
+      serve_pts_won_b: sptWonB,
+      serve_pts_total_a: sptTotalA,
+      serve_pts_total_b: sptTotalB,
       first_serve_won_a: fsWon.a ?? lastSnap?.first_serve_won_a ?? null,
       first_serve_won_b: fsWon.b ?? lastSnap?.first_serve_won_b ?? null,
       p_a_serve_prior: pAprior,
