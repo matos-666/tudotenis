@@ -223,8 +223,7 @@ export async function LiveWinProbChart({ srMatchId, nameA, nameB }: Props) {
       </svg>
 
       <p className="text-[11px] text-gray-500 mt-2">
-        Linha laranja: nossa probabilidade Markov + Bayes ao longo dos snapshots.{' '}
-        Marcadores verticais: finais de set. Pontos invisíveis com tooltip ao passar o rato.
+        Marcadores verticais: finais de set. Passa o rato pela linha para ver detalhes.
       </p>
     </div>
   );

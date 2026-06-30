@@ -285,10 +285,6 @@ export default async function LiveMatchPage({
                 )}
               </div>
               <ProbBar probA={matchProb} nameA={nameA} nameB={nameB} />
-              <p className="text-[11px] text-gray-500 mt-3 leading-snug">
-                Probabilidade computada com Markov bottom-up sobre o estado actual.{' '}
-                Priors: p<sub>A</sub>={pct(state.p_a_serve_prior)} / p<sub>B</sub>={pct(state.p_b_serve_prior)}.
-              </p>
             </div>
           )}
 
