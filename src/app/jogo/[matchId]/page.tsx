@@ -379,16 +379,25 @@ export default async function LiveMatchPage({
 
           {/* OUR MATCH TRACKER (substitui betradar widget que tem licença limitada) */}
           <MatchTracker
+            matchId={id}
             nameA={nameA}
             nameB={nameB}
-            setA={state.set_a}
-            setB={state.set_b}
-            gameA={state.game_a}
-            gameB={state.game_b}
-            pointA={state.point_a}
-            pointB={state.point_b}
-            server={state.server}
-            tiebreak={state.tiebreak}
+            initial={{
+              set_a: state.set_a,
+              set_b: state.set_b,
+              game_a: state.game_a,
+              game_b: state.game_b,
+              point_a: state.point_a,
+              point_b: state.point_b,
+              server: state.server,
+              tiebreak: state.tiebreak,
+              aces_a: state.aces_a,
+              aces_b: state.aces_b,
+              df_a: state.df_a,
+              df_b: state.df_b,
+              match_finished: state.match_finished,
+              final_winner: null,
+            }}
           />
 
           {/* STATS */}
