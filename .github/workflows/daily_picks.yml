@@ -1,13 +1,9 @@
 name: Daily Picks Generator
 
 on:
-  schedule:
-    # Picks geração:
-    # 06:00 UTC = 08:00 Lisboa DST (primário, apanha matches já publicados)
-    # 12:00 UTC = 14:00 Lisboa DST (catch-up para matches publicados tarde,
-    #   ex. dia antes de slams onde TS publica em horário irregular)
-    - cron: "0 6 * * *"
-    - cron: "0 12 * * *"
+  # DESACTIVADO: TennisStats falhou repetidamente.
+  # Substituído por twin_prematch.yml (Twin Playwright scrape).
+  # Manter workflow_dispatch para debug manual / rollback se necessário.
   workflow_dispatch:
 
 jobs:

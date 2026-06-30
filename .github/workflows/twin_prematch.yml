@@ -1,0 +1,70 @@
+name: Twin Pre-match Picks
+
+# Scrape pré-match Twin (139+ matches ATP+WTA) → POST para Vercel
+# que computa EV vs ELO + insere em picks (substitui TennisStats).
+#
+# Frequência: a cada 2h — captura odds movement durante o dia e
+# o slate completo a cada round.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 */2 * * *"
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-chromium-${{ runner.os }}-v1
+
+      - name: Install Playwright + chromium
+        run: |
+          npm install --no-save playwright@1.49.0
+          if [ "${{ steps.pw-cache.outputs.cache-hit }}" != "true" ]; then
+            npx playwright install --with-deps chromium
+          else
+            npx playwright install-deps chromium || true
+          fi
+
+      - name: Scrape pre-match
+        run: |
+          node scripts/scrape-twin-prematch.mjs > /tmp/picks.json
+          /usr/bin/wc -c /tmp/picks.json
+          head -c 400 /tmp/picks.json
+          echo ""
+
+      - name: POST to Vercel ingest
+        run: |
+          response=$(curl -sS -w "\nHTTP_STATUS:%{http_code}" \
+            -X POST "https://tudotenis.com/api/cron/picks-twin-ingest" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --data-binary @/tmp/picks.json \
+            --max-time 90)
+          http_status=$(echo "$response" | grep "HTTP_STATUS:" | cut -d: -f2)
+          body=$(echo "$response" | grep -v "HTTP_STATUS:")
+          echo "Status: $http_status"
+          echo "Response: $body"
+          if [ "$http_status" != "200" ]; then exit 1; fi
+
+      - name: Upload debug on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: twin-prematch-debug-${{ github.run_id }}
+          path: /tmp/picks.json
+          if-no-files-found: ignore
+          retention-days: 3
