@@ -420,14 +420,13 @@ async function pollOnce(): Promise<{ checked: number; running: number; settled: 
       `stats_season_fixtures2/${season.id}/1`,
     );
     const matches = fixtures?.doc?.[0]?.data?.matches ?? [];
-    // Window mais apertada: -3h (matches em curso) e +30min (próximos a começar)
-    // Reduz candidatos para caber em 60s sem comprometer cobertura.
+    // Window -6h a +30min: matches a decorrer (até 6h de duração) + próximos
     const candidatesAll = matches.filter(m => {
       const uts = m.time?.uts ?? 0;
-      return uts > nowUts - 3 * 3600 && uts < nowUts + 1800;
+      return uts > nowUts - 6 * 3600 && uts < nowUts + 1800;
     });
-    // Limit hard a 14 candidatos para garantir caber em 60s
-    const candidates = candidatesAll.slice(0, 14);
+    // Limit a 16 por execução — caber em 60s mesmo com SR a 500ms/call
+    const candidates = candidatesAll.slice(0, 16);
 
     for (let i = 0; i < candidates.length; i += CONCURRENCY) {
       const batch = candidates.slice(i, i + CONCURRENCY);
