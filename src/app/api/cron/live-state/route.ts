@@ -38,7 +38,9 @@ const SR_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.3
 const SR_REFERER = 'https://widgets.sir.sportradar.com/betradar/en/live-match-tracker';
 const SR_ORIGIN = 'https://widgets.sir.sportradar.com';
 
-async function sr<T = unknown>(path: string): Promise<T | null> {
+async function sr<T = unknown>(path: string, timeoutMs = 3500): Promise<T | null> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const r = await fetch(`${SR_BASE}/${path}`, {
       headers: {
@@ -48,11 +50,14 @@ async function sr<T = unknown>(path: string): Promise<T | null> {
         'Accept': 'application/json',
       },
       cache: 'no-store',
+      signal: ctrl.signal,
     });
     if (!r.ok) return null;
     return (await r.json()) as T;
   } catch {
     return null;
+  } finally {
+    clearTimeout(t);
   }
 }
 
@@ -253,15 +258,15 @@ async function maybeEmitPick(opts: {
 async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[number]): Promise<{
   ok: boolean; reason?: string; settled?: boolean; pickEmitted?: boolean;
 }> {
-  // Skip se já settled (evita re-processar e poupa Sportradar calls)
-  const { data: existingSettled } = await supabase
+  // Pull último snapshot deste match + verifica se já settled — UMA query
+  const { data: lastSnap } = await supabase
     .from('live_state')
-    .select('id')
+    .select('id, captured_at, final_winner, aces_a')
     .eq('sr_match_id', m._id)
-    .not('final_winner', 'is', null)
+    .order('captured_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (existingSettled) return { ok: false, reason: 'already_settled' };
+  if (lastSnap?.final_winner) return { ok: false, reason: 'already_settled' };
 
   const get = await sr<{ doc: Array<{ data: SrMatchGet }> }>(`match_get/${m._id}`);
   const data = get?.doc?.[0]?.data;
@@ -284,8 +289,16 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
     state.bestOf = 3;
   }
 
-  const det = await sr<{ doc: Array<{ data: SrDetailsExtended }> }>(`match_detailsextended/${m._id}`);
-  const stats = det?.doc?.[0]?.data ?? null;
+  // detailsextended é o SR call mais lento (~1.5s). Stats mudam só entre
+  // pontos (~30s) → buscar só quando é a 1ª snapshot, on match end, ou
+  // a última snapshot tem >5min. Resto reutiliza valores do último snap.
+  const lastAgeMs = lastSnap ? Date.now() - new Date(lastSnap.captured_at).getTime() : Infinity;
+  const needsStats = !lastSnap || justEnded || lastAgeMs > 5 * 60 * 1000;
+  let stats: SrDetailsExtended | null = null;
+  if (needsStats) {
+    const det = await sr<{ doc: Array<{ data: SrDetailsExtended }> }>(`match_detailsextended/${m._id}`);
+    stats = det?.doc?.[0]?.data ?? null;
+  }
   const aces = pickStat(stats, '130');
   const df = pickStat(stats, '132');
   const bpWon = pickStat(stats, '139');
@@ -409,12 +422,15 @@ async function pollOnce(): Promise<{ checked: number; running: number; settled: 
       `stats_season_fixtures2/${season.id}/1`,
     );
     const matches = fixtures?.doc?.[0]?.data?.matches ?? [];
-    const candidates = matches.filter(m => {
+    // Window mais apertada: -3h (matches em curso) e +30min (próximos a começar)
+    // Reduz candidatos para caber em 60s sem comprometer cobertura.
+    const candidatesAll = matches.filter(m => {
       const uts = m.time?.uts ?? 0;
-      return uts > nowUts - 6 * 3600 && uts < nowUts + 3600;
+      return uts > nowUts - 3 * 3600 && uts < nowUts + 1800;
     });
+    // Limit hard a 14 candidatos para garantir caber em 60s
+    const candidates = candidatesAll.slice(0, 14);
 
-    // Processa em batches paralelas para caber em 60s mesmo com 22+ matches.
     for (let i = 0; i < candidates.length; i += CONCURRENCY) {
       const batch = candidates.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(batch.map(m => processMatch(m, season)));
