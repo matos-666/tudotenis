@@ -71,11 +71,21 @@ async function attachOddsToOpenPicks(
   oddB: number | null,
   source: string,
 ): Promise<number> {
+  // IMPORTANTE: só atribuímos odd a picks que AINDA NÃO TÊM odd
+  // (live_odd IS NULL). Uma pick emitida com odd válida é uma decisão
+  // "commited" — o mercado pode mexer depois mas o histórico deve
+  // reflectir o que decidimos naquele momento. Se re-processarmos, o
+  // edge_pct passa a ser calculado com odd nova e as caps podem apagar
+  // picks legítimas por movimento de mercado. Neste momento, com o
+  // maybeEmitPick a exigir odd fresh à emissão, este código só cobre
+  // uma race rara: pick emitida quando a odd tinha desaparecido dos
+  // últimos 5 min e voltou depois.
   const { data: openPicks } = await supabase
     .from('live_picks')
     .select('id, selection, model_prob')
     .eq('sr_match_id', srMatchId)
-    .is('result', null);
+    .is('result', null)
+    .is('live_odd', null);
 
   let updated = 0;
   for (const pick of openPicks ?? []) {
@@ -85,8 +95,8 @@ async function attachOddsToOpenPicks(
     const modelProb = Number(pick.model_prob);
     const edgePct = +((modelProb * odd - 1) * 100).toFixed(2);
 
-    // Caps: pick fora dos limites → apaga em vez de atribuir odd
-    // (evita inflar histórico com picks que nunca devíamos ter)
+    // Caps aplicam-se APENAS ao attach inicial (never had odd). Se cair
+    // fora aqui, o pick nunca foi apostável e é apagado.
     if (odd < ODD_MIN || odd > ODD_MAX || edgePct > EDGE_MAX_PCT) {
       await supabase.from('live_picks').delete().eq('id', pick.id);
       continue;
