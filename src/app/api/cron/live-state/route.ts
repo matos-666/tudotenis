@@ -31,6 +31,7 @@ export const maxDuration = 60;
 // descobrirmos via SR).
 const ACTIVE_SEASONS = [
   { id: 132572, tour: 'atp' as const, tournamentSlug: 'wimbledon-2026-atp' },
+  { id: 132536, tour: 'wta' as const, tournamentSlug: 'wimbledon-2026-wta' },
 ];
 
 const SR_BASE = 'https://lmt.fn.sportradar.com/betradar/en/Etc:UTC/gismo';
