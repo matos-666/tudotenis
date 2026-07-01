@@ -589,13 +589,22 @@ async function pollOnce(): Promise<{ checked: number; running: number; settled: 
       `stats_season_fixtures2/${season.id}/1`,
     );
     const matches = fixtures?.doc?.[0]?.data?.matches ?? [];
-    // Window -6h a +30min: matches a decorrer (até 6h de duração) + próximos
-    const candidatesAll = matches.filter(m => {
-      const uts = m.time?.uts ?? 0;
-      return uts > nowUts - 6 * 3600 && uts < nowUts + 1800;
-    });
-    // Limit a 16 por execução — caber em 60s mesmo com SR a 500ms/call
-    const candidates = candidatesAll.slice(0, 16);
+    // Window -48h a +30min: original era -6h, mas matches em Slams podem
+    // arrancar 24h+ após scheduled time (delays por chuva, court queues,
+    // câmbio para dias seguintes). Ex: Tiafoe vs Atmane — scheduled há
+    // 40h mas ainda a jogar. Se filtrarmos por -6h nunca entra na lista.
+    // Ordenamos por proximidade a agora para priorizar quem está mais
+    // provável a decorrer antes do slice(16).
+    const candidatesAll = matches
+      .filter(m => {
+        const uts = m.time?.uts ?? 0;
+        return uts > nowUts - 48 * 3600 && uts < nowUts + 1800;
+      })
+      .sort((a, b) => Math.abs((a.time?.uts ?? 0) - nowUts) - Math.abs((b.time?.uts ?? 0) - nowUts));
+    // Limit a 24 por execução — pequeno aumento vs 16, com SR a
+    // ~500ms/call ainda cabe em 60s. Prioriza matches mais próximos
+    // do agora via sort acima.
+    const candidates = candidatesAll.slice(0, 24);
 
     for (let i = 0; i < candidates.length; i += CONCURRENCY) {
       const batch = candidates.slice(i, i + CONCURRENCY);
