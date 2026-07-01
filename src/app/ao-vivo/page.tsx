@@ -84,12 +84,21 @@ interface LiveRow {
   tournament_slug: string | null;
 }
 
+// Só consideramos "ao vivo" um match cuja última snapshot tem menos de
+// FRESH_WINDOW_MS. O flag running=true fica stale na DB quando o cron
+// pára entre janelas — sem este filtro mostrávamos matches de ontem
+// como se fossem live. 5 min é generoso o suficiente para tolerar 1-2
+// polls falhados sem esconder matches genuinamente activos.
+const FRESH_WINDOW_MS = 5 * 60 * 1000;
+
 async function fetchLiveMatches(): Promise<LiveRow[]> {
+  const since = new Date(Date.now() - FRESH_WINDOW_MS).toISOString();
   const { data } = await supabase
     .from('live_state_latest')
     .select('sr_match_id, set_a, set_b, game_a, game_b, tiebreak, name_a, name_b, match_win_prob_a, point_importance, player_a_id, player_b_id, running, match_finished, captured_at, tournament_slug')
     .eq('running', true)
     .eq('match_finished', false)
+    .gt('captured_at', since)
     .order('captured_at', { ascending: false })
     .limit(40);
   return ((data ?? []) as LiveRow[]).filter(m => m.name_a && m.name_b);

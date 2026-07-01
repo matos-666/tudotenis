@@ -13,8 +13,14 @@ name: Live Continuous Poller
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 10 * * *"   # 10:00 UTC → corre até ~15:30 UTC (morning + early afternoon)
-    - cron: "0 16 * * *"   # 16:00 UTC → corre até ~21:30 UTC (afternoon + night session)
+    # 4 janelas × 5.5h = ~22h/dia de cobertura, com sobreposição de 30min
+    # entre janelas para tapar skips ocasionais do GHA scheduler (comuns
+    # quando o repo fica inactivo). Reduce blindspots que apareciam entre
+    # janelas antigas (só 2 crons = ~11h/dia).
+    - cron: "0 4 * * *"    # 04:00 UTC → ~09:30 UTC (dawn / Australia)
+    - cron: "0 9 * * *"    # 09:00 UTC → ~14:30 UTC (Europe morning)
+    - cron: "0 14 * * *"   # 14:00 UTC → ~19:30 UTC (afternoon + evening)
+    - cron: "0 19 * * *"   # 19:00 UTC → ~00:30 UTC (night session)
 
 jobs:
   poll:
