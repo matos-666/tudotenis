@@ -59,17 +59,51 @@ interface PlayerLite {
   elo_set_clay: number | null;
   elo_set_hard: number | null;
   atp_rank: number | null;
-  wta_rank: number | null;
   slug: string | null;
 }
 async function fetchPlayerInfo(ids: number[]): Promise<Map<number, PlayerLite>> {
   if (ids.length === 0) return new Map();
   const { data } = await supabase
     .from('players')
-    .select('id, photo_url, flag, elo_overall, elo_set_grass, elo_set_clay, elo_set_hard, atp_rank, wta_rank, slug')
+    .select('id, photo_url, flag, elo_overall, elo_set_grass, elo_set_clay, elo_set_hard, atp_rank, slug, name')
     .in('id', ids);
   const out = new Map<number, PlayerLite>();
   for (const p of (data ?? []) as PlayerLite[]) out.set(p.id, p);
+  return out;
+}
+
+// Fallback lookup por nome — quando sr_player_map não tem entrada para
+// o SR team_id, player_a_id vem null e não encontramos foto pelo ID.
+// Aqui pescamos por nome exacto na tabela players (que já normaliza
+// "Apelido, Nome"), para garantir que TODOS os cards têm foto.
+// Converte "Fucsovics, Marton" (formato Sportradar) → "Marton Fucsovics"
+// (formato tabela players). Se não houver vírgula, devolve inalterado.
+function srNameToPlayerName(src: string): string {
+  const idx = src.indexOf(',');
+  if (idx < 0) return src.trim();
+  const last = src.slice(0, idx).trim();
+  const first = src.slice(idx + 1).trim();
+  return first && last ? `${first} ${last}` : src.trim();
+}
+
+async function fetchPlayersByName(names: string[]): Promise<Map<string, PlayerLite>> {
+  // Keys guardadas: nome ORIGINAL (SR-style) → PlayerLite. A conversão
+  // 'Last, First' → 'First Last' é feita apenas no query à players table.
+  const originals = [...new Set(names.filter(Boolean))];
+  if (originals.length === 0) return new Map();
+  const converted = originals.map(srNameToPlayerName);
+  const { data } = await supabase
+    .from('players')
+    .select('id, photo_url, flag, elo_overall, elo_set_grass, elo_set_clay, elo_set_hard, atp_rank, slug, name')
+    .in('name', converted);
+  const byConverted = new Map<string, PlayerLite & { name: string }>();
+  for (const p of (data ?? []) as (PlayerLite & { name: string })[]) byConverted.set(p.name, p);
+  const out = new Map<string, PlayerLite>();
+  for (const orig of originals) {
+    const conv = srNameToPlayerName(orig);
+    const hit = byConverted.get(conv);
+    if (hit) out.set(orig, hit);
+  }
   return out;
 }
 
@@ -104,8 +138,28 @@ function eloForSurface(p: PlayerLite | undefined, surface: 'grass' | 'clay' | 'h
   return p.elo_set_hard ?? p.elo_overall;
 }
 
-function surfaceLabel(surface: 'grass' | 'clay' | 'hard'): string {
-  return surface === 'grass' ? 'grama' : surface === 'clay' ? 'terra' : 'dura';
+function surfaceLabel(surface: 'grass' | 'clay' | 'hard', locale: Locale): string {
+  if (locale === 'pt-BR') {
+    return surface === 'grass' ? 'grama' : surface === 'clay' ? 'saibro' : 'quadra dura';
+  }
+  return surface === 'grass' ? 'relva' : surface === 'clay' ? 'terra batida' : 'piso duro';
+}
+
+// Regras "os nossos critérios" — mesmos limites usados em maybeEmitPick:
+// grade A (convicção ≥ 0.75), odd ∈ [1.25, 4.0], EV positivo.
+// Só destacamos "VALOR" quando os 3 se verificam. Fora disto, o edge
+// é ruído estatístico / arbitragem irrealizável — não vale a nossa
+// chancela.
+const ODD_MIN = 1.25;
+const ODD_MAX = 4.0;
+const GRADE_A_MIN_PROB = 0.75;
+
+function isOurBet(prob: number | null, odd: number | null, ev: number | null): boolean {
+  if (prob == null || odd == null || ev == null) return false;
+  if (ev <= 0) return false;
+  if (odd < ODD_MIN || odd > ODD_MAX) return false;
+  if (prob < GRADE_A_MIN_PROB) return false;
+  return true;
 }
 
 export const metadata: Metadata = {
@@ -150,14 +204,16 @@ async function fetchLiveMatches(): Promise<LiveRow[]> {
   return ((data ?? []) as LiveRow[]).filter(m => m.name_a && m.name_b);
 }
 
-function MatchCard({ m, pick, playerA, playerB, odds }: {
+function MatchCard({ m, pick, playerA, playerB, odds, locale }: {
   m: LiveRow;
   pick: LivePick | undefined;
   playerA: PlayerLite | undefined;
   playerB: PlayerLite | undefined;
   odds: LiveOdd | undefined;
+  locale: Locale;
 }) {
   const probA = m.match_win_prob_a;
+  const probB = probA != null ? 1 - probA : null;
   const favIsA = probA != null && probA >= 0.5;
   const score = `${m.set_a}-${m.set_b}`;
   const cur = m.tiebreak ? 'TB' : `${m.game_a}-${m.game_b}`;
@@ -167,20 +223,24 @@ function MatchCard({ m, pick, playerA, playerB, odds }: {
   const oddA = odds?.odd_a != null ? Number(odds.odd_a) : null;
   const oddB = odds?.odd_b != null ? Number(odds.odd_b) : null;
   const evA = probA != null && oddA != null ? +((probA * oddA - 1) * 100).toFixed(1) : null;
-  const evB = probA != null && oddB != null ? +(((1 - probA) * oddB - 1) * 100).toFixed(1) : null;
+  const evB = probB != null && oddB != null ? +((probB * oddB - 1) * 100).toFixed(1) : null;
+  const aQualifies = isOurBet(probA, oddA, evA);
+  const bQualifies = isOurBet(probB, oddB, evB);
   const bestSide: 'A' | 'B' | null =
-    evA != null && evB != null ? (evA >= evB ? 'A' : 'B') : evA != null ? 'A' : evB != null ? 'B' : null;
+    aQualifies && bQualifies ? ((evA ?? 0) >= (evB ?? 0) ? 'A' : 'B') :
+    aQualifies ? 'A' :
+    bQualifies ? 'B' : null;
   const bestEv = bestSide === 'A' ? evA : bestSide === 'B' ? evB : null;
-  const hasValue = bestEv != null && bestEv > 0;
+  const bestName = bestSide === 'A' ? m.name_a : bestSide === 'B' ? m.name_b : null;
 
   return (
     <Link
       href={`/jogo/${m.sr_match_id}`}
       className="pick-card-3d p-4 block group relative"
     >
-      {hasValue && (
+      {bestEv != null && bestName && (
         <div className="absolute -top-2 left-4 z-10 inline-flex items-center gap-1 bg-[var(--color-accent)] text-[var(--color-surface)] rounded-md px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider shadow-md">
-          <span>Valor +{bestEv!.toFixed(1)}%</span>
+          Valor +{bestEv.toFixed(1)}%
         </div>
       )}
 
@@ -193,7 +253,7 @@ function MatchCard({ m, pick, playerA, playerB, odds }: {
           {m.tournament_slug && (
             <span className="text-[10px] text-gray-400 font-semibold tracking-wide">{formatTournamentName(m.tournament_slug)}</span>
           )}
-          <span className="text-[9px] uppercase tracking-wider text-gray-500">{surfaceLabel(surface)}</span>
+          <span className="text-[9px] uppercase tracking-wider text-gray-500">{surfaceLabel(surface, locale)}</span>
         </div>
       </div>
 
@@ -205,61 +265,59 @@ function MatchCard({ m, pick, playerA, playerB, odds }: {
             </div>
             <div className="text-[10px] text-gray-500 font-mono whitespace-nowrap">
               {eloA != null && <>ELO {Math.round(eloA)}</>}
-              {(playerA?.atp_rank || playerA?.wta_rank) && (
-                <> · #{playerA?.atp_rank ?? playerA?.wta_rank}</>
+              {playerA?.atp_rank != null && (
+                <> · #{playerA.atp_rank}</>
               )}
             </div>
           </div>
-          <PlayerAvatar photoUrl={playerA?.photo_url} flag={playerA?.flag ?? null} name={m.name_a ?? '–'} size={42} ring />
+          <PlayerAvatar photoUrl={playerA?.photo_url} flag={playerA?.flag ?? null} name={m.name_a ?? '–'} size={44} ring />
         </div>
         <div className="text-center font-mono shrink-0 px-1">
           <div className="text-xl font-extrabold tracking-wider">{score}</div>
           <div className="text-[10px] text-gray-500 whitespace-nowrap mt-0.5">{cur}</div>
         </div>
         <div className="flex items-center gap-2 min-w-0">
-          <PlayerAvatar photoUrl={playerB?.photo_url} flag={playerB?.flag ?? null} name={m.name_b ?? '–'} size={42} ring />
+          <PlayerAvatar photoUrl={playerB?.photo_url} flag={playerB?.flag ?? null} name={m.name_b ?? '–'} size={44} ring />
           <div className="min-w-0">
             <div className={`text-sm truncate ${!favIsA && probA != null ? 'font-bold text-[var(--color-accent)]' : 'font-semibold text-gray-200'}`}>
               {m.name_b ?? '–'}
             </div>
             <div className="text-[10px] text-gray-500 font-mono whitespace-nowrap">
               {eloB != null && <>ELO {Math.round(eloB)}</>}
-              {(playerB?.atp_rank || playerB?.wta_rank) && (
-                <> · #{playerB?.atp_rank ?? playerB?.wta_rank}</>
+              {playerB?.atp_rank != null && (
+                <> · #{playerB.atp_rank}</>
               )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Grid odds + prob + EV lado-a-lado */}
       <div className="mt-3 pt-3 border-t border-[var(--color-border)]/40 grid grid-cols-2 gap-2">
         <SidePanel
-          side="A"
           name={m.name_a ?? '–'}
-          prob={probA != null ? Math.round(probA * 100) : null}
+          probPct={probA != null ? Math.round(probA * 100) : null}
           odd={oddA}
           ev={evA}
-          isBest={bestSide === 'A' && hasValue}
+          qualifies={aQualifies}
+          isBest={bestSide === 'A'}
         />
         <SidePanel
-          side="B"
           name={m.name_b ?? '–'}
-          prob={probA != null ? Math.round((1 - probA) * 100) : null}
+          probPct={probB != null ? Math.round(probB * 100) : null}
           odd={oddB}
           ev={evB}
-          isBest={bestSide === 'B' && hasValue}
+          qualifies={bQualifies}
+          isBest={bestSide === 'B'}
         />
       </div>
 
-      {/* Hook para abrir */}
       <div className="mt-3 flex items-center justify-between gap-2 text-[11px]">
         <span className="text-gray-500">
-          {pick && pick.grade
-            ? <>Pick <span className="font-bold text-[var(--color-accent)]">{pick.grade}</span> · {pick.selection === 'A' ? m.name_a : m.name_b} @{Number(pick.live_odd).toFixed(2)}</>
-            : hasValue
-              ? <>Modelo vê edge no <span className="font-bold text-[var(--color-accent)]">{bestSide === 'A' ? m.name_a : m.name_b}</span></>
-              : <>Sem edge agora · tracker + evolução ELO</>
+          {pick && pick.grade === 'A'
+            ? <>Pick <span className="inline-block grade-A px-1 rounded text-[10px] font-bold">A</span> · {pick.selection === 'A' ? m.name_a : m.name_b} @{Number(pick.live_odd).toFixed(2)}</>
+            : bestName
+              ? <>Modelo vê edge no <span className="font-bold text-[var(--color-accent)]">{bestName}</span></>
+              : <>Sem edge agora · abre para tracker + stats live</>
           }
         </span>
         <span className="text-[var(--color-accent)] font-semibold group-hover:underline whitespace-nowrap">Ver match →</span>
@@ -268,36 +326,53 @@ function MatchCard({ m, pick, playerA, playerB, odds }: {
   );
 }
 
-function SidePanel({ side, name, prob, odd, ev, isBest }: {
-  side: 'A' | 'B';
+function SidePanel({ name, probPct, odd, ev, qualifies, isBest }: {
   name: string;
-  prob: number | null;
+  probPct: number | null;
   odd: number | null;
   ev: number | null;
+  qualifies: boolean;
   isBest: boolean;
 }) {
+  const shortName = name.split(',')[0].trim();
   return (
     <div
-      className={`rounded-lg border p-2 ${
+      className={`relative rounded-lg border p-3 transition ${
         isBest
-          ? 'border-[var(--color-accent)]/45 bg-[var(--color-accent)]/8'
-          : 'border-[var(--color-border)]/50 bg-[var(--color-card)]/50'
+          ? 'border-[var(--color-accent)]/60 bg-[var(--color-accent)]/10 shadow-inner'
+          : 'border-[var(--color-border)]/60 bg-[var(--color-card)]/40'
       }`}
     >
-      <div className="text-[9px] uppercase tracking-wider text-gray-500 truncate">{name.split(',')[0]}</div>
-      <div className="flex items-baseline justify-between gap-1 mt-0.5">
-        <span className="text-[10px] text-gray-500">prob</span>
-        <span className="font-mono text-xs font-bold">{prob != null ? `${prob}%` : '—'}</span>
+      <div className="text-[10px] uppercase tracking-[0.08em] font-bold text-gray-400 truncate mb-1.5">
+        {shortName}
       </div>
-      <div className="flex items-baseline justify-between gap-1">
-        <span className="text-[10px] text-gray-500">odd</span>
-        <span className="font-mono text-xs font-bold">{odd != null ? odd.toFixed(2) : '—'}</span>
+      <div className="flex items-baseline justify-between gap-2 mb-2">
+        <div>
+          <div className="text-[9px] uppercase tracking-wider text-gray-500 leading-none mb-0.5">Odd</div>
+          <div className="font-mono text-2xl font-extrabold leading-none tabular-nums">
+            {odd != null ? odd.toFixed(2) : '—'}
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-[9px] uppercase tracking-wider text-gray-500 leading-none mb-0.5">Modelo</div>
+          <div className="font-mono text-sm font-bold leading-none tabular-nums text-gray-300">
+            {probPct != null ? `${probPct}%` : '—'}
+          </div>
+        </div>
       </div>
-      <div className="flex items-baseline justify-between gap-1">
-        <span className="text-[10px] text-gray-500">EV</span>
-        <span className={`font-mono text-xs font-bold ${ev == null ? 'text-gray-500' : ev > 0 ? 'text-[var(--color-accent)]' : 'text-red-400'}`}>
-          {ev != null ? `${ev > 0 ? '+' : ''}${ev.toFixed(1)}%` : '—'}
-        </span>
+      <div
+        className={`mt-1 flex items-center justify-between rounded px-2 py-1 text-[11px] font-bold font-mono tabular-nums ${
+          ev == null
+            ? 'bg-[var(--color-border)]/20 text-gray-500'
+            : qualifies
+              ? 'bg-[var(--color-accent)]/20 text-[var(--color-accent)]'
+              : ev > 0
+                ? 'bg-[var(--color-border)]/25 text-gray-400'
+                : 'bg-red-500/10 text-red-400'
+        }`}
+      >
+        <span className="text-[9px] uppercase tracking-wider opacity-80">EV</span>
+        <span>{ev != null ? `${ev > 0 ? '+' : ''}${ev.toFixed(1)}%` : '—'}</span>
       </div>
     </div>
   );
@@ -312,6 +387,25 @@ export default async function AoVivoPage({ locale = 'pt-PT' as Locale }: { local
     fetchPlayerInfo(playerIds),
     fetchLatestOddsFor(matchIds),
   ]);
+
+  // Fallback: para cada match onde não conseguimos player pelo ID
+  // (sr_player_map sem entrada), pescamos por nome — evita cards com
+  // avatares fallback quando o player existe na DB mas o mapa está em
+  // falta.
+  const namesToLookup: string[] = [];
+  for (const m of matches) {
+    if ((!m.player_a_id || !playersById.has(m.player_a_id)) && m.name_a) namesToLookup.push(m.name_a);
+    if ((!m.player_b_id || !playersById.has(m.player_b_id)) && m.name_b) namesToLookup.push(m.name_b);
+  }
+  const playersByName = await fetchPlayersByName(namesToLookup);
+  const resolvePlayer = (id: number | null, name: string | null): PlayerLite | undefined => {
+    if (id != null) {
+      const byId = playersById.get(id);
+      if (byId) return byId;
+    }
+    if (name) return playersByName.get(name);
+    return undefined;
+  };
   return (
     <>
       <Header locale={locale} />
@@ -347,9 +441,10 @@ export default async function AoVivoPage({ locale = 'pt-PT' as Locale }: { local
                   key={m.sr_match_id}
                   m={m}
                   pick={picksByMatch.get(m.sr_match_id)}
-                  playerA={m.player_a_id ? playersById.get(m.player_a_id) : undefined}
-                  playerB={m.player_b_id ? playersById.get(m.player_b_id) : undefined}
+                  playerA={resolvePlayer(m.player_a_id, m.name_a)}
+                  playerB={resolvePlayer(m.player_b_id, m.name_b)}
                   odds={oddsByMatch.get(m.sr_match_id)}
+                  locale={locale}
                 />
               ))}
             </div>
