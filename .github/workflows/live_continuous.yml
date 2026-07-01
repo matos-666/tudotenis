@@ -11,16 +11,14 @@ name: Live Continuous Poller
 # Free tier: repo público = GHA minutes ilimitados. Sem custo.
 
 on:
+  # Trigger primário: cron-job.org faz POST à API do GH a cada 4h
+  # (0 */4 * * * timezone Europe/Lisbon) → ~1h30 de sobreposição entre
+  # janelas de 5.5h. Fonte externa é mais fiável que o scheduler do GH
+  # Actions, que dropa runs silenciosamente em repos com baixo tráfego.
+  #
+  # workflow_dispatch continua disponível para trigger manual (via UI ou
+  # gh workflow run) quando quisermos forçar imediato.
   workflow_dispatch:
-  schedule:
-    # 4 janelas × 5.5h = ~22h/dia de cobertura, com sobreposição de 30min
-    # entre janelas para tapar skips ocasionais do GHA scheduler (comuns
-    # quando o repo fica inactivo). Reduce blindspots que apareciam entre
-    # janelas antigas (só 2 crons = ~11h/dia).
-    - cron: "0 4 * * *"    # 04:00 UTC → ~09:30 UTC (dawn / Australia)
-    - cron: "0 9 * * *"    # 09:00 UTC → ~14:30 UTC (Europe morning)
-    - cron: "0 14 * * *"   # 14:00 UTC → ~19:30 UTC (afternoon + evening)
-    - cron: "0 19 * * *"   # 19:00 UTC → ~00:30 UTC (night session)
 
 jobs:
   poll:
