@@ -34,7 +34,7 @@ const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
 
 const BUCKET = 'player-photos';
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-const REQUEST_DELAY_MS = 700;
+const REQUEST_DELAY_MS = 1500;
 const WIKI_BATCH_SIZE = 30;
 const WIKI_BATCH_DELAY_MS = 2500; // strict rate limit da MediaWiki API
 

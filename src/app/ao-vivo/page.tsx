@@ -33,6 +33,33 @@ interface LivePick {
   edge_pct: number | null;
 }
 
+interface HistoryPick {
+  sr_match_id: number;
+  name_a: string | null;
+  name_b: string | null;
+  selection: 'A' | 'B' | string;
+  grade: string | null;
+  live_odd: number | null;
+  edge_pct: number | null;
+  score_description: string | null;
+  posted_at: string;
+  settled_at: string | null;
+  result: 'win' | 'loss' | 'void' | null;
+  pl: number | null;
+  tournament_slug: string | null;
+}
+
+// Últimas N picks fechadas — usadas na secção de track record
+async function fetchHistoryPicks(limit = 40): Promise<HistoryPick[]> {
+  const { data } = await supabase
+    .from('live_picks')
+    .select('sr_match_id, name_a, name_b, selection, grade, live_odd, edge_pct, score_description, posted_at, settled_at, result, pl, tournament_slug')
+    .not('result', 'is', null)
+    .order('settled_at', { ascending: false, nullsFirst: false })
+    .limit(limit);
+  return (data ?? []) as HistoryPick[];
+}
+
 async function fetchOpenPicksFor(matchIds: number[]): Promise<Map<number, LivePick>> {
   if (matchIds.length === 0) return new Map();
   const { data } = await supabase
@@ -378,14 +405,143 @@ function SidePanel({ name, probPct, odd, ev, qualifies, isBest }: {
   );
 }
 
+// ── Track record ─────────────────────────────────────────────────────────
+
+interface PeriodStats { label: string; count: number; wins: number; losses: number; pl: number; yieldPct: number }
+
+function computeStats(picks: HistoryPick[], hoursBack: number, label: string): PeriodStats {
+  const since = Date.now() - hoursBack * 3600_000;
+  const inRange = picks.filter(p => {
+    const t = p.settled_at ? new Date(p.settled_at).getTime() : new Date(p.posted_at).getTime();
+    return t >= since;
+  });
+  const wins = inRange.filter(p => p.result === 'win').length;
+  const losses = inRange.filter(p => p.result === 'loss').length;
+  const pl = inRange.reduce((s, p) => s + (p.pl != null ? Number(p.pl) : 0), 0);
+  const count = wins + losses;
+  const yieldPct = count > 0 ? (pl / count) * 100 : 0;
+  return { label, count, wins, losses, pl, yieldPct };
+}
+
+function StatBlock({ s, active }: { s: PeriodStats; active?: boolean }) {
+  const positive = s.pl >= 0;
+  return (
+    <div
+      className={`rounded-lg border px-3 py-2 ${
+        active
+          ? 'border-[var(--color-accent)]/50 bg-[var(--color-accent)]/10'
+          : 'border-[var(--color-border)]/60 bg-[var(--color-card)]/40'
+      }`}
+    >
+      <div className="text-[10px] uppercase tracking-wider text-gray-500">{s.label}</div>
+      <div className="flex items-baseline gap-2 mt-0.5">
+        <span className="text-sm font-mono font-bold tabular-nums">
+          <span className="text-[var(--color-accent)]">{s.wins}W</span>
+          <span className="text-gray-500 mx-0.5">/</span>
+          <span className="text-red-400">{s.losses}L</span>
+        </span>
+      </div>
+      <div className="flex items-baseline gap-2 mt-0.5">
+        <span className={`text-xs font-mono font-bold tabular-nums ${positive ? 'text-[var(--color-accent)]' : 'text-red-400'}`}>
+          {positive ? '+' : ''}{s.pl.toFixed(2)}u
+        </span>
+        <span className={`text-[10px] font-mono tabular-nums ${positive ? 'text-gray-400' : 'text-red-300'}`}>
+          yield {s.yieldPct >= 0 ? '+' : ''}{s.yieldPct.toFixed(1)}%
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function HistoryRow({ p, locale }: { p: HistoryPick; locale: Locale }) {
+  const side = p.selection === 'A' ? p.name_a : p.name_b;
+  const oppSide = p.selection === 'A' ? p.name_b : p.name_a;
+  const icon = p.result === 'win' ? '🟢' : p.result === 'loss' ? '🔴' : '⊘';
+  const time = new Date(p.settled_at ?? p.posted_at).toLocaleTimeString(locale === 'pt-BR' ? 'pt-BR' : 'pt-PT', {
+    hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Lisbon',
+  });
+  const pl = p.pl != null ? Number(p.pl) : null;
+  const plPositive = pl != null && pl >= 0;
+  const tourRaw = (p.tournament_slug ?? '').match(/(atp|wta|itf|chl)/i)?.[0]?.toUpperCase() ?? '';
+  return (
+    <Link
+      href={`/jogo/${p.sr_match_id}`}
+      className="flex items-center gap-2 md:gap-3 py-2 px-2 md:px-3 rounded-md hover:bg-[var(--color-card)]/60 transition group text-xs"
+    >
+      <span className="text-sm shrink-0">{icon}</span>
+      <span className="font-mono text-gray-500 tabular-nums w-10 shrink-0">{time}</span>
+      <span className="text-[10px] font-bold text-gray-500 tracking-wider w-8 shrink-0">{tourRaw}</span>
+      <span className="min-w-0 flex-1 truncate">
+        <span className="font-bold text-gray-200">{side?.split(',')[0] ?? '—'}</span>
+        <span className="text-gray-500"> vs </span>
+        <span className="text-gray-500">{oppSide?.split(',')[0] ?? '—'}</span>
+      </span>
+      {p.live_odd != null && (
+        <span className="font-mono text-gray-400 tabular-nums whitespace-nowrap hidden sm:inline">@{Number(p.live_odd).toFixed(2)}</span>
+      )}
+      {p.edge_pct != null && (
+        <span className="font-mono text-[var(--color-accent)] font-bold tabular-nums whitespace-nowrap hidden md:inline">
+          +{Number(p.edge_pct).toFixed(1)}%
+        </span>
+      )}
+      <span className="text-gray-500 text-[10px] whitespace-nowrap hidden lg:inline truncate max-w-[130px]">
+        {p.score_description}
+      </span>
+      {pl != null && (
+        <span className={`font-mono font-bold tabular-nums whitespace-nowrap w-16 text-right shrink-0 ${plPositive ? 'text-[var(--color-accent)]' : 'text-red-400'}`}>
+          {plPositive ? '+' : ''}{pl.toFixed(2)}u
+        </span>
+      )}
+    </Link>
+  );
+}
+
+function HistorySection({ picks, locale }: { picks: HistoryPick[]; locale: Locale }) {
+  const s24h = computeStats(picks, 24, '24h');
+  const s7d = computeStats(picks, 24 * 7, '7 dias');
+  const s30d = computeStats(picks, 24 * 30, '30 dias');
+  const sTotal = computeStats(picks, 24 * 365 * 10, 'total');
+  return (
+    <section className="mt-10">
+      <div className="flex items-baseline justify-between flex-wrap gap-2 mb-4">
+        <div>
+          <h2 className="text-lg md:text-xl font-extrabold flex items-center gap-2">
+            <span className="inline-block w-1.5 h-6 rounded bg-[var(--color-accent)]" />
+            Últimas picks live
+          </h2>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Track record das picks emitidas pelo modelo ao vivo, com resultado e P/L reais.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-5">
+        <StatBlock s={s24h}   active={s24h.count > 0} />
+        <StatBlock s={s7d} />
+        <StatBlock s={s30d} />
+        <StatBlock s={sTotal} />
+      </div>
+
+      <div className="stat-card p-2 md:p-3">
+        <div className="divide-y divide-[var(--color-border)]/40">
+          {picks.map(p => (
+            <HistoryRow key={`${p.sr_match_id}-${p.posted_at}`} p={p} locale={locale} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default async function AoVivoPage({ locale = 'pt-PT' as Locale }: { locale?: Locale } = {}) {
   const matches = await fetchLiveMatches();
   const matchIds = matches.map(m => m.sr_match_id);
   const playerIds = matches.flatMap(m => [m.player_a_id, m.player_b_id]).filter((x): x is number => x != null);
-  const [picksByMatch, playersById, oddsByMatch] = await Promise.all([
+  const [picksByMatch, playersById, oddsByMatch, historyPicks] = await Promise.all([
     fetchOpenPicksFor(matchIds),
     fetchPlayerInfo(playerIds),
     fetchLatestOddsFor(matchIds),
+    fetchHistoryPicks(40),
   ]);
 
   // Fallback: para cada match onde não conseguimos player pelo ID
@@ -448,6 +604,10 @@ export default async function AoVivoPage({ locale = 'pt-PT' as Locale }: { local
                 />
               ))}
             </div>
+          )}
+
+          {historyPicks.length > 0 && (
+            <HistorySection picks={historyPicks} locale={locale} />
           )}
         </div>
       </main>
