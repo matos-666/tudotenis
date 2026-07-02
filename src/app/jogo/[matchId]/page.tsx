@@ -106,6 +106,35 @@ async function fetchPlayers(ids: number[]): Promise<Record<number, PlayerInfo>> 
   return out;
 }
 
+// Fallback lookup por nome — quando sr_player_map não tem entrada para o
+// SR team_id, player_a_id/b_id vem null e a page ficava sem foto/ELO
+// mesmo com o player em DB. Converte 'Carreno Busta, Pablo' (formato SR)
+// → 'Pablo Carreno Busta' (formato players.name) antes do query.
+function srNameToPlayerName(src: string): string {
+  const idx = src.indexOf(',');
+  if (idx < 0) return src.trim();
+  const last = src.slice(0, idx).trim();
+  const first = src.slice(idx + 1).trim();
+  return first && last ? `${first} ${last}` : src.trim();
+}
+async function fetchPlayersByName(names: string[]): Promise<Record<string, PlayerInfo>> {
+  const originals = [...new Set(names.filter(Boolean))];
+  if (originals.length === 0) return {};
+  const converted = originals.map(srNameToPlayerName);
+  const { data } = await supabase
+    .from('players')
+    .select('id, slug, name, flag, photo_url, atp_rank, elo_overall')
+    .in('name', converted);
+  const byName = new Map<string, PlayerInfo>();
+  for (const p of (data ?? []) as PlayerInfo[]) byName.set(p.name, p);
+  const out: Record<string, PlayerInfo> = {};
+  for (const orig of originals) {
+    const hit = byName.get(srNameToPlayerName(orig));
+    if (hit) out[orig] = hit;
+  }
+  return out;
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -223,8 +252,17 @@ export default async function LiveMatchPage({
     fetchLiveOdds(id),
     fetchLivePicks(id),
   ]);
-  const pA = state.player_a_id ? players[state.player_a_id] : null;
-  const pB = state.player_b_id ? players[state.player_b_id] : null;
+
+  // Se algum player_id vem null (sr_player_map em falta), fallback por
+  // nome — garante que players com foto na DB são encontrados mesmo
+  // sem a ligação SR.
+  const missingNames: string[] = [];
+  if ((!state.player_a_id || !players[state.player_a_id]) && state.name_a) missingNames.push(state.name_a);
+  if ((!state.player_b_id || !players[state.player_b_id]) && state.name_b) missingNames.push(state.name_b);
+  const playersByName = await fetchPlayersByName(missingNames);
+
+  const pA = (state.player_a_id ? players[state.player_a_id] : null) ?? (state.name_a ? playersByName[state.name_a] : null) ?? null;
+  const pB = (state.player_b_id ? players[state.player_b_id] : null) ?? (state.name_b ? playersByName[state.name_b] : null) ?? null;
   const nameA = pA?.name ?? state.name_a ?? 'Player A';
   const nameB = pB?.name ?? state.name_b ?? 'Player B';
 

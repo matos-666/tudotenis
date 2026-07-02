@@ -200,18 +200,42 @@ async function updatePlayerPhoto(id: number, url: string): Promise<void> {
 // ── Scope ────────────────────────────────────────────────────────────────
 
 async function fetchScope(): Promise<Player[]> {
-  // Priority 1: player IDs vistos em live_state últimos 30 dias
-  const since = new Date(Date.now() - 30 * 86400_000).toISOString();
+  // Priority 1: player IDs vistos em live_state últimos 60 dias
+  const since = new Date(Date.now() - 60 * 86400_000).toISOString();
   const { data: liveRows } = await supabase
     .from('live_state')
-    .select('player_a_id, player_b_id')
+    .select('player_a_id, player_b_id, name_a, name_b')
     .gt('captured_at', since);
   const liveIds = new Set<number>();
+  const liveNames = new Set<string>();
   for (const r of liveRows ?? []) {
     if (r.player_a_id) liveIds.add(r.player_a_id);
     if (r.player_b_id) liveIds.add(r.player_b_id);
+    if (r.name_a) liveNames.add(r.name_a);
+    if (r.name_b) liveNames.add(r.name_b);
   }
-  console.log(`live_state últimos 30d: ${liveIds.size} jogadores únicos`);
+  console.log(`live_state últimos 60d: ${liveIds.size} jogadores por ID, ${liveNames.size} nomes únicos`);
+
+  // Resolve nomes SR ('Last, First') → 'First Last' e lookup na tabela
+  // players. Apanha players que apareceram em live mas com player_a/b_id
+  // null (sr_player_map em falta).
+  const srToPlayer = (src: string): string => {
+    const idx = src.indexOf(',');
+    if (idx < 0) return src.trim();
+    return `${src.slice(idx+1).trim()} ${src.slice(0, idx).trim()}`;
+  };
+  const namesToLookup = [...liveNames].map(srToPlayer);
+  if (namesToLookup.length > 0) {
+    const CHUNK = 500;
+    for (let i = 0; i < namesToLookup.length; i += CHUNK) {
+      const { data } = await supabase
+        .from('players')
+        .select('id')
+        .in('name', namesToLookup.slice(i, i + CHUNK));
+      for (const p of (data ?? []) as Array<{ id: number }>) liveIds.add(p.id);
+    }
+    console.log(`Após resolver nomes SR: ${liveIds.size} IDs no scope`);
+  }
 
   // Priority 2: top 300 ATP + top 300 WTA por rank
   const { data: topAtp } = await supabase
