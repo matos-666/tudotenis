@@ -32,9 +32,10 @@ const supabase = getServiceSupabase();
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-interface IngestMatch {
+interface IngestMatchSingles {
   tour: 'atp' | 'wta';
   tournament: string | null;
+  is_doubles?: false;
   name_a: string;
   name_b: string;
   odd_a: number;
@@ -43,6 +44,21 @@ interface IngestMatch {
   kickoff_time_text: string | null;
   twin_href: string | null;
 }
+
+interface IngestMatchDoubles {
+  tour: 'atp' | 'wta';
+  tournament: string | null;
+  is_doubles: true;
+  t1_p1: string; t1_p2: string;
+  t2_p1: string; t2_p2: string;
+  odd_a: number;
+  odd_b: number;
+  kickoff_date_text: string | null;
+  kickoff_time_text: string | null;
+  twin_href: string | null;
+}
+
+type IngestMatch = IngestMatchSingles | IngestMatchDoubles;
 
 interface IngestPayload {
   source?: string;
@@ -167,6 +183,165 @@ function getGrade(edge: number): 'A' | 'B' | 'C' {
   return 'C';
 }
 
+// ── DOUBLES ───────────────────────────────────────────────────────────────
+
+interface DoublesPlayerRow {
+  id: number;
+  name: string;
+  flag: string | null;
+  doubles_matches: number | null;
+  elo_doubles_overall: number | null;
+  elo_doubles_hard: number | null;
+  elo_doubles_clay: number | null;
+  elo_doubles_grass: number | null;
+}
+
+// Threshold mínimo de matches jogados em duplas — abaixo disto o ELO é
+// unreliable (média inicial 1500 puxa artificialmente). Alinha com o
+// cron TennisStats existente.
+const MIN_DBL_MATCHES = 10;
+// Caps consistentes com singles + regras aplicadas no live_picks
+const MIN_ODD = 1.25;
+const MAX_ODD_DBL = 4.0;
+const MIN_EV = 0.05;
+const MAX_EV_DBL = 0.30;
+
+function doublesEloForSurface(p: DoublesPlayerRow, surface: 'hard' | 'clay' | 'grass'): number | null {
+  const key = `elo_doubles_${surface}` as 'elo_doubles_hard' | 'elo_doubles_clay' | 'elo_doubles_grass';
+  return p[key] ?? p.elo_doubles_overall ?? null;
+}
+
+async function fetchDoublesPlayers(ids: number[]): Promise<Map<number, DoublesPlayerRow>> {
+  if (ids.length === 0) return new Map();
+  const { data } = await supabase
+    .from('players')
+    .select('id, name, flag, doubles_matches, elo_doubles_overall, elo_doubles_hard, elo_doubles_clay, elo_doubles_grass')
+    .in('id', ids);
+  const out = new Map<number, DoublesPlayerRow>();
+  for (const p of (data ?? []) as DoublesPlayerRow[]) out.set(p.id, p);
+  return out;
+}
+
+function buildDoublesExternalKey(t1: string, t2: string, t3: string, t4: string, tournament: string | null, date: string): string {
+  const clean = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const t = clean(tournament ?? 'unknown');
+  const players = [clean(t1), clean(t2), clean(t3), clean(t4)].sort().join('_');
+  return `twin:${date}:${t}:${players}`;
+}
+
+async function processDoubles(m: IngestMatchDoubles, idx: PlayerIndex): Promise<'inserted' | 'skipped'> {
+  const p1 = resolvePlayerFromIndex(m.t1_p1, m.tour, idx);
+  const p2 = resolvePlayerFromIndex(m.t1_p2, m.tour, idx);
+  const p3 = resolvePlayerFromIndex(m.t2_p1, m.tour, idx);
+  const p4 = resolvePlayerFromIndex(m.t2_p2, m.tour, idx);
+  if (!p1 || !p2 || !p3 || !p4) return 'skipped';
+
+  const dblPlayers = await fetchDoublesPlayers([p1.id, p2.id, p3.id, p4.id]);
+  const dp1 = dblPlayers.get(p1.id);
+  const dp2 = dblPlayers.get(p2.id);
+  const dp3 = dblPlayers.get(p3.id);
+  const dp4 = dblPlayers.get(p4.id);
+  if (!dp1 || !dp2 || !dp3 || !dp4) return 'skipped';
+
+  // Threshold de confidence
+  for (const dp of [dp1, dp2, dp3, dp4]) {
+    if ((dp.doubles_matches ?? 0) < MIN_DBL_MATCHES) return 'skipped';
+  }
+
+  const info = inferTournamentInfo(m.tournament, m.tour);
+  const surface = info.surface as 'hard' | 'clay' | 'grass';
+
+  const e1 = doublesEloForSurface(dp1, surface);
+  const e2 = doublesEloForSurface(dp2, surface);
+  const e3 = doublesEloForSurface(dp3, surface);
+  const e4 = doublesEloForSurface(dp4, surface);
+  if (e1 == null || e2 == null || e3 == null || e4 == null) return 'skipped';
+
+  // Team ELO = média simples (aproximação padrão em modelos de duplas)
+  const teamAElo = (e1 + e2) / 2;
+  const teamBElo = (e3 + e4) / 2;
+
+  const setProbA = eloProb(teamAElo, teamBElo);
+  const matchProbA = Math.pow(setProbA, 2) * (3 - 2 * setProbA); // duplas = BO3
+  const matchProbB = 1 - matchProbA;
+
+  const evA = matchProbA * m.odd_a - 1;
+  const evB = matchProbB * m.odd_b - 1;
+
+  let teamSel: 1 | 2 | null = null;
+  let pickOdd = 0;
+  let pickEv = 0;
+  if (evA >= MIN_EV && evA <= MAX_EV_DBL && m.odd_a >= MIN_ODD && m.odd_a <= MAX_ODD_DBL && evA >= evB) {
+    teamSel = 1; pickOdd = m.odd_a; pickEv = evA;
+  } else if (evB >= MIN_EV && evB <= MAX_EV_DBL && m.odd_b >= MIN_ODD && m.odd_b <= MAX_ODD_DBL) {
+    teamSel = 2; pickOdd = m.odd_b; pickEv = evB;
+  } else {
+    return 'skipped';
+  }
+
+  const scheduled = parseKickoff(m.kickoff_date_text, m.kickoff_time_text);
+  const dateStr = (scheduled ?? new Date().toISOString()).slice(0, 10);
+  const externalKey = buildDoublesExternalKey(dp1.name, dp2.name, dp3.name, dp4.name, m.tournament, dateStr);
+
+  // Insert doubles_match se ainda não existe
+  const { data: existingMatch } = await supabase
+    .from('doubles_matches')
+    .select('id')
+    .eq('external_key', externalKey)
+    .limit(1);
+  let doublesMatchId = existingMatch?.[0]?.id as number | undefined;
+  if (!doublesMatchId) {
+    const { data: newMatch, error: mErr } = await supabase.from('doubles_matches').insert({
+      source: 'twin',
+      external_key: externalKey,
+      tournament_name: info.name,
+      date: dateStr,
+      scheduled_at: scheduled,
+      surface,
+      t1_p1_id: dp1.id, t1_p2_id: dp2.id,
+      t2_p1_id: dp3.id, t2_p2_id: dp4.id,
+      t1_p1_name: dp1.name, t1_p2_name: dp2.name,
+      t2_p1_name: dp3.name, t2_p2_name: dp4.name,
+    }).select('id').single();
+    if (mErr || !newMatch) return 'skipped';
+    doublesMatchId = newMatch.id as number;
+  }
+
+  // Dedup: já emitimos hoje esta pick?
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: existingPick } = await supabase
+    .from('doubles_picks')
+    .select('id')
+    .eq('doubles_match_id', doublesMatchId)
+    .eq('team_selected', teamSel)
+    .gte('posted_at', `${today}T00:00:00Z`)
+    .limit(1);
+  if (existingPick && existingPick.length > 0) return 'skipped';
+
+  const evPct = Math.round(pickEv * 10000) / 100;
+  const { error: pErr } = await supabase.from('doubles_picks').insert({
+    doubles_match_id: doublesMatchId,
+    external_key: externalKey,
+    source: 'twin',
+    team_selected: teamSel,
+    t1_p1_id: dp1.id, t1_p2_id: dp2.id,
+    t2_p1_id: dp3.id, t2_p2_id: dp4.id,
+    t1_p1_name: dp1.name, t1_p2_name: dp2.name,
+    t2_p1_name: dp3.name, t2_p2_name: dp4.name,
+    t1_p1_flag: dp1.flag, t1_p2_flag: dp2.flag,
+    t2_p1_flag: dp3.flag, t2_p2_flag: dp4.flag,
+    market: 'Vencedora dupla',
+    odd: pickOdd,
+    edge_pct: evPct,
+    grade: getGrade(evPct),
+    stake: 10,
+    tournament_name: info.name,
+    surface,
+    scheduled_at: scheduled,
+  });
+  return pErr ? 'skipped' : 'inserted';
+}
+
 function parseKickoff(dateText: string | null, timeText: string | null): string | null {
   if (!timeText || !/^\d{1,2}:\d{2}$/.test(timeText)) return null;
   const [h, m] = timeText.split(':').map(Number);
@@ -197,9 +372,12 @@ export async function POST(req: NextRequest) {
   try { payload = (await req.json()) as IngestPayload; }
   catch { return NextResponse.json({ error: 'invalid_json' }, { status: 400 }); }
 
-  const matches = (payload.matches ?? []).filter(m => m.name_a && m.name_b && m.odd_a > 1 && m.odd_b > 1);
-  if (matches.length === 0) {
-    return NextResponse.json({ ok: true, received: 0, resolved: 0, inserted: 0 });
+  const allMatches = (payload.matches ?? []).filter(m => m.odd_a > 1 && m.odd_b > 1);
+  const singlesMatches = allMatches.filter((m): m is IngestMatchSingles => !m.is_doubles && !!(m as IngestMatchSingles).name_a && !!(m as IngestMatchSingles).name_b);
+  const doublesMatches = allMatches.filter((m): m is IngestMatchDoubles => m.is_doubles === true);
+  const matches = singlesMatches;
+  if (allMatches.length === 0) {
+    return NextResponse.json({ ok: true, received: 0, resolved: 0, inserted: 0, doubles_inserted: 0 });
   }
 
   const idx = await buildPlayerIndex();
@@ -289,12 +467,24 @@ export async function POST(req: NextRequest) {
     else skipped++;
   }
 
+  // ── Doubles pipeline ─────────────────────────────────────────────────
+  let doublesInserted = 0;
+  let doublesSkipped = 0;
+  for (const dm of doublesMatches) {
+    const res = await processDoubles(dm, idx);
+    if (res === 'inserted') doublesInserted++;
+    else doublesSkipped++;
+  }
+
   return NextResponse.json({
     ok: true,
     received: matches.length,
     resolved,
     inserted,
     skipped,
+    doubles_received: doublesMatches.length,
+    doubles_inserted: doublesInserted,
+    doubles_skipped: doublesSkipped,
     debug_samples: debugSamples,
     index_debug: indexDebug,
   });

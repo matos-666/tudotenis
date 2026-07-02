@@ -61,17 +61,41 @@ async function scrapeSection(page, tour, path) {
       const timeTxt = card.querySelector('[class*="kickoff-countdown__time"]')?.textContent?.trim() ?? null;
       const href = card.querySelector('a[href*="/bets/tennis/"]')?.getAttribute('href') ?? null;
 
-      out.push({
-        tour,
-        tournament,
-        name_a: names[0],
-        name_b: names[1],
-        odd_a: prices[0],
-        odd_b: prices[1],
-        kickoff_date_text: dateTxt,
-        kickoff_time_text: timeTxt,
-        twin_href: href,
-      });
+      // Twin convention duplas: 'Player1 / Player2' vs 'Player3 / Player4'.
+      // Ou nome do campeonato inclui 'Duplas'/'Doubles'. Detecta e divide.
+      const nameHasSlash = /\s+\/\s+/.test(names[0]) || /\s+\/\s+/.test(names[1]);
+      const isDoubles = nameHasSlash || /duplas|doubles/i.test(tournament ?? '');
+
+      if (isDoubles) {
+        const t1 = names[0].split(/\s+\/\s+/).map(s => s.trim()).filter(Boolean);
+        const t2 = names[1].split(/\s+\/\s+/).map(s => s.trim()).filter(Boolean);
+        if (t1.length !== 2 || t2.length !== 2) continue;
+        out.push({
+          tour,
+          tournament,
+          is_doubles: true,
+          t1_p1: t1[0], t1_p2: t1[1],
+          t2_p1: t2[0], t2_p2: t2[1],
+          odd_a: prices[0],
+          odd_b: prices[1],
+          kickoff_date_text: dateTxt,
+          kickoff_time_text: timeTxt,
+          twin_href: href,
+        });
+      } else {
+        out.push({
+          tour,
+          tournament,
+          is_doubles: false,
+          name_a: names[0],
+          name_b: names[1],
+          odd_a: prices[0],
+          odd_b: prices[1],
+          kickoff_date_text: dateTxt,
+          kickoff_time_text: timeTxt,
+          twin_href: href,
+        });
+      }
     }
     return out;
   }, tour);
