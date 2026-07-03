@@ -75,12 +75,19 @@ async function enrichWithPlayers(picks: Pick[]): Promise<Pick[]> {
 }
 
 // ── Data fetching ─────────────────────────────────────────────────────────
+// Buscamos picks pelo scheduled_at do jogo, não pelo posted_at. Assim
+// picks emitidas ontem para jogos de hoje/amanhã entram no display do
+// dia correto. Janela [hoje 00:00, hoje+2d) cobre hoje + amanhã
+// (renderizados em secções separadas na UI).
 async function fetchTodayPicks(): Promise<Pick[]> {
-  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 2)).toISOString();
   const { data, error } = await supabase
     .from('picks')
     .select('id, player_id, market, selection, odd, edge_pct, grade, stake, result, pl, posted_at, settled_at, p1_name, p2_name, p1_flag, p2_flag, tournament_name, surface, scheduled_at')
-    .gte('posted_at', `${today}T00:00:00`)
+    .gte('scheduled_at', start)
+    .lt('scheduled_at', end)
     .order('grade', { ascending: true })
     .order('edge_pct', { ascending: false });
 
@@ -136,11 +143,14 @@ interface DoublesPick {
 }
 
 async function fetchTodayDoublesPicks(): Promise<DoublesPick[]> {
-  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 2)).toISOString();
   const { data, error } = await supabase
     .from('doubles_picks')
     .select('id, doubles_match_id, team_selected, market, odd, edge_pct, grade, stake, result, pl, posted_at, settled_at, scheduled_at, tournament_name, surface, t1_p1_name, t1_p2_name, t2_p1_name, t2_p2_name, t1_p1_flag, t1_p2_flag, t2_p1_flag, t2_p2_flag')
-    .gte('posted_at', `${today}T00:00:00`)
+    .gte('scheduled_at', start)
+    .lt('scheduled_at', end)
     .order('grade', { ascending: true })
     .order('edge_pct', { ascending: false });
   if (error) {
@@ -649,13 +659,18 @@ export default async function PicksPage({ locale = 'pt-PT' as Locale }: { locale
   // 12-24h. Upcoming requer estrito-futuro (scheduled > now), não apenas
   // !isLive (que incluiria os já-passados sem result).
   const nowMs = Date.now();
-  const isFuture = (sched: string | null) => sched != null && new Date(sched).getTime() > nowMs;
-
+  // Todas as picks de hoje que ainda não foram settled entram em
+  // 'Por jogar' — inclui as que o scheduled_at já passou mas o
+  // match ainda pode estar a decorrer ou o settler ainda não correu.
+  // Antes filtrávamos por isFuture(scheduled_at), o que escondia 5 de
+  // 6 picks assim que o horário do jogo passava; agora ficam visíveis
+  // até serem marcadas com resultado. Cap superior continua a ser
+  // gerido pelo LIVE_WINDOW_MS + filtro global de 'terminados'.
   const todaySettled = today.filter(p => p.result != null);
-  const todayUpcoming = today.filter(p => p.result == null && isFuture(p.scheduled_at));
+  const todayUpcoming = today.filter(p => p.result == null);
 
   const doublesSettled  = todayDoubles.filter(p => p.result != null);
-  const doublesUpcoming = todayDoubles.filter(p => p.result == null && isFuture(p.scheduled_at));
+  const doublesUpcoming = todayDoubles.filter(p => p.result == null);
 
   const upcomingCount = todayUpcoming.length;
   const settledCount = todaySettled.length;
