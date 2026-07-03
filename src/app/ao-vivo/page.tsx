@@ -457,9 +457,25 @@ function HistoryRow({ p, locale }: { p: HistoryPick; locale: Locale }) {
   const side = p.selection === 'A' ? p.name_a : p.name_b;
   const oppSide = p.selection === 'A' ? p.name_b : p.name_a;
   const icon = p.result === 'win' ? '🟢' : p.result === 'loss' ? '🔴' : '⊘';
-  const time = new Date(p.settled_at ?? p.posted_at).toLocaleTimeString(locale === 'pt-BR' ? 'pt-BR' : 'pt-PT', {
+  const when = new Date(p.settled_at ?? p.posted_at);
+  const time = when.toLocaleTimeString(locale === 'pt-BR' ? 'pt-BR' : 'pt-PT', {
     hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Lisbon',
   });
+  // Data curta em Europe/Lisbon: 'ontem', 'hoje', '01/07' etc. Mostra
+  // sempre para o utilizador saber a qual dia pertence cada pick — útil
+  // quando a lista atravessa vários dias.
+  const dayKey = (d: Date) => new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Lisbon', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(d);
+  const today = dayKey(new Date());
+  const yesterday = dayKey(new Date(Date.now() - 86_400_000));
+  const key = dayKey(when);
+  const dateLabel =
+    key === today ? (locale === 'pt-BR' ? 'hoje' : 'hoje') :
+    key === yesterday ? 'ontem' :
+    new Intl.DateTimeFormat(locale === 'pt-BR' ? 'pt-BR' : 'pt-PT', {
+      timeZone: 'Europe/Lisbon', day: '2-digit', month: '2-digit',
+    }).format(when);
   const pl = p.pl != null ? Number(p.pl) : null;
   const plPositive = pl != null && pl >= 0;
   const tourRaw = (p.tournament_slug ?? '').match(/(atp|wta|itf|chl)/i)?.[0]?.toUpperCase() ?? '';
@@ -469,6 +485,7 @@ function HistoryRow({ p, locale }: { p: HistoryPick; locale: Locale }) {
       className="flex items-center gap-2 md:gap-3 py-2 px-2 md:px-3 rounded-md hover:bg-[var(--color-card)]/60 transition group text-xs"
     >
       <span className="text-sm shrink-0">{icon}</span>
+      <span className="text-[10px] uppercase text-gray-500 tracking-wider w-10 shrink-0 hidden sm:inline">{dateLabel}</span>
       <span className="font-mono text-gray-500 tabular-nums w-10 shrink-0">{time}</span>
       <span className="text-[10px] font-bold text-gray-500 tracking-wider w-8 shrink-0">{tourRaw}</span>
       <span className="min-w-0 flex-1 truncate">
