@@ -394,9 +394,19 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
   const winnerCode = data.result?.winner;
   const justEnded = !running && Boolean(data.ended_uts) && (winnerCode === 'home' || winnerCode === 'away');
 
-  if (!running && !justEnded) {
+  // Blip suppression: SR reporta timeinfo.running=false brevemente entre
+  // pontos / mudanças de saque, e isso causa gaps de 2-5min nos snapshots
+  // porque ignorávamos essas iterações. Se a última snapshot deste match
+  // é recente (<90s) e estava running=true, tratamos como continuação —
+  // gravamos snapshot com running=true e carry-forward do estado
+  // conhecido, para o utilizador não ver "desactualizado".
+  const lastAgeMs = lastSnap ? Date.now() - new Date(lastSnap.captured_at).getTime() : Infinity;
+  const isContinuation = !running && !justEnded && lastAgeMs < 90_000;
+
+  if (!running && !justEnded && !isContinuation) {
     return { ok: false, reason: 'not_running' };
   }
+  const effectiveRunning = running || isContinuation;
 
   const state = buildState(data);
   if (!state) return { ok: false, reason: 'state_unparseable' };
@@ -534,7 +544,7 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
       p_b_serve_live: pBlive,
       match_win_prob_a: matchProb,
       point_importance: importance,
-      running,
+      running: effectiveRunning,
     })
     .select('id')
     .single();
@@ -582,40 +592,48 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
 async function pollOnce(): Promise<{ checked: number; running: number; settled: number; picks: number; errors: number }> {
   let checked = 0, running = 0, settled = 0, picks = 0, errors = 0;
   const nowUts = Math.floor(Date.now() / 1000);
-  const CONCURRENCY = 8;
+  const CONCURRENCY = 12;
 
-  for (const season of ACTIVE_SEASONS) {
-    const fixtures = await sr<{ doc: Array<{ data: { matches: SrSeasonMatch[] } }> }>(
-      `stats_season_fixtures2/${season.id}/1`,
-    );
-    const matches = fixtures?.doc?.[0]?.data?.matches ?? [];
-    // Window -48h a +30min: original era -6h, mas matches em Slams podem
-    // arrancar 24h+ após scheduled time (delays por chuva, court queues,
-    // câmbio para dias seguintes). Ex: Tiafoe vs Atmane — scheduled há
-    // 40h mas ainda a jogar. Se filtrarmos por -6h nunca entra na lista.
-    // Ordenamos por proximidade a agora para priorizar quem está mais
-    // provável a decorrer antes do slice(16).
-    const candidatesAll = matches
-      .filter(m => {
-        const uts = m.time?.uts ?? 0;
-        return uts > nowUts - 48 * 3600 && uts < nowUts + 1800;
-      })
-      .sort((a, b) => Math.abs((a.time?.uts ?? 0) - nowUts) - Math.abs((b.time?.uts ?? 0) - nowUts));
-    // Limit a 24 por execução — pequeno aumento vs 16, com SR a
-    // ~500ms/call ainda cabe em 60s. Prioriza matches mais próximos
-    // do agora via sort acima.
-    const candidates = candidatesAll.slice(0, 24);
+  // Fetch fixtures das seasons em paralelo (não serial) + junta os
+  // candidatos numa lista única. Antes ATP corria totalmente antes de
+  // WTA começar, dobrando o cycle time. Agora ambas em paralelo.
+  const seasonFixtures = await Promise.all(
+    ACTIVE_SEASONS.map(async (season) => {
+      const fixtures = await sr<{ doc: Array<{ data: { matches: SrSeasonMatch[] } }> }>(
+        `stats_season_fixtures2/${season.id}/1`,
+      );
+      const matches = fixtures?.doc?.[0]?.data?.matches ?? [];
+      const candidatesAll = matches
+        .filter(m => {
+          const uts = m.time?.uts ?? 0;
+          return uts > nowUts - 48 * 3600 && uts < nowUts + 1800;
+        })
+        .sort((a, b) => Math.abs((a.time?.uts ?? 0) - nowUts) - Math.abs((b.time?.uts ?? 0) - nowUts));
+      // 24 por season = até 48 candidatos totais (ATP + WTA)
+      return { season, candidates: candidatesAll.slice(0, 24) };
+    }),
+  );
 
-    for (let i = 0; i < candidates.length; i += CONCURRENCY) {
-      const batch = candidates.slice(i, i + CONCURRENCY);
-      const results = await Promise.allSettled(batch.map(m => processMatch(m, season)));
-      for (const r of results) {
-        checked++;
-        if (r.status === 'rejected') { errors++; continue; }
-        if (r.value.ok) running++;
-        if (r.value.settled) settled++;
-        if (r.value.pickEmitted) picks++;
-      }
+  // Alterna round-robin entre seasons para que ATP e WTA fiquem
+  // igualmente distribuídos nos primeiros batches (evita starvar uma
+  // delas se o total exceder 24-32 candidatos).
+  const interleaved: Array<{ m: SrSeasonMatch; season: typeof ACTIVE_SEASONS[number] }> = [];
+  const maxLen = Math.max(...seasonFixtures.map(s => s.candidates.length));
+  for (let i = 0; i < maxLen; i++) {
+    for (const s of seasonFixtures) {
+      if (i < s.candidates.length) interleaved.push({ m: s.candidates[i], season: s.season });
+    }
+  }
+
+  for (let i = 0; i < interleaved.length; i += CONCURRENCY) {
+    const batch = interleaved.slice(i, i + CONCURRENCY);
+    const results = await Promise.allSettled(batch.map(({ m, season }) => processMatch(m, season)));
+    for (const r of results) {
+      checked++;
+      if (r.status === 'rejected') { errors++; continue; }
+      if (r.value.ok) running++;
+      if (r.value.settled) settled++;
+      if (r.value.pickEmitted) picks++;
     }
   }
 

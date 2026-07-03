@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   alternates: hreflangAlternatesBR('/ao-vivo'),
 };
 
-export const revalidate = 20;
+export const revalidate = 5;
 
 export default function Page() {
   return <AoVivoPage locale="pt-BR" />;

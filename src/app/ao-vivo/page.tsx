@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { hreflangAlternates, type Locale } from '@/lib/i18n';
 import { TennisBallIcon } from '@/components/icons';
 
-export const revalidate = 20;
+export const revalidate = 5;
 
 function formatTournamentName(slug: string | null): string {
   if (!slug) return '';
@@ -582,7 +582,7 @@ export default async function AoVivoPage({ locale = 'pt-PT' as Locale }: { local
   return (
     <>
       <Header locale={locale} />
-      <AutoRefresh intervalMs={25000} />
+      <AutoRefresh intervalMs={12000} />
       <main id="main" className="flex-1">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
           <div className="mb-6">
