@@ -30,8 +30,16 @@ export const maxDuration = 60;
 // stats_season_fixtures2. ATP = 132572. WTA TBD (adicionar quando
 // descobrirmos via SR).
 const ACTIVE_SEASONS = [
-  { id: 132572, tour: 'atp' as const, tournamentSlug: 'wimbledon-2026-atp' },
-  { id: 132536, tour: 'wta' as const, tournamentSlug: 'wimbledon-2026-wta' },
+  { id: 132572, tour: 'atp' as const, tournamentSlug: 'wimbledon-2026-atp', isDoubles: false },
+  { id: 132536, tour: 'wta' as const, tournamentSlug: 'wimbledon-2026-wta', isDoubles: false },
+  // Duplas — season IDs descobertos via SR match_get (utid 2557/2561/2563).
+  // SR trata cada dupla como um "team" único ('Kokkinakis T / Kovacevic A'),
+  // por isso o fluxo de score/tracker funciona igual; só o prior do modelo
+  // muda (team ELO doubles = média do par, resolvido por apelido+inicial).
+  // Mistas usam curva 'atp' como aproximação de pace de serviço.
+  { id: 136808, tour: 'atp' as const, tournamentSlug: 'wimbledon-2026-duplas-atp', isDoubles: true },
+  { id: 136814, tour: 'wta' as const, tournamentSlug: 'wimbledon-2026-duplas-wta', isDoubles: true },
+  { id: 136820, tour: 'atp' as const, tournamentSlug: 'wimbledon-2026-duplas-mistas', isDoubles: true },
 ];
 
 const SR_BASE = 'https://lmt.fn.sportradar.com/betradar/en/Etc:UTC/gismo';
@@ -159,6 +167,48 @@ function buildState(m: SrMatchGet): MatchState | null {
   };
 }
 
+/**
+ * Resolve o team ELO doubles de um nome de equipa SR
+ * ('Kokkinakis T / Kovacevic A') → média do elo_doubles_grass (fallback
+ * overall) dos dois membros. Matching por apelido + inicial contra a
+ * tabela players. Mistas passam tour=null (sem filtro de tour).
+ * Devolve null se qualquer membro não resolver ou não tiver ELO doubles.
+ */
+async function resolveDoublesTeamElo(teamName: string, tour: 'atp' | 'wta' | null): Promise<number | null> {
+  const members = teamName.split('/').map(s => s.trim()).filter(Boolean);
+  if (members.length !== 2) return null;
+
+  const elos: number[] = [];
+  for (const member of members) {
+    // 'Mpetshi Perricard G' → apelido='Mpetshi Perricard', inicial='G'.
+    // Último token de 1-2 chars (com ou sem ponto) é inicial.
+    const tokens = member.replace(/\./g, '').split(/\s+/).filter(Boolean);
+    let initial = '';
+    let surnameTokens = tokens;
+    if (tokens.length > 1 && tokens[tokens.length - 1].length <= 2) {
+      initial = tokens[tokens.length - 1].toLowerCase();
+      surnameTokens = tokens.slice(0, -1);
+    }
+    const surname = surnameTokens.join(' ');
+    if (!surname) return null;
+
+    let q = supabase
+      .from('players')
+      .select('id, name, tour, elo_doubles_grass, elo_doubles_overall')
+      .ilike('name', `%${surname}%`)
+      .limit(10);
+    const { data } = await q;
+    const cands = ((data ?? []) as Array<{ name: string; tour: string | null; elo_doubles_grass: number | null; elo_doubles_overall: number | null }>)
+      .filter(p => tour == null || p.tour === tour)
+      .filter(p => initial === '' || p.name.trim().toLowerCase().startsWith(initial))
+      .filter(p => p.elo_doubles_grass != null || p.elo_doubles_overall != null);
+    if (cands.length === 0) return null;
+    const pick = cands[0];
+    elos.push((pick.elo_doubles_grass ?? pick.elo_doubles_overall) as number);
+  }
+  return (elos[0] + elos[1]) / 2;
+}
+
 async function fetchPlayerEloTour(playerId: number): Promise<{
   elo: number | null; tour: 'atp' | 'wta' | null;
 } | null> {
@@ -266,8 +316,9 @@ async function maybeEmitPick(opts: {
   prevState: { set_a: number; set_b: number; game_a: number; game_b: number; tiebreak: boolean } | null;
   matchProb: number;
   importance: number;
-  playerAId: number;
-  playerBId: number;
+  // null em duplas — SR trata a dupla como team único sem player ids
+  playerAId: number | null;
+  playerBId: number | null;
   nameA: string;
   nameB: string;
   tournamentSlug: string;
@@ -411,7 +462,9 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
   const state = buildState(data);
   if (!state) return { ok: false, reason: 'state_unparseable' };
 
-  if (season.tour === 'atp' && season.tournamentSlug.includes('wimbledon')) {
+  // Wimbledon: singles masculinos BO5; tudo o resto (WTA + todas as
+  // duplas desde 2022) é BO3.
+  if (season.tour === 'atp' && !season.isDoubles && season.tournamentSlug.includes('wimbledon')) {
     state.bestOf = 5;
   } else {
     state.bestOf = 3;
@@ -469,29 +522,46 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
   let pAlive: number | null = null;
   let pBlive: number | null = null;
 
-  if (playerAId && playerBId) {
+  // Priors: singles via ELO individual (players resolvidos por
+  // sr_player_map); duplas via team ELO doubles (média do par,
+  // resolvido por apelido+inicial do nome de equipa SR).
+  let eloPairFound: { eloA: number; eloB: number; tour: 'atp' | 'wta' } | null = null;
+  if (season.isDoubles) {
+    const isMixed = season.tournamentSlug.includes('mistas');
+    const [teamEloA, teamEloB] = await Promise.all([
+      resolveDoublesTeamElo(data.teams.home.name, isMixed ? null : season.tour),
+      resolveDoublesTeamElo(data.teams.away.name, isMixed ? null : season.tour),
+    ]);
+    if (teamEloA != null && teamEloB != null) {
+      eloPairFound = { eloA: teamEloA, eloB: teamEloB, tour: season.tour };
+    }
+  } else if (playerAId && playerBId) {
     const [eA, eB] = await Promise.all([fetchPlayerEloTour(playerAId), fetchPlayerEloTour(playerBId)]);
     if (eA?.elo && eB?.elo && eA.tour && eB.tour && eA.tour === eB.tour) {
-      const priors = priorsFromElo({
-        eloA: eA.elo,
-        eloB: eB.elo,
-        tour: eA.tour as 'atp' | 'wta',
-        surface: 'grass',
-      });
-      pAprior = priors.pA;
-      pBprior = priors.pB;
-      // Bayesian update: se temos serve_pts_won/total deste match,
-      // ajusta p_serve do prior em direcção ao observado. k=80 (prior
-      // strength ~ 1.5 sets de serviço). Se sem dados, pAlive = prior.
-      pAlive = sptWonA != null && sptTotalA != null && sptTotalA > 0
-        ? bayesianServeUpdate(pAprior, sptWonA, sptTotalA, 80)
-        : pAprior;
-      pBlive = sptWonB != null && sptTotalB != null && sptTotalB > 0
-        ? bayesianServeUpdate(pBprior, sptWonB, sptTotalB, 80)
-        : pBprior;
-      matchProb = matchWinProb(state, pAlive, pBlive);
-      importance = pointImportance(state, pAlive, pBlive);
+      eloPairFound = { eloA: eA.elo, eloB: eB.elo, tour: eA.tour as 'atp' | 'wta' };
     }
+  }
+
+  if (eloPairFound) {
+    const priors = priorsFromElo({
+      eloA: eloPairFound.eloA,
+      eloB: eloPairFound.eloB,
+      tour: eloPairFound.tour,
+      surface: 'grass',
+    });
+    pAprior = priors.pA;
+    pBprior = priors.pB;
+    // Bayesian update: se temos serve_pts_won/total deste match,
+    // ajusta p_serve do prior em direcção ao observado. k=80 (prior
+    // strength ~ 1.5 sets de serviço). Se sem dados, pAlive = prior.
+    pAlive = sptWonA != null && sptTotalA != null && sptTotalA > 0
+      ? bayesianServeUpdate(pAprior, sptWonA, sptTotalA, 80)
+      : pAprior;
+    pBlive = sptWonB != null && sptTotalB != null && sptTotalB > 0
+      ? bayesianServeUpdate(pBprior, sptWonB, sptTotalB, 80)
+      : pBprior;
+    matchProb = matchWinProb(state, pAlive, pBlive);
+    importance = pointImportance(state, pAlive, pBlive);
   }
 
   const finalWinner = justEnded ? (winnerCode === 'home' ? 'A' : 'B') as 'A' | 'B' : null;
@@ -556,13 +626,15 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
   }
 
   // ── #2 Pseudo-pick: emite quando modelo divergiu e estado é estável ───────
+  // Duplas não têm player_a_id/b_id (SR trata a dupla como team único) —
+  // a identificação fica pelos nomes de equipa em name_a/name_b.
   let pickEmitted = false;
+  const playersOk = season.isDoubles || (playerAId != null && playerBId != null);
   if (
     running &&
     matchProb != null &&
     importance != null &&
-    playerAId != null &&
-    playerBId != null &&
+    playersOk &&
     inserted?.id != null
   ) {
     pickEmitted = await maybeEmitPick({
