@@ -8,7 +8,12 @@ import { supabase } from '@/lib/supabase';
 import { hreflangAlternates, type Locale } from '@/lib/i18n';
 import { TennisBallIcon } from '@/components/icons';
 
-export const revalidate = 5;
+// Página live: sem cache de edge. Com ISR (mesmo revalidate=5), o Vercel
+// serve stale-while-revalidate — a primeira visita após um período sem
+// tráfego recebia a versão cacheada de quando não havia jogos (age de
+// minutos/horas) e só a visita seguinte via os matches. force-dynamic
+// garante render fresco em cada request; AutoRefresh mantém a 12s.
+export const dynamic = 'force-dynamic';
 
 function formatTournamentName(slug: string | null): string {
   if (!slug) return '';
