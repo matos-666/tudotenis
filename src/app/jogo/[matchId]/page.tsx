@@ -122,6 +122,46 @@ function srNameToPlayerName(src: string): string {
   const first = src.slice(idx + 1).trim();
   return first && last ? `${first} ${last}` : src.trim();
 }
+/**
+ * Bandeiras de uma equipa de duplas ('Guo H / Mladenovic K') — resolve
+ * cada membro por apelido+inicial contra players e junta as flags
+ * ('🇨🇳🇫🇷'). Usado como fallback do avatar quando não há foto de team
+ * (SR trata a dupla como entidade única sem foto). Null se nenhum
+ * membro resolver.
+ */
+async function resolveTeamFlags(teamName: string | null): Promise<string | null> {
+  if (!teamName || !teamName.includes('/')) return null;
+  const members = teamName.split('/').map(s => s.trim()).filter(Boolean);
+  const flags: string[] = [];
+  for (const member of members) {
+    const tokens = member.replace(/\./g, '').split(/\s+/).filter(Boolean);
+    let initial = '';
+    let surnameTokens = tokens;
+    if (tokens.length > 1 && tokens[tokens.length - 1].length <= 2) {
+      initial = tokens[tokens.length - 1].toLowerCase();
+      surnameTokens = tokens.slice(0, -1);
+    }
+    const surname = surnameTokens.join(' ');
+    if (!surname) continue;
+    const { data } = await supabase
+      .from('players')
+      .select('name, flag')
+      .ilike('name', `%${surname}%`)
+      .not('flag', 'is', null)
+      .limit(10);
+    const cands = ((data ?? []) as Array<{ name: string; flag: string | null }>)
+      .filter(p => {
+        const dbName = p.name.trim().toLowerCase();
+        const dbTokens = dbName.split(/\s+/);
+        if (initial === '' || dbTokens.length === 1) return true;
+        return dbName.startsWith(initial);
+      })
+      .sort((a, b) => b.name.trim().split(/\s+/).length - a.name.trim().split(/\s+/).length);
+    if (cands[0]?.flag) flags.push(cands[0].flag);
+  }
+  return flags.length > 0 ? flags.join('') : null;
+}
+
 async function fetchPlayersByName(names: string[]): Promise<Record<string, PlayerInfo>> {
   const originals = [...new Set(names.filter(Boolean))];
   if (originals.length === 0) return {};
@@ -271,6 +311,16 @@ export default async function LiveMatchPage({
   const nameA = pA?.name ?? state.name_a ?? 'Player A';
   const nameB = pB?.name ?? state.name_b ?? 'Player B';
 
+  // Bandeiras: singles vêm do player resolvido; duplas (sem foto/player
+  // de team) resolvem as flags dos 2 membros para o fallback do avatar
+  // mostrar '🇨🇳🇫🇷' em vez de siglas.
+  const [teamFlagsA, teamFlagsB] = await Promise.all([
+    pA?.flag ? Promise.resolve(null) : resolveTeamFlags(state.name_a),
+    pB?.flag ? Promise.resolve(null) : resolveTeamFlags(state.name_b),
+  ]);
+  const flagA = pA?.flag ?? teamFlagsA;
+  const flagB = pB?.flag ?? teamFlagsB;
+
   const matchProb = state.match_win_prob_a;
   const imp = state.point_importance;
   const impHigh = imp != null && imp > 0.20;
@@ -316,11 +366,11 @@ export default async function LiveMatchPage({
               </span>
             </div>
             <div className="flex items-center gap-3 md:gap-4">
-              <div className="hidden md:block"><PlayerAvatar photoUrl={pA?.photo_url} name={nameA} size={36} /></div>
+              <div className="hidden md:block"><PlayerAvatar photoUrl={pA?.photo_url} flag={flagA} name={nameA} size={36} /></div>
               <h1 className="text-xl md:text-3xl font-extrabold leading-tight">
                 {nameA} <span className="text-gray-500 font-normal">vs</span> {nameB}
               </h1>
-              <div className="hidden md:block"><PlayerAvatar photoUrl={pB?.photo_url} name={nameB} size={36} /></div>
+              <div className="hidden md:block"><PlayerAvatar photoUrl={pB?.photo_url} flag={flagB} name={nameB} size={36} /></div>
             </div>
           </div>
 
@@ -332,14 +382,14 @@ export default async function LiveMatchPage({
                   <div className="text-sm md:text-lg font-bold truncate">{nameA}</div>
                   {pA?.atp_rank && <div className="text-[11px] md:text-xs text-gray-500 whitespace-nowrap">#{pA.atp_rank} · ELO {pA.elo_overall ?? '–'}</div>}
                 </div>
-                <PlayerAvatar photoUrl={pA?.photo_url} name={nameA} size={40} />
+                <PlayerAvatar photoUrl={pA?.photo_url} flag={flagA} name={nameA} size={40} />
               </div>
               <div className="text-center font-mono shrink-0">
                 <div className="text-3xl md:text-4xl font-extrabold tracking-wider">{scoreSets}</div>
                 <div className="text-xs text-gray-500 mt-1 whitespace-nowrap">{scoreCur} {state.server && <span className="text-[var(--color-accent)]">· {state.server} serve</span>}</div>
               </div>
               <div className="flex items-center gap-2 md:gap-3 justify-start text-left min-w-0">
-                <PlayerAvatar photoUrl={pB?.photo_url} name={nameB} size={40} />
+                <PlayerAvatar photoUrl={pB?.photo_url} flag={flagB} name={nameB} size={40} />
                 <div className="min-w-0 flex-1">
                   <div className="text-sm md:text-lg font-bold truncate">{nameB}</div>
                   {pB?.atp_rank && <div className="text-[11px] md:text-xs text-gray-500 whitespace-nowrap">#{pB.atp_rank} · ELO {pB.elo_overall ?? '–'}</div>}

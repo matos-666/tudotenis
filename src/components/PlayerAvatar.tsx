@@ -43,13 +43,17 @@ export default function PlayerAvatar({
   const fontPx = Math.max(10, Math.round(size * 0.36));
   const flagPx = Math.max(8, Math.round(size * 0.22));
 
-  // Estratégia: renderizamos SEMPRE as iniciais como underlay sobre
-  // gradiente accent. Se houver photoUrl, sobrepomos o <img> por cima.
-  // - Carrega OK → tapa as iniciais (parece foto)
-  // - 404/CORS/timeout → onError esconde o img e iniciais ficam visíveis
-  // - Lento a carregar → iniciais visíveis durante o load, foto entra
-  //   por cima quando pronta (sem flash de vazio)
-  // Resultado: nunca há "círculo vazio".
+  // Estratégia: renderizamos SEMPRE um underlay sobre gradiente accent.
+  // Se houver photoUrl, sobrepomos o <img> por cima.
+  // - Carrega OK → tapa o underlay (parece foto)
+  // - 404/CORS/timeout → onError esconde o img e o underlay fica visível
+  // - Lento a carregar → underlay visível durante o load
+  // Underlay: bandeira(s) grande(s) centrada(s) quando existem — mais
+  // reconhecível que siglas (pedido do user); iniciais só como último
+  // recurso quando nem flag há. Nunca há "círculo vazio".
+  // Duplas podem passar 2 emoji ("🇨🇳🇫🇷") — reduzimos o font-size.
+  const flagCount = flag ? Math.max(1, Math.round(Array.from(flag).length / 2)) : 0;
+  const flagFallbackPx = Math.max(12, Math.round(size * (flagCount > 1 ? 0.30 : 0.48)));
   return (
     <div
       className={`relative rounded-full overflow-hidden flex-shrink-0 ${
@@ -62,13 +66,23 @@ export default function PlayerAvatar({
           'linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 32%, var(--color-surface)) 0%, color-mix(in srgb, var(--color-accent) 12%, var(--color-surface)) 100%)',
       }}
     >
-      <span
-        className="absolute inset-0 flex items-center justify-center font-extrabold tracking-tight text-[var(--color-accent)]"
-        style={{ fontSize: fontPx, lineHeight: 1 }}
-        aria-hidden="true"
-      >
-        {initials}
-      </span>
+      {flag ? (
+        <span
+          className="absolute inset-0 flex items-center justify-center leading-none"
+          style={{ fontSize: flagFallbackPx }}
+          aria-hidden="true"
+        >
+          {flag}
+        </span>
+      ) : (
+        <span
+          className="absolute inset-0 flex items-center justify-center font-extrabold tracking-tight text-[var(--color-accent)]"
+          style={{ fontSize: fontPx, lineHeight: 1 }}
+          aria-hidden="true"
+        >
+          {initials}
+        </span>
+      )}
       {showImg && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -80,7 +94,7 @@ export default function PlayerAvatar({
           style={{ objectPosition: 'top center' }}
         />
       )}
-      {flag && (
+      {flag && showImg && (
         <span
           className="absolute right-0 bottom-0 leading-none bg-[var(--color-surface)] rounded-tl px-[1px] z-10"
           style={{ fontSize: flagPx }}
