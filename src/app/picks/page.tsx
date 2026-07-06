@@ -45,6 +45,47 @@ interface Pick {
   p2_photo_url?: string | null;
   p1_slug?: string | null;
   p2_slug?: string | null;
+  // Enriched: se o match está live agora, o sr_match_id do live_state
+  // para o card linkar à página live com as picks ao vivo.
+  live_sr_match_id?: number | null;
+}
+
+// Índice dos matches live agora (live_state_latest running=true), por
+// par de nomes normalizado → sr_match_id. Usado para tornar os cards
+// de /picks clicáveis para a página live quando o jogo está a decorrer.
+// live_state usa formato SR 'Apelido, Nome'; picks usam 'Nome Apelido'.
+function normName(s: string): string {
+  return s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]/g, '');
+}
+function srToNorm(srName: string): string {
+  const idx = srName.indexOf(',');
+  if (idx < 0) return normName(srName);
+  return normName(`${srName.slice(idx + 1).trim()} ${srName.slice(0, idx).trim()}`);
+}
+function pairKey(a: string, b: string): string {
+  return [a, b].sort().join('|');
+}
+async function fetchLiveMatchIndex(): Promise<Map<string, number>> {
+  const { data } = await supabase
+    .from('live_state_latest')
+    .select('sr_match_id, name_a, name_b, running, match_finished')
+    .eq('running', true)
+    .eq('match_finished', false)
+    .limit(80);
+  const idx = new Map<string, number>();
+  for (const m of (data ?? []) as Array<{ sr_match_id: number; name_a: string | null; name_b: string | null }>) {
+    if (!m.name_a || !m.name_b) continue;
+    idx.set(pairKey(srToNorm(m.name_a), srToNorm(m.name_b)), m.sr_match_id);
+  }
+  return idx;
+}
+function attachLiveMatchId(picks: Pick[], liveIdx: Map<string, number>): Pick[] {
+  if (liveIdx.size === 0) return picks;
+  return picks.map(p => {
+    if (!p.p1_name || !p.p2_name) return p;
+    const id = liveIdx.get(pairKey(normName(p.p1_name), normName(p.p2_name)));
+    return id != null ? { ...p, live_sr_match_id: id } : p;
+  });
 }
 
 async function enrichWithPlayers(picks: Pick[]): Promise<Pick[]> {
@@ -559,11 +600,21 @@ function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
           ? 'border-red-500/40 shadow-lg shadow-red-500/5'
           : '';
 
+  // Match live agora (fonte: live_state)? → link para a página live com
+  // as picks ao vivo, com prioridade sobre o H2H. É a fonte de verdade
+  // mais fiável do que o `live` baseado em scheduled_at.
+  const liveHref = p.live_sr_match_id != null
+    ? localizedHref(locale, `/jogo/${p.live_sr_match_id}`)
+    : null;
+
   // H2H link (se temos os 2 slugs)
   const h2hHref =
     p.p1_slug && p.p2_slug
       ? localizedHref(locale, `/h2h/${buildMatchupSlug(p.p1_slug, p.p2_slug)}`)
       : null;
+
+  // Destino do card: live > h2h.
+  const cardHref = liveHref ?? h2hHref;
 
   // Conteúdo principal do card (header + players + stats).
   // Se temos h2hHref, envolvemos num Link; senão, num <div>.
@@ -626,12 +677,17 @@ function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
         <span className={`grade-${p.grade} px-2 py-1 rounded text-xs font-bold`}>{p.grade}</span>
       </div>
 
-      {/* Hint "ver análise H2H" só se temos slugs */}
-      {h2hHref && (
+      {/* Hint de destino do card */}
+      {liveHref ? (
+        <div className="text-[11px] text-red-400 hover:underline mb-1 inline-flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+          {isBR ? 'Ver ao vivo + picks live →' : 'Ver ao vivo + picks live →'}
+        </div>
+      ) : h2hHref ? (
         <div className="text-[11px] text-[var(--color-accent)] hover:underline mb-1">
           {isBR ? 'Ver análise H2H →' : 'Ver análise H2H →'}
         </div>
-      )}
+      ) : null}
     </>
   );
 
@@ -652,10 +708,10 @@ function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
         </div>
       )}
 
-      {/* Corpo clicável → /h2h se temos os 2 slugs */}
-      {h2hHref ? (
+      {/* Corpo clicável → /jogo live (prioridade) ou /h2h */}
+      {cardHref ? (
         <Link
-          href={h2hHref}
+          href={cardHref}
           className="block -m-4 md:-m-5 p-4 md:p-5 rounded-[inherit] hover:bg-[var(--color-card)]/40 transition"
         >
           {cardBodyContent}
@@ -665,11 +721,19 @@ function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
       )}
 
       {/* CTAs / info — fora do Link para não conflitar com cliques internos */}
-      <div className={h2hHref ? 'mt-2' : ''}>
+      <div className={cardHref ? 'mt-2' : ''}>
         {settled ? (
           <div className="text-center text-xs text-gray-500 py-2">
             {isBR ? 'Resultado já conhecido — pick fechado' : 'Resultado já conhecido — pick fechado'}
           </div>
+        ) : liveHref ? (
+          <Link
+            href={liveHref}
+            className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg text-xs font-bold text-red-400 border border-red-500/40 bg-red-500/10 hover:bg-red-500/20 transition"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+            {isBR ? 'Acompanhar ao vivo + picks live' : 'Acompanhar ao vivo + picks live'}
+          </Link>
         ) : live ? (
           <div className="text-center text-xs text-red-400 py-2 inline-flex items-center justify-center gap-1 w-full">
             <AlertTriangleIcon size={12} /> {isBR ? 'Em curso — modelo só aposta pré-live' : 'Em curso — modelo só aposta pré-live'}
@@ -686,11 +750,15 @@ function PickCard({ p, locale }: { p: Pick; locale: Locale }) {
 export default async function PicksPage({ locale = 'pt-PT' as Locale }: { locale?: Locale } = {}) {
   const isBR = locale === 'pt-BR';
 
-  const [today, yesterday, todayDoubles] = await Promise.all([
+  const [todayRaw, yesterday, todayDoubles, liveIdx] = await Promise.all([
     fetchTodayPicks(),
     fetchYesterdayPicks(),
     fetchTodayDoublesPicks(),
+    fetchLiveMatchIndex(),
   ]);
+  // Marca as picks cujo match está live agora com o sr_match_id, para o
+  // card linkar à página live.
+  const today = attachLiveMatchId(todayRaw, liveIdx);
 
   // Picks que já começaram (scheduled <= now) ficam "Em curso" só durante
   // a janela LIVE_WINDOW_MS. Para além disso assumimos que já acabaram e
