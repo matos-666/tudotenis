@@ -108,14 +108,27 @@ interface PlayerIndex {
 
 async function buildPlayerIndex(): Promise<PlayerIndex & { _err?: string }> {
   const out: PlayerIndex & { _err?: string } = { byTour: new Map() };
-  // 1786 active players cabe num único pull com limit alto. Sem pagination.
-  const { data, error } = await supabase
-    .from('players')
-    .select('id, name, slug, flag, tour, elo_overall, elo_set_overall, elo_set_hard, elo_set_clay, elo_set_grass')
-    .eq('active', true)
-    .limit(3000);
-  if (error) { out._err = error.message; return out; }
-  for (const p of (data ?? []) as PlayerRow[]) {
+  // PostgREST caps respostas a 1000 rows por request INDEPENDENTE do
+  // .limit() pedido — um .limit(3000) devolvia silenciosamente 1000
+  // players e o índice ficava sem De Minaur, Bublik, Lehecka etc.
+  // (resolved 3/12 no cron). Paginamos com .range() até esgotar.
+  const PAGE = 1000;
+  let from = 0;
+  const rows: PlayerRow[] = [];
+  for (;;) {
+    const { data, error } = await supabase
+      .from('players')
+      .select('id, name, slug, flag, tour, elo_overall, elo_set_overall, elo_set_hard, elo_set_clay, elo_set_grass')
+      .eq('active', true)
+      .order('id', { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) { out._err = error.message; return out; }
+    const batch = (data ?? []) as PlayerRow[];
+    rows.push(...batch);
+    if (batch.length < PAGE) break;
+    from += PAGE;
+  }
+  for (const p of rows) {
     const norm = strip(p.name);
     const tokens = p.name.split(/\s+/);
     const last = strip(tokens[tokens.length - 1] ?? '');
