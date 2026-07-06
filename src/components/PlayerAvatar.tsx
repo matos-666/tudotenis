@@ -3,15 +3,16 @@
 /**
  * Avatar de jogador unificado para toda a app.
  *
- * - Tenta carregar `photoUrl`; se o load falhar (404, CORS, timeout),
- *   automaticamente cai para fallback de iniciais sobre gradiente
- *   accent — assim "garante que não falta imagem de jogador nenhum"
- *   mesmo quando o link da foto está partido.
- * - Tamanho controlado por `size` (px) — usado em listings (28-36px),
- *   scoreboards (40-48px) e cards (32-40px).
- * - Bandeira opcional sobreposta canto inferior direito.
- * - Borda subtil + ring no hover para profundidade quando dentro de
- *   cards interactivos.
+ * Camadas (de baixo para cima):
+ *   1. Gradiente accent (sempre) — nunca há círculo vazio
+ *   2. Iniciais (último recurso quando não há flag nem foto)
+ *   3. Bandeira(s) reais estilo Flashscore (flagcdn.com) quando há flag
+ *      mas não há foto — o código ISO é derivado do emoji guardado na
+ *      DB (cada flag emoji são 2 regional indicators = ISO 3166 alpha-2)
+ *   4. Foto do jogador quando existe (flag pequena no canto)
+ *
+ * Se qualquer imagem falhar (404/CORS), a camada de baixo fica visível.
+ * Duplas passam 2 emoji ('🇨🇳🇫🇷') → círculo dividido em 2 metades.
  */
 import { useState } from 'react';
 
@@ -30,6 +31,27 @@ function initialsOf(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+// '🇫🇷' → ['fr'], '🇨🇳🇫🇷' → ['cn', 'fr']. Cada flag emoji são dois
+// regional indicator symbols (U+1F1E6..U+1F1FF) que mapeiam 1:1 para
+// letras ISO 3166-1 alpha-2 — conversão determinística, sem lookup.
+function isoCodesFromEmojiFlags(s: string): string[] {
+  const codes: string[] = [];
+  const cps = Array.from(s);
+  for (let i = 0; i < cps.length - 1; i++) {
+    const a = cps[i].codePointAt(0) ?? 0;
+    const b = cps[i + 1].codePointAt(0) ?? 0;
+    if (a >= 0x1f1e6 && a <= 0x1f1ff && b >= 0x1f1e6 && b <= 0x1f1ff) {
+      codes.push(String.fromCharCode(a - 0x1f1e6 + 97, b - 0x1f1e6 + 97));
+      i++;
+    }
+  }
+  return codes;
+}
+
+const hideOnError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+  e.currentTarget.style.display = 'none';
+};
+
 export default function PlayerAvatar({
   photoUrl,
   name,
@@ -41,19 +63,9 @@ export default function PlayerAvatar({
   const showImg = photoUrl && !broken;
   const initials = initialsOf(name);
   const fontPx = Math.max(10, Math.round(size * 0.36));
-  const flagPx = Math.max(8, Math.round(size * 0.22));
+  const isoCodes = flag ? isoCodesFromEmojiFlags(flag).slice(0, 2) : [];
+  const cornerPx = Math.max(10, Math.round(size * 0.34));
 
-  // Estratégia: renderizamos SEMPRE um underlay sobre gradiente accent.
-  // Se houver photoUrl, sobrepomos o <img> por cima.
-  // - Carrega OK → tapa o underlay (parece foto)
-  // - 404/CORS/timeout → onError esconde o img e o underlay fica visível
-  // - Lento a carregar → underlay visível durante o load
-  // Underlay: bandeira(s) grande(s) centrada(s) quando existem — mais
-  // reconhecível que siglas (pedido do user); iniciais só como último
-  // recurso quando nem flag há. Nunca há "círculo vazio".
-  // Duplas podem passar 2 emoji ("🇨🇳🇫🇷") — reduzimos o font-size.
-  const flagCount = flag ? Math.max(1, Math.round(Array.from(flag).length / 2)) : 0;
-  const flagFallbackPx = Math.max(12, Math.round(size * (flagCount > 1 ? 0.30 : 0.48)));
   return (
     <div
       className={`relative rounded-full overflow-hidden flex-shrink-0 ${
@@ -66,23 +78,35 @@ export default function PlayerAvatar({
           'linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 32%, var(--color-surface)) 0%, color-mix(in srgb, var(--color-accent) 12%, var(--color-surface)) 100%)',
       }}
     >
-      {flag ? (
-        <span
-          className="absolute inset-0 flex items-center justify-center leading-none"
-          style={{ fontSize: flagFallbackPx }}
-          aria-hidden="true"
-        >
-          {flag}
-        </span>
-      ) : (
-        <span
-          className="absolute inset-0 flex items-center justify-center font-extrabold tracking-tight text-[var(--color-accent)]"
-          style={{ fontSize: fontPx, lineHeight: 1 }}
-          aria-hidden="true"
-        >
-          {initials}
+      {/* Iniciais — camada base, visível só se flag/foto falharem */}
+      <span
+        className="absolute inset-0 flex items-center justify-center font-extrabold tracking-tight text-[var(--color-accent)]"
+        style={{ fontSize: fontPx, lineHeight: 1 }}
+        aria-hidden="true"
+      >
+        {initials}
+      </span>
+
+      {/* Bandeira(s) reais a preencher o círculo (fallback sem foto).
+          1 flag: cobre tudo; 2 flags (duplas): metade esquerda/direita. */}
+      {!showImg && isoCodes.length > 0 && (
+        <span className="absolute inset-0 flex" aria-hidden="true">
+          {isoCodes.map((code, i) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={`${code}-${i}`}
+              src={`https://flagcdn.com/h80/${code}.png`}
+              alt=""
+              loading="lazy"
+              onError={hideOnError}
+              className="h-full object-cover"
+              style={{ width: isoCodes.length > 1 ? '50%' : '100%' }}
+            />
+          ))}
         </span>
       )}
+
+      {/* Foto do jogador — camada de topo */}
       {showImg && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -94,13 +118,25 @@ export default function PlayerAvatar({
           style={{ objectPosition: 'top center' }}
         />
       )}
-      {flag && showImg && (
+
+      {/* Mini-bandeira(s) no canto quando há foto */}
+      {showImg && isoCodes.length > 0 && (
         <span
-          className="absolute right-0 bottom-0 leading-none bg-[var(--color-surface)] rounded-tl px-[1px] z-10"
-          style={{ fontSize: flagPx }}
+          className="absolute right-0 bottom-0 flex overflow-hidden rounded-tl bg-[var(--color-surface)] z-10"
+          style={{ height: Math.round(cornerPx * 0.72) }}
           aria-hidden="true"
         >
-          {flag}
+          {isoCodes.map((code, i) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={`c-${code}-${i}`}
+              src={`https://flagcdn.com/h24/${code}.png`}
+              alt=""
+              loading="lazy"
+              onError={hideOnError}
+              className="h-full w-auto"
+            />
+          ))}
         </span>
       )}
     </div>
