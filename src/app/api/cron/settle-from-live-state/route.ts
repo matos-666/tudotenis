@@ -136,6 +136,60 @@ export async function POST(req: NextRequest) {
     else settled++;
   }
 
+  // ── Live picks órfãs ──────────────────────────────────────────────────
+  // O settleMatch no cron live-state só liquida na iteração exacta em que
+  // apanha a transição running→ended. Se o match acaba entre janelas do
+  // cron ou já saiu da lista de candidatos, a pick fica aberta para
+  // sempre. Aqui varremos as live_picks abertas e liquidamos qualquer
+  // uma cujo match tem final_winner gravado em live_state — safety-net
+  // que garante que NENHUMA entrada live fica por liquidar.
+  let liveSettled = 0;
+  let liveOrphanNoOdd = 0;
+  const { data: openLive } = await supabase
+    .from('live_picks')
+    .select('id, sr_match_id, selection, live_odd, stake')
+    .is('result', null)
+    .limit(2000);
+
+  const liveMatchIds = [...new Set((openLive ?? []).map(p => p.sr_match_id as number))];
+  const winnerByMatch = new Map<number, 'A' | 'B'>();
+  if (liveMatchIds.length > 0) {
+    // Fetch final_winner por match (dedupe: qualquer snapshot serve)
+    const { data: fw } = await supabase
+      .from('live_state')
+      .select('sr_match_id, final_winner')
+      .in('sr_match_id', liveMatchIds)
+      .eq('match_finished', true)
+      .not('final_winner', 'is', null)
+      .limit(4000);
+    for (const r of (fw ?? []) as Array<{ sr_match_id: number; final_winner: 'A' | 'B' }>) {
+      if (!winnerByMatch.has(r.sr_match_id)) winnerByMatch.set(r.sr_match_id, r.final_winner);
+    }
+  }
+
+  const nowIso = new Date().toISOString();
+  for (const p of openLive ?? []) {
+    const winner = winnerByMatch.get(p.sr_match_id as number);
+    if (!winner) continue; // match ainda a decorrer — deixa aberta
+    // Sem odd = pick nunca foi apostável; apaga em vez de liquidar
+    // (mantém a política do emit: nasce-completa-ou-não-nasce).
+    if (p.live_odd == null) {
+      await supabase.from('live_picks').delete().eq('id', p.id);
+      liveOrphanNoOdd++;
+      continue;
+    }
+    const won = (p.selection as 'A' | 'B') === winner;
+    const odd = Number(p.live_odd);
+    const stake = Number(p.stake ?? 1);
+    const pl = won ? +(stake * (odd - 1)).toFixed(2) : -stake;
+    const { error } = await supabase
+      .from('live_picks')
+      .update({ result: won ? 'win' : 'loss', pl, settled_at: nowIso })
+      .eq('id', p.id);
+    if (error) errors.push(`live_pick#${p.id} err: ${error.message}`);
+    else liveSettled++;
+  }
+
   return NextResponse.json({
     ok: true,
     ms: Date.now() - t0,
@@ -143,6 +197,9 @@ export async function POST(req: NextRequest) {
     open_picks_seen: openPicks.length,
     settled,
     voided_unknown_selection: voidedUnknown,
+    live_open_seen: (openLive ?? []).length,
+    live_settled: liveSettled,
+    live_orphan_no_odd_deleted: liveOrphanNoOdd,
     errors: errors.slice(0, 5),
   });
 }
