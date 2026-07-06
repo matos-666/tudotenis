@@ -1,9 +1,9 @@
 /**
- * LiveWinProbChart — server wrapper. Busca snapshots de live_state e
- * passa para o renderer client (com hover/touch interactivity).
+ * LiveWinProbChart — server wrapper. Busca snapshots de live_state,
+ * odds history e picks do match, e passa ao renderer client.
  */
 import { supabase } from '@/lib/supabase';
-import LiveWinProbChartView, { type ChartRow } from './LiveWinProbChartView';
+import LiveWinProbChartView, { type ChartRow, type OddsPoint, type PickPoint } from './LiveWinProbChartView';
 
 interface Props {
   srMatchId: number;
@@ -22,21 +22,34 @@ async function fetchSnapshots(srMatchId: number): Promise<ChartRow[]> {
   return (data ?? []) as ChartRow[];
 }
 
+async function fetchOddsHistory(srMatchId: number): Promise<OddsPoint[]> {
+  const { data } = await supabase
+    .from('live_odds_history')
+    .select('captured_at, odd_a, odd_b')
+    .eq('sr_match_id', srMatchId)
+    .order('captured_at', { ascending: true })
+    .limit(1000);
+  return (data ?? []) as OddsPoint[];
+}
+
+async function fetchPicks(srMatchId: number): Promise<PickPoint[]> {
+  const { data } = await supabase
+    .from('live_picks')
+    .select('posted_at, selection, live_odd, edge_pct, grade, result')
+    .eq('sr_match_id', srMatchId)
+    .order('posted_at', { ascending: true })
+    .limit(50);
+  return (data ?? []) as PickPoint[];
+}
+
 /**
  * Filtra snapshots para break moments (1 ponto por estado único de
- * set+game). Razão: snapshots intra-game introduzem spikes
- * transientes que não representam o "valor real" do modelo — o que
- * conta é a probabilidade no fim de cada game/set, que é também o
- * único momento onde emitimos picks. Mantém sempre a última snapshot
- * (mesmo que do mesmo estado) para refletir o momento "agora".
+ * set+game), guardando a ÚLTIMA snapshot de cada estado (valor
+ * estabilizado). Mantém o "agora" implícito porque a última snapshot
+ * do match é sempre a última do seu estado.
  */
 function dedupeToBreakMoments(rows: ChartRow[]): ChartRow[] {
   if (rows.length === 0) return rows;
-  // Para cada estado único (set_a, set_b, game_a, game_b, tiebreak)
-  // ficamos com a ÚLTIMA snapshot — esse é o valor "estabilizado" antes
-  // do próximo estado. Guardar a primeira capturaria spikes transientes
-  // (ex.: set point que volta logo a baixar). Rows entram em ordem ASC,
-  // por isso reescrever a Map por chave dá automaticamente a última.
   const byKey = new Map<string, ChartRow>();
   for (const r of rows) {
     const key = `${r.set_a}-${r.set_b}-${r.game_a}-${r.game_b}-${r.tiebreak ? 1 : 0}`;
@@ -48,7 +61,11 @@ function dedupeToBreakMoments(rows: ChartRow[]): ChartRow[] {
 }
 
 export async function LiveWinProbChart({ srMatchId, nameA, nameB }: Props) {
-  const raw = await fetchSnapshots(srMatchId);
+  const [raw, odds, picks] = await Promise.all([
+    fetchSnapshots(srMatchId),
+    fetchOddsHistory(srMatchId),
+    fetchPicks(srMatchId),
+  ]);
   const rows = dedupeToBreakMoments(raw);
   if (rows.length < 2) {
     return (
@@ -57,5 +74,5 @@ export async function LiveWinProbChart({ srMatchId, nameA, nameB }: Props) {
       </div>
     );
   }
-  return <LiveWinProbChartView rows={rows} nameA={nameA} nameB={nameB} />;
+  return <LiveWinProbChartView rows={rows} odds={odds} picks={picks} nameA={nameA} nameB={nameB} />;
 }
