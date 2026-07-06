@@ -237,6 +237,25 @@ async function fetchScope(): Promise<Player[]> {
     console.log(`Após resolver nomes SR: ${liveIds.size} IDs no scope`);
   }
 
+  // Priority 1b: jogadores referenciados em doubles_picks e
+  // doubles_matches recentes (especialistas de duplas raramente têm
+  // atp_rank e ficavam fora do scope → cards de duplas sem foto).
+  const sinceDbl = new Date(Date.now() - 60 * 86400_000).toISOString();
+  const { data: dblPicks } = await supabase
+    .from('doubles_picks')
+    .select('t1_p1_id, t1_p2_id, t2_p1_id, t2_p2_id')
+    .gt('posted_at', sinceDbl);
+  const { data: dblMatches } = await supabase
+    .from('doubles_matches')
+    .select('t1_p1_id, t1_p2_id, t2_p1_id, t2_p2_id')
+    .gt('created_at', sinceDbl);
+  for (const r of [...(dblPicks ?? []), ...(dblMatches ?? [])]) {
+    for (const id of [r.t1_p1_id, r.t1_p2_id, r.t2_p1_id, r.t2_p2_id]) {
+      if (id != null) liveIds.add(id as number);
+    }
+  }
+  console.log(`Após duplas (picks+matches 60d): ${liveIds.size} IDs no scope`);
+
   // Priority 2: top 300 ATP + top 300 WTA por rank
   const { data: topAtp } = await supabase
     .from('players')

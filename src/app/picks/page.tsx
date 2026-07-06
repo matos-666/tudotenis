@@ -140,6 +140,42 @@ interface DoublesPick {
   t1_p2_flag: string | null;
   t2_p1_flag: string | null;
   t2_p2_flag: string | null;
+  t1_p1_id: number | null;
+  t1_p2_id: number | null;
+  t2_p1_id: number | null;
+  t2_p2_id: number | null;
+  // Enriched at fetch time from players table:
+  t1_p1_photo?: string | null;
+  t1_p2_photo?: string | null;
+  t2_p1_photo?: string | null;
+  t2_p2_photo?: string | null;
+}
+
+// Fotos dos 4 jogadores da dupla via lookup por id — doubles_picks só
+// guarda ids/nomes/flags, as fotos vivem em players.photo_url.
+async function enrichDoublesWithPlayers(picks: DoublesPick[]): Promise<DoublesPick[]> {
+  const ids = new Set<number>();
+  for (const p of picks) {
+    for (const id of [p.t1_p1_id, p.t1_p2_id, p.t2_p1_id, p.t2_p2_id]) {
+      if (id != null) ids.add(id);
+    }
+  }
+  if (ids.size === 0) return picks;
+  const { data } = await supabase
+    .from('players')
+    .select('id, photo_url')
+    .in('id', [...ids]);
+  const photoById = new Map<number, string | null>();
+  for (const r of (data ?? []) as Array<{ id: number; photo_url: string | null }>) {
+    photoById.set(r.id, r.photo_url);
+  }
+  return picks.map(p => ({
+    ...p,
+    t1_p1_photo: p.t1_p1_id != null ? photoById.get(p.t1_p1_id) ?? null : null,
+    t1_p2_photo: p.t1_p2_id != null ? photoById.get(p.t1_p2_id) ?? null : null,
+    t2_p1_photo: p.t2_p1_id != null ? photoById.get(p.t2_p1_id) ?? null : null,
+    t2_p2_photo: p.t2_p2_id != null ? photoById.get(p.t2_p2_id) ?? null : null,
+  }));
 }
 
 async function fetchTodayDoublesPicks(): Promise<DoublesPick[]> {
@@ -148,7 +184,7 @@ async function fetchTodayDoublesPicks(): Promise<DoublesPick[]> {
   const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 2)).toISOString();
   const { data, error } = await supabase
     .from('doubles_picks')
-    .select('id, doubles_match_id, team_selected, market, odd, edge_pct, grade, stake, result, pl, posted_at, settled_at, scheduled_at, tournament_name, surface, t1_p1_name, t1_p2_name, t2_p1_name, t2_p2_name, t1_p1_flag, t1_p2_flag, t2_p1_flag, t2_p2_flag')
+    .select('id, doubles_match_id, team_selected, market, odd, edge_pct, grade, stake, result, pl, posted_at, settled_at, scheduled_at, tournament_name, surface, t1_p1_name, t1_p2_name, t2_p1_name, t2_p2_name, t1_p1_flag, t1_p2_flag, t2_p1_flag, t2_p2_flag, t1_p1_id, t1_p2_id, t2_p1_id, t2_p2_id')
     .gte('scheduled_at', start)
     .lt('scheduled_at', end)
     .order('grade', { ascending: true })
@@ -157,7 +193,7 @@ async function fetchTodayDoublesPicks(): Promise<DoublesPick[]> {
     console.error('[picks] doubles today error:', error.message);
     return [];
   }
-  return (data ?? []) as DoublesPick[];
+  return enrichDoublesWithPlayers((data ?? []) as DoublesPick[]);
 }
 
 // Tennis raramente passa de 5h (mesmo BO5 em Slams). Se passou esse
@@ -394,10 +430,14 @@ function DoublesPickCard({ p, locale }: { p: DoublesPick; locale: Locale }) {
   const selName2 = selT1 ? p.t1_p2_name : p.t2_p2_name;
   const selFlag1 = selT1 ? p.t1_p1_flag : p.t2_p1_flag;
   const selFlag2 = selT1 ? p.t1_p2_flag : p.t2_p2_flag;
+  const selPhoto1 = selT1 ? p.t1_p1_photo : p.t2_p1_photo;
+  const selPhoto2 = selT1 ? p.t1_p2_photo : p.t2_p2_photo;
   const oppName1 = selT1 ? p.t2_p1_name : p.t1_p1_name;
   const oppName2 = selT1 ? p.t2_p2_name : p.t1_p2_name;
   const oppFlag1 = selT1 ? p.t2_p1_flag : p.t1_p1_flag;
   const oppFlag2 = selT1 ? p.t2_p2_flag : p.t1_p2_flag;
+  const oppPhoto1 = selT1 ? p.t2_p1_photo : p.t1_p1_photo;
+  const oppPhoto2 = selT1 ? p.t2_p2_photo : p.t1_p2_photo;
 
   const cardBorder = isWin
     ? 'border-[var(--color-accent)]/45 shadow-lg shadow-[var(--color-accent)]/10'
@@ -454,22 +494,22 @@ function DoublesPickCard({ p, locale }: { p: DoublesPick; locale: Locale }) {
           <StarIcon size={12} /> {isBR ? 'Nossa dupla' : 'Nossa dupla'}
         </div>
         <div className="flex items-center gap-2 mb-2">
-          <PlayerAvatar photoUrl={null} flag={selFlag1} name={selName1 ?? ''} size={24} />
+          <PlayerAvatar photoUrl={selPhoto1} flag={selFlag1} name={selName1 ?? ""} size={24} />
           <span className={`font-semibold text-sm truncate ${isWin ? 'text-[var(--color-accent)]' : isLoss ? 'text-red-300' : ''}`}>
             {selName1}
           </span>
           <span className="text-gray-600">/</span>
-          <PlayerAvatar photoUrl={null} flag={selFlag2} name={selName2 ?? ''} size={24} />
+          <PlayerAvatar photoUrl={selPhoto2} flag={selFlag2} name={selName2 ?? ''} size={24} />
           <span className={`font-semibold text-sm truncate ${isWin ? 'text-[var(--color-accent)]' : isLoss ? 'text-red-300' : ''}`}>
             {selName2}
           </span>
         </div>
         <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">vs</div>
         <div className="flex items-center gap-2">
-          <PlayerAvatar photoUrl={null} flag={oppFlag1} name={oppName1 ?? ''} size={24} />
+          <PlayerAvatar photoUrl={oppPhoto1} flag={oppFlag1} name={oppName1 ?? ''} size={24} />
           <span className="text-gray-400 text-xs truncate">{oppName1}</span>
           <span className="text-gray-600">/</span>
-          <PlayerAvatar photoUrl={null} flag={oppFlag2} name={oppName2 ?? ''} size={24} />
+          <PlayerAvatar photoUrl={oppPhoto2} flag={oppFlag2} name={oppName2 ?? ''} size={24} />
           <span className="text-gray-400 text-xs truncate">{oppName2}</span>
         </div>
       </div>

@@ -192,16 +192,26 @@ async function resolveDoublesTeamElo(teamName: string, tour: 'atp' | 'wta' | nul
     const surname = surnameTokens.join(' ');
     if (!surname) return null;
 
-    let q = supabase
+    const { data } = await supabase
       .from('players')
       .select('id, name, tour, elo_doubles_grass, elo_doubles_overall')
       .ilike('name', `%${surname}%`)
       .limit(10);
-    const { data } = await q;
     const cands = ((data ?? []) as Array<{ name: string; tour: string | null; elo_doubles_grass: number | null; elo_doubles_overall: number | null }>)
       .filter(p => tour == null || p.tour === tour)
-      .filter(p => initial === '' || p.name.trim().toLowerCase().startsWith(initial))
-      .filter(p => p.elo_doubles_grass != null || p.elo_doubles_overall != null);
+      .filter(p => {
+        // Filtro de inicial SÓ quando o nome na DB tem primeiro nome.
+        // Especialistas de duplas importados só com apelido ('Cash',
+        // 'Schuurs', 'Kumasaka') passavam a falhar startsWith(inicial)
+        // e o team ELO nunca resolvia (prob=null em todas as duplas).
+        const dbName = p.name.trim().toLowerCase();
+        const dbTokens = dbName.split(/\s+/);
+        if (initial === '' || dbTokens.length === 1) return true;
+        return dbName.startsWith(initial);
+      })
+      .filter(p => p.elo_doubles_grass != null || p.elo_doubles_overall != null)
+      // Prioriza match com primeiro nome (nome completo) sobre só-apelido
+      .sort((a, b) => b.name.trim().split(/\s+/).length - a.name.trim().split(/\s+/).length);
     if (cands.length === 0) return null;
     const pick = cands[0];
     elos.push((pick.elo_doubles_grass ?? pick.elo_doubles_overall) as number);
