@@ -20,9 +20,17 @@ on:
   # gh workflow run) quando quisermos forçar imediato.
   workflow_dispatch:
 
+# Só 1 run de cada vez — o cron-job.org dispara a cada 4h mas as runs
+# duram 5.5h, o que criava 1.5h de sobreposição = 2× o consumo Vercel
+# nesse período. cancel-in-progress mata a run antiga quando a nova
+# arranca, garantindo zero overlap.
+concurrency:
+  group: live-continuous
+  cancel-in-progress: true
+
 jobs:
   poll:
-    name: Continuous 15s loop
+    name: Continuous 30s loop
     runs-on: ubuntu-latest
     timeout-minutes: 340   # 5h40min — abaixo do limite 6h da GHA
 
@@ -58,7 +66,9 @@ jobs:
 
           START=$(date +%s)
           END_BY=$((START + 19800))   # 5h30min runtime
-          INTERVAL=15                  # target cycle 15s
+          INTERVAL=30                  # target cycle 30s (era 15s — metade
+                                       # das invocations Vercel; cadência
+                                       # live ~30s continua fluida)
           ITER=0
           OK_ODDS=0; FAIL_ODDS=0
           OK_STATE=0; FAIL_STATE=0
