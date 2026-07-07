@@ -11,12 +11,9 @@ import { AlertTriangleIcon } from '@/components/icons';
 import { supabase } from '@/lib/supabase';
 import { type Locale } from '@/lib/i18n';
 
-// Página live: sem cache de edge. Com ISR (mesmo revalidate=5), o Vercel
-// serve stale-while-revalidate — a primeira visita após um período sem
-// tráfego recebia a versão cacheada de quando não havia jogos (age de
-// minutos/horas) e só a visita seguinte via os matches. force-dynamic
-// garante render fresco em cada request; AutoRefresh mantém a 12s.
-export const dynamic = 'force-dynamic';
+// ISR curto (10s) — ver nota em /ao-vivo. force-dynamic esgotou o free
+// tier do Vercel; o edge cache serve a maioria dos requests sem invocar.
+export const revalidate = 10;
 
 interface LiveState {
   id: number;
@@ -335,7 +332,7 @@ export default async function LiveMatchPage({
   return (
     <>
       <Header locale={locale} />
-      {state.running && !state.match_finished && <AutoRefresh intervalMs={12000} />}
+      {state.running && !state.match_finished && <AutoRefresh intervalMs={25000} />}
       <main id="main" className="flex-1">
         <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-8 space-y-6">
 

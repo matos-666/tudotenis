@@ -8,12 +8,12 @@ import { supabase } from '@/lib/supabase';
 import { hreflangAlternates, type Locale } from '@/lib/i18n';
 import { TennisBallIcon } from '@/components/icons';
 
-// Página live: sem cache de edge. Com ISR (mesmo revalidate=5), o Vercel
-// serve stale-while-revalidate — a primeira visita após um período sem
-// tráfego recebia a versão cacheada de quando não havia jogos (age de
-// minutos/horas) e só a visita seguinte via os matches. force-dynamic
-// garante render fresco em cada request; AutoRefresh mantém a 12s.
-export const dynamic = 'force-dynamic';
+// ISR curto (10s): o edge cache serve a MAIORIA dos requests sem invocar
+// a serverless function — barato. force-dynamic (render em cada request)
+// esgotou o free tier do Vercel (402 DEPLOYMENT_DISABLED). O AutoRefresh
+// dos visitantes + o tráfego do cron mantêm o cache quente, por isso o
+// stale-while-revalidate raramente serve dados velhos.
+export const revalidate = 10;
 
 function formatTournamentName(slug: string | null): string {
   if (!slug) return '';
@@ -587,7 +587,7 @@ export default async function AoVivoPage({ locale = 'pt-PT' as Locale }: { local
   return (
     <>
       <Header locale={locale} />
-      <AutoRefresh intervalMs={12000} />
+      <AutoRefresh intervalMs={25000} />
       <main id="main" className="flex-1">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
           <div className="mb-6">

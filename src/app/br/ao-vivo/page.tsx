@@ -9,12 +9,9 @@ export const metadata: Metadata = {
   alternates: hreflangAlternatesBR('/ao-vivo'),
 };
 
-// Página live: sem cache de edge. Com ISR (mesmo revalidate=5), o Vercel
-// serve stale-while-revalidate — a primeira visita após um período sem
-// tráfego recebia a versão cacheada de quando não havia jogos (age de
-// minutos/horas) e só a visita seguinte via os matches. force-dynamic
-// garante render fresco em cada request; AutoRefresh mantém a 12s.
-export const dynamic = 'force-dynamic';
+// ISR curto (10s) — ver nota em /ao-vivo. force-dynamic esgotou o free
+// tier do Vercel; o edge cache serve a maioria dos requests sem invocar.
+export const revalidate = 10;
 
 export default function Page() {
   return <AoVivoPage locale="pt-BR" />;
