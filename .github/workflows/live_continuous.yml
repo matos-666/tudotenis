@@ -1,14 +1,14 @@
 name: Live Continuous Poller
 
-# Anti-staleness: GHA short scheduled crons (*/5min) são heavily throttled.
-# Solução: daily crons (much more reliable) que arrancam um workflow que
-# corre durante ~5.5h num loop tight (15s cadence).
+# Poll live contínuo, disparado pelo cron-job.org a cada 4h (runs de
+# 5.5h). O loop corre INTEIRAMENTE no runner (scripts/poll-live.ts) e
+# escreve direto no Supabase — já NÃO bate em Vercel functions. Isto
+# porque o loop antigo (curl para /api/cron/*) queimava ~60h/mês de
+# Fluid Active CPU num plano Hobby com 4h de limite → 402 DEPLOYMENT
+# DISABLED. Runner GHA é grátis/ilimitado em repos públicos.
 #
-# Cobertura: 2 schedules × 5.5h cada = ~11h por dia (sessões Wimbledon).
-# Cada loop iteration: Twin scrape (Playwright) + Sportradar state poll
-# + POST ambos para Vercel. Total wall cycle ~15-20s.
-#
-# Free tier: repo público = GHA minutes ilimitados. Sem custo.
+# Usa os secrets já existentes: SUPABASE_URL, SUPABASE_SERVICE_KEY,
+# CRON_SECRET (mapeados para os nomes de env que os libs esperam).
 
 on:
   # Trigger primário: cron-job.org faz POST à API do GH a cada 4h
@@ -57,56 +57,18 @@ jobs:
             npx playwright install-deps chromium || true
           fi
 
-      - name: Loop scrape + state poll por ~5.5h
+      - name: Poll loop no runner (escrita direta ao Supabase, zero Vercel)
         env:
-          AUTH: "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          # O poll corre NO RUNNER e escreve direto no Supabase — não
+          # bate em Vercel functions (que consumiam ~60h/mês de Fluid
+          # Active CPU num plano com 4h de limite). Precisa das creds
+          # Supabase como env; o URL não é secreto (está no client).
+          # Mapeia os secrets existentes (SUPABASE_URL / SUPABASE_SERVICE_KEY)
+          # para os nomes de env var que os libs @/lib/supabase esperam.
+          NEXT_PUBLIC_SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
+          SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_KEY }}"
+          CRON_SECRET: "${{ secrets.CRON_SECRET }}"
+          POLL_RUNTIME_MS: "19800000"   # 5h30min
+          POLL_INTERVAL_MS: "30000"     # 30s por ciclo
         run: |
-          ENDPOINT_ODDS="https://tudotenis.com/api/cron/live-odds-ingest"
-          ENDPOINT_STATE="https://tudotenis.com/api/cron/live-state"
-
-          START=$(date +%s)
-          END_BY=$((START + 19800))   # 5h30min runtime
-          INTERVAL=30                  # target cycle 30s (era 15s — metade
-                                       # das invocations Vercel; cadência
-                                       # live ~30s continua fluida)
-          ITER=0
-          OK_ODDS=0; FAIL_ODDS=0
-          OK_STATE=0; FAIL_STATE=0
-
-          while [ $(date +%s) -lt $END_BY ]; do
-            ITER=$((ITER + 1))
-            CYCLE_START=$(date +%s)
-            ts=$(date +%H:%M:%S)
-
-            # ── Twin scrape Playwright ─────────────────────────────────
-            node scripts/scrape-twin-live.mjs > /tmp/twin.json 2>/dev/null
-            SIZE=$(wc -c < /tmp/twin.json 2>/dev/null || echo 0)
-            ODDS_CODE=$(curl -sS -X POST "$ENDPOINT_ODDS" \
-              -H "$AUTH" -H "Content-Type: application/json" \
-              --data-binary @/tmp/twin.json --max-time 20 \
-              -o /tmp/odds-resp.json -w "%{http_code}" 2>/dev/null || echo "000")
-            if [ "$ODDS_CODE" = "200" ]; then OK_ODDS=$((OK_ODDS+1)); else FAIL_ODDS=$((FAIL_ODDS+1)); fi
-
-            # ── Sportradar live-state ──────────────────────────────────
-            STATE_CODE=$(curl -sS -X POST "$ENDPOINT_STATE" \
-              -H "$AUTH" --max-time 60 \
-              -o /tmp/state-resp.json -w "%{http_code}" 2>/dev/null || echo "000")
-            if [ "$STATE_CODE" = "200" ]; then OK_STATE=$((OK_STATE+1)); else FAIL_STATE=$((FAIL_STATE+1)); fi
-
-            # Log cada 10 iterations (200s ≈ 3min) para evitar spam
-            if [ $((ITER % 10)) -eq 0 ] || [ $ITER -le 3 ]; then
-              echo "[$ts] iter=$ITER odds=${ODDS_CODE}(${SIZE}B) state=${STATE_CODE}"
-            fi
-
-            # Sleep para completar o ciclo de 15s
-            CYCLE_TIME=$(( $(date +%s) - CYCLE_START ))
-            SLEEP=$(( INTERVAL - CYCLE_TIME ))
-            if [ $SLEEP -gt 0 ]; then sleep $SLEEP; fi
-          done
-
-          ELAPSED=$(( $(date +%s) - START ))
-          echo ""
-          echo "═══ Summary ═══"
-          echo "Runtime:     ${ELAPSED}s (${ITER} iterations)"
-          echo "Odds:        $OK_ODDS / $((OK_ODDS+FAIL_ODDS)) OK"
-          echo "State:       $OK_STATE / $((OK_STATE+FAIL_STATE)) OK"
+          npx tsx scripts/poll-live.ts
