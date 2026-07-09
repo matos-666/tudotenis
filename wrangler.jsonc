@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tudotenis",
+  // ALVO FIXO: conta matos@inbet.io. Blindagem contra deploy acidental
+  // noutra conta (ex.: webpronos). Qualquer auth sem acesso a este
+  // account_id falha em vez de deployar no sítio errado.
+  "account_id": "ccf33caf793e2b3f1fe68bd28ee3d503",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2025-03-25",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

@@ -40,3 +40,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 scripts/python/data/
+
+# OpenNext / Cloudflare build output
+.open-next/
+.wrangler/
+cloudflare-env.d.ts
