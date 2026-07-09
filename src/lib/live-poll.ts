@@ -26,18 +26,58 @@ import { resolveSrPlayers } from '@/lib/sr-player-match';
 // Hardcoded Wimbledon 2026 season IDs descobertos via gismo
 // stats_season_fixtures2. ATP = 132572. WTA TBD (adicionar quando
 // descobrirmos via SR).
-const ACTIVE_SEASONS = [
-  { id: 132572, tour: 'atp' as const, tournamentSlug: 'wimbledon-2026-atp', isDoubles: false },
-  { id: 132536, tour: 'wta' as const, tournamentSlug: 'wimbledon-2026-wta', isDoubles: false },
+export interface SeasonCfg {
+  id: number;
+  tour: 'atp' | 'wta';
+  tournamentSlug: string;
+  isDoubles: boolean;
+}
+
+// Fallback usado quando a tabela live_seasons não existe ainda (migração
+// por aplicar) ou está vazia/inacessível. Estado de Wimbledon 2026.
+const FALLBACK_SEASONS: SeasonCfg[] = [
+  { id: 132572, tour: 'atp', tournamentSlug: 'wimbledon-2026-atp', isDoubles: false },
+  { id: 132536, tour: 'wta', tournamentSlug: 'wimbledon-2026-wta', isDoubles: false },
   // Duplas — season IDs descobertos via SR match_get (utid 2557/2561/2563).
   // SR trata cada dupla como um "team" único ('Kokkinakis T / Kovacevic A'),
   // por isso o fluxo de score/tracker funciona igual; só o prior do modelo
   // muda (team ELO doubles = média do par, resolvido por apelido+inicial).
   // Mistas usam curva 'atp' como aproximação de pace de serviço.
-  { id: 136808, tour: 'atp' as const, tournamentSlug: 'wimbledon-2026-duplas-atp', isDoubles: true },
-  { id: 136814, tour: 'wta' as const, tournamentSlug: 'wimbledon-2026-duplas-wta', isDoubles: true },
-  { id: 136820, tour: 'atp' as const, tournamentSlug: 'wimbledon-2026-duplas-mistas', isDoubles: true },
+  { id: 136808, tour: 'atp', tournamentSlug: 'wimbledon-2026-duplas-atp', isDoubles: true },
+  { id: 136814, tour: 'wta', tournamentSlug: 'wimbledon-2026-duplas-wta', isDoubles: true },
+  { id: 136820, tour: 'atp', tournamentSlug: 'wimbledon-2026-duplas-mistas', isDoubles: true },
 ];
+
+// Cache em módulo: o poll corre a cada 30s no runner — 1 query por ciclo
+// seria aceitável, mas cachear 5 min poupa DB. Um torneio novo/desactivado
+// entra em ≤5 min (dentro da janela de 5.5h do runner).
+let seasonsCache: { at: number; data: SeasonCfg[] } | null = null;
+
+async function getActiveSeasons(): Promise<SeasonCfg[]> {
+  if (seasonsCache && Date.now() - seasonsCache.at < 5 * 60_000) return seasonsCache.data;
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const { data, error } = await supabase
+      .from('live_seasons')
+      .select('id, tour, tournament_slug, is_doubles, active, ends_at')
+      .eq('active', true);
+    // Erro (ex.: 42P01 relation does not exist) ou vazio → fallback.
+    if (error || !data || data.length === 0) return FALLBACK_SEASONS;
+    const rows: SeasonCfg[] = data
+      .filter(r => r.ends_at == null || (r.ends_at as string) >= today)
+      .map(r => ({
+        id: r.id as number,
+        tour: r.tour as 'atp' | 'wta',
+        tournamentSlug: r.tournament_slug as string,
+        isDoubles: r.is_doubles as boolean,
+      }));
+    if (rows.length === 0) return FALLBACK_SEASONS;
+    seasonsCache = { at: Date.now(), data: rows };
+    return rows;
+  } catch {
+    return FALLBACK_SEASONS;
+  }
+}
 
 const SR_BASE = 'https://lmt.fn.sportradar.com/betradar/en/Etc:UTC/gismo';
 const SR_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36';
@@ -430,7 +470,7 @@ async function maybeEmitPick(opts: {
   return !error;
 }
 
-async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[number]): Promise<{
+async function processMatch(m: SrSeasonMatch, season: SeasonCfg): Promise<{
   ok: boolean; reason?: string; settled?: boolean; pickEmitted?: boolean;
 }> {
   // Pull último snapshot deste match + verifica se já settled — UMA query.
@@ -469,9 +509,13 @@ async function processMatch(m: SrSeasonMatch, season: typeof ACTIVE_SEASONS[numb
   const state = buildState(data);
   if (!state) return { ok: false, reason: 'state_unparseable' };
 
-  // Wimbledon: singles masculinos BO5; tudo o resto (WTA + todas as
-  // duplas desde 2022) é BO3.
-  if (season.tour === 'atp' && !season.isDoubles && season.tournamentSlug.includes('wimbledon')) {
+  // Grand Slams: singles masculinos BO5; tudo o resto (WTA + todas as
+  // duplas desde 2022) é BO3. Generalizado a todos os Slams para o slug
+  // de outros majors (us-open, roland-garros, australian-open) inferir
+  // BO5 correctamente — senão o US Open masculino correria como BO3 e o
+  // modelo erraria.
+  const GRAND_SLAM_RE = /wimbledon|us-open|roland-garros|australian-open/;
+  if (season.tour === 'atp' && !season.isDoubles && GRAND_SLAM_RE.test(season.tournamentSlug)) {
     state.bestOf = 5;
   } else {
     state.bestOf = 3;
@@ -676,8 +720,9 @@ export async function pollOnce(): Promise<{ checked: number; running: number; se
   // Fetch fixtures das seasons em paralelo (não serial) + junta os
   // candidatos numa lista única. Antes ATP corria totalmente antes de
   // WTA começar, dobrando o cycle time. Agora ambas em paralelo.
+  const seasons = await getActiveSeasons();
   const seasonFixtures = await Promise.all(
-    ACTIVE_SEASONS.map(async (season) => {
+    seasons.map(async (season) => {
       const fixtures = await sr<{ doc: Array<{ data: { matches: SrSeasonMatch[] } }> }>(
         `stats_season_fixtures2/${season.id}/1`,
       );
@@ -696,7 +741,7 @@ export async function pollOnce(): Promise<{ checked: number; running: number; se
   // Alterna round-robin entre seasons para que ATP e WTA fiquem
   // igualmente distribuídos nos primeiros batches (evita starvar uma
   // delas se o total exceder 24-32 candidatos).
-  const interleaved: Array<{ m: SrSeasonMatch; season: typeof ACTIVE_SEASONS[number] }> = [];
+  const interleaved: Array<{ m: SrSeasonMatch; season: SeasonCfg }> = [];
   const maxLen = Math.max(...seasonFixtures.map(s => s.candidates.length));
   for (let i = 0; i < maxLen; i++) {
     for (const s of seasonFixtures) {
