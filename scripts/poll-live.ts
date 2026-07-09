@@ -45,6 +45,7 @@ async function main() {
   // antes do @/lib/supabase inicializar o createClient.
   const { pollOnce } = await import('@/lib/live-poll');
   const { ingestTwinOdds } = await import('@/lib/live-odds-core');
+  const { settleFromLiveState } = await import('@/lib/settle-core');
 
   const end = Date.now() + RUNTIME_MS;
   let iter = 0;
@@ -67,6 +68,21 @@ async function main() {
     let stateRes: Awaited<ReturnType<typeof pollOnce>> | null = null;
     try { stateRes = await pollOnce(); okState++; }
     catch (e) { failState++; console.error('  state err:', (e as Error).message.slice(0, 120)); }
+
+    // ── Settlement a cada 10 iterações (~5 min com INTERVAL 30s) ──
+    // Varre picks órfãs pré-live E live cujos matches já têm
+    // final_winner — safety-net que não depende de cron externo nem
+    // de invocations Vercel.
+    if (iter % 10 === 0) {
+      try {
+        const s = await settleFromLiveState();
+        if (s.settled > 0 || s.live_settled > 0 || s.live_orphan_no_odd_deleted > 0) {
+          console.log(`  settle: prelive=${s.settled} live=${s.live_settled} orphan_deleted=${s.live_orphan_no_odd_deleted}`);
+        }
+      } catch (e) {
+        console.error('  settle err:', (e as Error).message.slice(0, 120));
+      }
+    }
 
     if (iter % 10 === 0 || iter <= 3) {
       const t = new Date().toISOString().slice(11, 19);
