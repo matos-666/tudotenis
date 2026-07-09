@@ -320,14 +320,15 @@ async function processDoubles(m: IngestMatchDoubles, idx: PlayerIndex): Promise<
     doublesMatchId = newMatch.id as number;
   }
 
-  // Dedup: já emitimos hoje esta pick?
-  const today = new Date().toISOString().slice(0, 10);
+  // Dedup: 1 pick por doubles_match, sem janela de dia e sem filtrar por
+  // team_selected — o doubles_match_id já identifica o jogo de forma
+  // estável (o external_key inclui a data). O dedup antigo (posted_at >=
+  // hoje) deixava duplicar entre dias, e filtrar por team deixava sair
+  // 2ª pick quando o EV trocava de lado.
   const { data: existingPick } = await supabase
     .from('doubles_picks')
     .select('id')
     .eq('doubles_match_id', doublesMatchId)
-    .eq('team_selected', teamSel)
-    .gte('posted_at', `${today}T00:00:00Z`)
     .limit(1);
   if (existingPick && existingPick.length > 0) return 'skipped';
 
@@ -446,16 +447,27 @@ export async function POST(req: NextRequest) {
       skipped++; continue;
     }
 
-    // Dedup: já temos pick para este match (player+player) HOJE?
-    const today = new Date().toISOString().slice(0, 10);
-    const { data: existing } = await supabase
+    // Dedup: 1 pick por JOGO (par de jogadores + dia do scheduled_at),
+    // independente de quando foi emitida e de qual lado foi escolhido.
+    // O cron emite às ~04:30 para jogos do dia seguinte; no dia do jogo
+    // corre de novo — o dedup antigo (posted_at >= hoje) não via a pick
+    // da véspera e duplicava (visto em produção: Swiatek/Eala e
+    // Sabalenka/Osaka 2×). Comparamos o par nas DUAS ordens porque o
+    // lado com EV pode trocar entre runs quando as odds mexem.
+    // Nota: jogos adiados para outro dia geram nova pick — aceitável
+    // (odds re-preçadas = decisão nova).
+    const scheduled = parseKickoff(m.kickoff_date_text, m.kickoff_time_text);
+    const schedDay = (scheduled ?? new Date().toISOString()).slice(0, 10);
+    const { data: dayPicks } = await supabase
       .from('picks')
-      .select('id')
-      .eq('p1_name', pickPlayer.name)
-      .eq('p2_name', pickOpp.name)
-      .gte('posted_at', `${today}T00:00:00Z`)
-      .limit(1);
-    if (existing && existing.length > 0) { skipped++; continue; }
+      .select('id, p1_name, p2_name')
+      .gte('scheduled_at', `${schedDay}T00:00:00Z`)
+      .lt('scheduled_at', `${schedDay}T23:59:59Z`)
+      .limit(200);
+    const pairExists = (dayPicks ?? []).some(x =>
+      (x.p1_name === pickPlayer.name && x.p2_name === pickOpp.name) ||
+      (x.p1_name === pickOpp.name && x.p2_name === pickPlayer.name));
+    if (pairExists) { skipped++; continue; }
 
     const evPct = Math.round(pickEv * 10000) / 100;
     const row = {
@@ -473,7 +485,7 @@ export async function POST(req: NextRequest) {
       p2_flag: pickOpp.flag ?? null,
       tournament_name: info.name,
       surface: info.surface,
-      scheduled_at: parseKickoff(m.kickoff_date_text, m.kickoff_time_text),
+      scheduled_at: scheduled,
     };
     const { error } = await supabase.from('picks').insert(row);
     if (!error) inserted++;
