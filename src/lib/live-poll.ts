@@ -166,6 +166,19 @@ function pickStatDenom(d: SrDetailsExtended | null, key: string, kind: 'fraction
   return { a: parseStatDenom(v?.home, kind), b: parseStatDenom(v?.away, kind) };
 }
 
+// SR → representação do Markov (0=0, 1=15, 2=30, 3=40, 4=advantage;
+// live-markov.ts linha ~12). Em tiebreak os pontos são contagem directa.
+const PT_MAP: Record<string, number> = { '0': 0, '15': 1, '30': 2, '40': 3, 'A': 4, 'AD': 4, '50': 4 };
+function parseGamePoint(v: string | number | undefined | null, tiebreak: boolean): number | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  if (tiebreak) {
+    const n = parseInt(s, 10);
+    return Number.isFinite(n) ? n : null;
+  }
+  return PT_MAP[s] ?? null;
+}
+
 function buildState(m: SrMatchGet): MatchState | null {
   const periods = m.periods ?? {};
   const setKeys = Object.keys(periods).sort();
@@ -186,9 +199,9 @@ function buildState(m: SrMatchGet): MatchState | null {
   const curSetKey = setKeys[currentSetIdx];
   const cur = curSetKey ? periods[curSetKey] : { home: 0, away: 0 };
 
-  // Sportradar não publica point-level na season fixtures; vamos
-  // inferir do timeline-delta separately. Por agora point=0-0 a
-  // cada snapshot (refinado em iteração seguinte com timeline).
+  // Point-level e servidor vêm do match_timelinedelta e são preenchidos
+  // em processMatch (com carry-forward do lastSnap fora do bucket) —
+  // aqui ficam os defaults que o processMatch substitui.
   const tiebreak = cur.home === 6 && cur.away === 6;
 
   return {
@@ -477,7 +490,7 @@ async function processMatch(m: SrSeasonMatch, season: SeasonCfg): Promise<{
   // Stats carry-forward incluindo totals (denominador para Bayes).
   const { data: lastSnap } = await supabase
     .from('live_state')
-    .select('id, captured_at, final_winner, set_a, set_b, game_a, game_b, tiebreak, aces_a, aces_b, df_a, df_b, bp_won_a, bp_won_b, bp_total_a, bp_total_b, serve_pts_won_a, serve_pts_won_b, serve_pts_total_a, serve_pts_total_b, first_serve_won_a, first_serve_won_b, first_serve_in_a, first_serve_in_b')
+    .select('id, captured_at, final_winner, set_a, set_b, game_a, game_b, point_a, point_b, server, tiebreak, aces_a, aces_b, df_a, df_b, bp_won_a, bp_won_b, bp_total_a, bp_total_b, serve_pts_won_a, serve_pts_won_b, serve_pts_total_a, serve_pts_total_b, first_serve_won_a, first_serve_won_b, first_serve_in_a, first_serve_in_b')
     .eq('sr_match_id', m._id)
     .order('captured_at', { ascending: false })
     .limit(1)
@@ -536,6 +549,50 @@ async function processMatch(m: SrSeasonMatch, season: SeasonCfg): Promise<{
     const det = await sr<{ doc: Array<{ data: SrDetailsExtended }> }>(`match_detailsextended/${m._id}`);
     stats = det?.doc?.[0]?.data ?? null;
   }
+
+  // ── Pontos do game corrente + servidor via match_timelinedelta ────────
+  // O match_get não expõe point-level; o timeline completo pesa ~322KB.
+  // O timelinedelta (~3.6KB) traz o evento 'tennislastballinfo' com
+  // gamepoints {home,away} ('0'/'15'/'30'/'40'/'A') e eventos de ponto
+  // com 'service' ('1'=home serve, '2'=away). Fetch no MESMO bucket de
+  // 30s das stats; fora do bucket, carry-forward do lastSnap (só se o
+  // game não mudou — pontos de um game anterior são lixo).
+  let deltaPtA: number | null = null;
+  let deltaPtB: number | null = null;
+  let deltaServer: Server | null = null;
+  if (needsStats && running) {
+    interface DeltaEvent {
+      gamepoints?: { home: string | number; away: string | number };
+      service?: string | number;
+    }
+    const delta = await sr<{ doc: Array<{ data: { events?: unknown } }> }>(`match_timelinedelta/${m._id}`);
+    const evsRaw = delta?.doc?.[0]?.data?.events;
+    const evs: DeltaEvent[] = Array.isArray(evsRaw) ? evsRaw : Object.values(evsRaw ?? {});
+    for (let i = evs.length - 1; i >= 0; i--) {
+      const gp = evs[i]?.gamepoints;
+      if (gp) {
+        deltaPtA = parseGamePoint(gp.home, state.tiebreak);
+        deltaPtB = parseGamePoint(gp.away, state.tiebreak);
+        break;
+      }
+    }
+    for (let i = evs.length - 1; i >= 0; i--) {
+      const s = evs[i]?.service;
+      if (s === '1' || s === 1) { deltaServer = 'A'; break; }
+      if (s === '2' || s === 2) { deltaServer = 'B'; break; }
+    }
+  }
+  const sameGame = lastSnap != null &&
+    (lastSnap.set_a as number) === state.sA && (lastSnap.set_b as number) === state.sB &&
+    (lastSnap.game_a as number) === state.gA && (lastSnap.game_b as number) === state.gB;
+  state.ptA = deltaPtA ?? (sameGame ? Number(lastSnap?.point_a ?? 0) : 0);
+  state.ptB = deltaPtB ?? (sameGame ? Number(lastSnap?.point_b ?? 0) : 0);
+  const lastServer = (lastSnap?.server as Server | null) ?? null;
+  state.server = deltaServer
+    ?? (sameGame
+      ? (lastServer ?? state.server)
+      // game mudou sem delta: em jogo normal o serviço alterna a cada game
+      : (lastServer ? (lastServer === 'A' ? 'B' : 'A') : state.server));
   const aces = pickStat(stats, '130');
   const df = pickStat(stats, '132');
   const bpWon = pickStat(stats, '139');                       // "4/9" → 4 (won)
