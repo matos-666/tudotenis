@@ -66,6 +66,9 @@ jobs:
           # Mapeia os secrets existentes (SUPABASE_URL / SUPABASE_SERVICE_KEY)
           # para os nomes de env var que os libs @/lib/supabase esperam.
           NEXT_PUBLIC_SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
+          # O @/lib/supabase cria um cliente anon de topo ao importar —
+          # precisa da anon key mesmo que o poll só use o service role.
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "${{ secrets.SUPABASE_ANON_KEY }}"
           SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_KEY }}"
           CRON_SECRET: "${{ secrets.CRON_SECRET }}"
           POLL_RUNTIME_MS: "19800000"   # 5h30min
