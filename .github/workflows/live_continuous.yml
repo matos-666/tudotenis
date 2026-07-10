@@ -39,7 +39,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'   # 22 tem WebSocket nativo (o supabase-js
+                               # exige-o; Node 20 rebenta no realtime)
 
       - name: Cache Playwright browsers
         id: pw-cache
